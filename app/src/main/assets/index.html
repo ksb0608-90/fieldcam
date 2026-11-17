@@ -490,7 +490,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.14.0';
+const VERSION = '1.15.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -557,6 +557,13 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
 /* ---------- UI 공통 ---------- */
 function toast(m,ms){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast._t);toast._t=setTimeout(()=>t.style.display='none',ms||1800);}
 function openModal(id){$('#'+id).classList.add('on');}
+/* 팝업창 바깥(어두운 부분)을 누르면 닫기 – 모든 탭 공통. 진행 중 창·첫 조사자 설정은 제외 */
+let _mdDown=null;document.addEventListener('pointerdown',e=>{_mdDown=e.target;},true);
+document.addEventListener('click',e=>{const m=e.target;if(!m.classList||!m.classList.contains('modal')||!m.classList.contains('on')||_mdDown!==m)return;
+  if(m.id==='m-prog'||(m.id==='m-ins'&&!settings.inspector))return;
+  if(m.id==='m-ins'){closeModal('m-ins');return;}
+  const c=m.querySelector('#cf-no,#ib-no')||[...m.querySelectorAll('button')].reverse().find(b=>/^(닫기|취소)$/.test(b.textContent.trim()));
+  if(c)c.click();else m.classList.remove('on');});
 function closeModal(id){$('#'+id).classList.remove('on');}
 function confirmBox(msg,yes){return new Promise(r=>{$('#cf-msg').textContent=msg;$('#cf-yes').textContent=yes||'확인';openModal('m-cf');
   $('#cf-yes').onclick=()=>{closeModal('m-cf');r(true)};$('#cf-no').onclick=()=>{closeModal('m-cf');r(false)};});}
@@ -1049,12 +1056,13 @@ async function renderSide(){$('#v-map').classList.toggle('sideon',sideOn);if(!si
     el.querySelectorAll('.sp').forEach(x=>{sideObs.observe(x);x.onclick=()=>{const d=x.dataset.d,i=+x.dataset.i;if(d===curDid){if(i!==curPage){flushInk();curPage=i;selMark=null;hideQMenu();renderMap();}}else openDrawing(d,i);};});}
   renderLabelList();
   const on=el.querySelector('.sp.on');if(on){const r=on.getBoundingClientRect(),R=el.getBoundingClientRect();if(r.top<R.top||r.bottom>R.bottom)on.scrollIntoView({block:'center'});}}
+function byNDone(l,all){for(const o of all)if(o.num===l.num){const d=labelDone(o,all);if(d)return d;}return null;}
 async function renderLabelList(){const el=$('#mapSide');if(!sideOn||!curD||!el)return;let box=$('#lblList');
   if(!box){box=document.createElement('div');box.id='lblList';el.prepend(box);}
   const all=await scanLabels(curD,curPage);const byN=new Map();
   for(const l of all){const o=byN.get(l.num);if(!o||(!o.size&&l.size))byN.set(l.num,l);}   /* 망도 표기와 손상현황표 행이 같은 번호면 하나로 */
   const ls=[...byN.values()].sort((a,b)=>+a.num-+b.num);
-  box.innerHTML=`<div class="sh">기존 손상 · ${curPage+1}p (${ls.length})</div>`+(ls.length?ls.map((l,i)=>{const done=marks.find(m=>m.src==='pdf'&&m.did===curDid&&m.page===curPage&&m.dmg===l.num);
+  box.innerHTML=`<div class="sh">기존 손상 · ${curPage+1}p (${ls.length})</div>`+(ls.length?ls.map((l,i)=>{const done=byNDone(l,all);
       return `<div class="li${done?' done':''}" data-i="${i}"><b>#${esc(l.num)}</b> ${esc(l.name)}<br><span>${esc(l.size||'')}${done&&done.photoNos&&done.photoNos.length?' · ✓'+esc(nosLabel(done.photoNos)):''}${done?' · '+esc(done.type):''}</span></div>`;}).join('')
     :'<div class="muted" style="padding:4px">인식된 기존 손상 없음<br>(망도를 다시 불러오면 생길 수 있음)</div>');
   box.querySelectorAll('.li').forEach(x=>x.onclick=()=>{const l=ls[+x.dataset.i],p=curD.pages[curPage];
@@ -1101,7 +1109,7 @@ function drawMarks(){const d=curDrawing();if(!d)return;const p=d.pages[curPage];
   if(tmpPts&&tmpPts.length>1)h+=eraser?`<polyline points="${tmpPts.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')}" fill="none" stroke="#98a2b3" stroke-opacity=".45" stroke-width="${(ERASE_R[penSt.ew||2]||14)*2}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`
     :ink([tmpPts.map(q=>[q[0]/W,q[1]/H])],PEN_HEX[penSt.c],penSt.hl?.35:1,(PEN_W[penSt.w]||3.5)*(penSt.hl?3:1));
   if(settings.showLabels!==false){const ls=labelCache[curDid+':'+curPage];
-    if(ls){const pad=Math.max(3,W*0.002);for(const l of ls){const done=marks.find(m=>m.src==='pdf'&&m.did===curDid&&m.page===curPage&&m.dmg===l.num);
+    if(ls){const pad=Math.max(3,W*0.002);for(const l of ls){const done=labelDone(l,ls);
         const x=l.box[0]*W-pad,y=l.box[1]*H-pad,w=(l.box[2]-l.box[0])*W+pad*2,hh=(l.box[3]-l.box[1])*H+pad*2;
         h+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}" rx="${pad}" fill="#16a34a" fill-opacity="${done?.22:.07}" stroke="#16a34a" stroke-width="${done?2.5:1.6}" ${done?'':'stroke-dasharray="5 3"'} vector-effect="non-scaling-stroke"/>`;
         if(done&&done.photoNos&&done.photoNos.length)h+=`<text x="${(x+w).toFixed(1)}" y="${(y+hh).toFixed(1)}" dx="0.2em" style="font-size:calc(var(--fs) * .8px)" fill="#15803d">✓${esc(nosLabel(done.photoNos))}</text>`;}}
@@ -1293,7 +1301,8 @@ const CIRC='①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
 function numOf(t){t=String(t).trim();const c=CIRC.indexOf(t);if(c>=0)return String(c+1);const m=t.match(/^[(（]?(\d{1,3})[)）.]?$/);return m?String(+m[1]):null;}
 const isSize=t=>/(L\s*=|\d\s*[xX×*]\s*\d|\d\/\d|ea$|EA$|개소|T\s*=|㎡)/.test(t);
 const STATUS_W=/^(신규|기존|금회|변경|보수|삭제|진단|\d{2}[상하]|\d{2}진단)$/;
-const isName=t=>/[가-힣]{2,}/.test(t)&&!STATUS_W.test(t);
+const MEMBER_W=/^(벽체|헌치|슬래브|상부슬래브|하부슬래브|바닥판|바닥슬래브|거더|주형|가로보|세로보|교대|교각|기초|날개벽|흉벽|받침|교량받침|난간|방호벽|중분대|연석|신축이음|신축이음장치|배수구|배수시설|포장|기둥|코핑|측벽|정판|저판|상판|하판|라이닝|아치|우각부|격벽|벽|보도|차도|주부재|보조부재|부재|부재명)$/;
+const isName=t=>/[가-힣]{2,}/.test(t)&&!STATUS_W.test(t)&&!MEMBER_W.test(t);
 function dnoOf(ws){const k=ws.find(w=>/도면\s*번호/.test(w[4]));if(!k)return '';const Hm=medH(ws);let best=null,bd=1e9;
   for(const w of ws){if(w===k||!/^[A-Za-z\-]*\d{1,4}[A-Za-z\-\d]*$/.test(w[4]))continue;const dx=w[0]-k[2],dy=w[3]-k[3];
     if(dx>-Hm&&dx<0.25&&Math.abs(dy)<Hm*1.5){const d=dx+Math.abs(dy)*3;if(d<bd){bd=d;best=w;}}}return best?best[4]:'';}
@@ -1304,6 +1313,15 @@ function parseSize(s){const o={};let m;s=String(s||'');
   if((m=s.match(/(\d+)\s*(ea|개소)/i)))o.n=m[1];return o;}
 const NAME_BL=/^(손상명|손상현황표|손상규모|손상현황|손상물량표|구조물명|도면번호|도면명|준공년월|발주처|용역사|용역명|비고|개소|단위|물량|번호|구분|서울방향|부산방향|시점부|종점부)$/;
 const labelCache={};
+/* 기존 손상 상자 ↔ 촬영 표시 연결: 번호가 같아도 위치가 맞는 상자 하나만 (같은 번호 다른 글자 오연결 방지) */
+function labelDone(l,ls){const p=curD&&curD.pages[curPage];if(!p)return null;
+  const cand=marks.filter(m=>m.src==='pdf'&&m.did===curDid&&m.page===curPage&&m.dmg===l.num);if(!cand.length)return null;
+  const key=b=>b.map(v=>v.toFixed(4)).join(',');
+  for(const m of cand)if(m.lbox&&key(m.lbox)===key(l.box))return m;
+  const same=(ls||labelCache[curDid+':'+curPage]||[]).filter(o=>o.num===l.num);
+  const dist=(m,o)=>{const q=(m.pts&&m.pts[0])||[0,0],x=o.box[0]-6/p.w,y=(o.box[1]+o.box[3])/2;return Math.hypot(q[0]-x,q[1]-y);};
+  for(const m of cand){if(m.lbox)continue;let best=null,bd=1e9;for(const o of same){const d=dist(m,o);if(d<bd){bd=d;best=o;}}if(best===l||(best&&key(best.box)===key(l.box)))return m;}
+  return null;}
 /* 페이지의 기존 손상 표기(번호+손상명[+규모])를 모두 찾음 – 망도 위 표기와 손상현황표 행 */
 /* 글자 높이가 PDF·글꼴마다 들쭉날쭉할 수 있어, 줄 판단은 기준선(글자 아래쪽), 간격은 페이지 글자 크기 중간값으로 */
 function medH(ws){const hs=ws.map(w=>w[3]-w[1]).filter(h=>h>0).sort((a,b)=>a-b);return hs.length?hs[Math.floor(hs.length/2)]:0.01;}
@@ -1315,12 +1333,17 @@ async function scanLabels(d,i){const k=d.id+':'+i;if(labelCache[k])return labelC
     for(;;){let nx=null,bd=1e9;for(const c of it){if(used.has(c))continue;const gap=c.w[0]-last.w[2];if(gap<-Hm*0.5||gap>Hm*2.2||Math.abs(c.b-last.b)>Hm*0.6)continue;if(gap<bd){bd=gap;nx=c;}}
       if(!nx)break;ch.push(nx);used.add(nx);last=nx;}
     chains.push(ch);}
+  const TKEY=it.filter(a=>/^(구조물명|시설물명|교량명|터널명|도면명|용역명|공사명)$/.test(a.w[4]));
   const out=[];
   for(const c of chains){let num=null;const names=[],sizes=[];
-    for(const a of c){const t=a.w[4];const n=numOf(t);if(n!==null&&num===null){num=n;continue;}if(isName(t)&&!NAME_BL.test(t))names.push(t);else if(isSize(t))sizes.push(t);}
-    if(!names.length)continue;let cc=c;const b0=c[0].b;
-    if(num===null){let best=null,bd=1e9;for(const a of it){const gap=c[0].w[0]-a.w[2];if(gap<-Hm*0.3||gap>Hm*8||Math.abs(a.b-b0)>Hm*0.6||numOf(a.w[4])===null)continue;if(gap<bd){bd=gap;best=a;}}
-      if(best){num=numOf(best.w[4]);cc=[best,...c];}}
+    let real=0,mem=false,st=0;c.forEach((a,ix)=>{const t=a.w[4];const n=numOf(t);
+      if(n!==null&&num!==null&&mem&&!real){num=n;names.length=0;sizes.length=0;mem=false;st=ix;return;}   /* "3 슬래브 13 배수관…" → 부재번호 버리고 13 */
+      if(n!==null&&num===null){num=n;return;}if(isName(t)&&!NAME_BL.test(t)){names.push(t);real++;}else if(MEMBER_W.test(t)){names.push(t);mem=true;}else if(isSize(t))sizes.push(t);});
+    if(!real)continue;   /* 부재명(벽체 등)만 있으면 손상 아님 */
+    let cc=c.slice(st);const b0=cc[0].b;
+    if(TKEY.some(k=>Math.abs(k.b-b0)<Hm*0.8&&cc[0].w[0]>k.w[0]&&cc[0].w[0]-k.w[2]<0.12))continue;   /* 표제란(구조물명 석불제1 등) 제외 */
+    if(num===null){let best=null,bd=1e9;for(const a of it){const gap=cc[0].w[0]-a.w[2];if(gap<-Hm*0.3||gap>Hm*8||Math.abs(a.b-b0)>Hm*0.6||numOf(a.w[4])===null)continue;if(gap<bd){bd=gap;best=a;}}
+      if(best){num=numOf(best.w[4]);cc=[best,...cc];}}
     if(num===null||+num>999)continue;
     const x0=Math.min(...cc.map(a=>a.w[0])),x1=Math.max(...cc.map(a=>a.w[2])),bl=Math.max(...cc.map(a=>a.b));let by=bl,bx1=x1;
     for(const a of it){if(a.b>bl+Hm*0.3&&a.b<=bl+Hm*2.4&&a.w[2]>x0-Hm&&a.w[0]<x1+Hm&&isSize(a.w[4])){sizes.push(a.w[4]);bx1=Math.max(bx1,a.w[2]);by=Math.max(by,a.b);}}
@@ -1359,10 +1382,10 @@ async function existingMax(d,i){const k=d.id+':'+i;if(exMaxCache[k]!==undefined)
   return exMaxCache[k]=ls.reduce((m,l)=>Math.max(m,+l.num),0);}
 /* 신규 손상번호: 그 페이지의 기존 손상 마지막 번호와 이미 표시한 번호 다음 */
 async function nextDmgFor(d,i){const ex=await existingMax(d,i);let mx=ex;for(const m of marks)if(m.did===d.id&&m.page===i&&m.shape!=='ink'&&/^\d+$/.test(m.dmg||''))mx=Math.max(mx,+m.dmg);return mx+1;}
-function openPdfLabelMenu(l,q){const ex=marks.find(m=>m.src==='pdf'&&m.did===curDid&&m.page===curPage&&m.dmg===l.num);if(ex)return openMarkMenu(ex,q);
+function openPdfLabelMenu(l,q){const ex=labelDone(l);if(ex)return openMarkMenu(ex,q);
   const b=$('#qm-b');b.innerHTML='';$('#qm-h').textContent=`기존 손상 #${l.num} ${l.name}${l.size?' · '+l.size:''}${l.dno?'  (도면 '+l.dno+')':''}`;
   const mk=async type=>{const p=curD.pages[curPage];const sz=parseSize(l.size);
-    return await newMark('point',[[l.box[0]*p.w-6,(l.box[1]+l.box[3])/2*p.h]],null,type,{extra:Object.assign({dmg:l.num,content:l.name,note:l.size,src:'pdf',dno:l.dno},sz)});};
+    return await newMark('point',[[l.box[0]*p.w-6,(l.box[1]+l.box[3])/2*p.h]],null,type,{extra:Object.assign({dmg:l.num,content:l.name,note:l.size,src:'pdf',dno:l.dno,lbox:l.box.slice()},sz)});};
   let r=qrow();r.appendChild(qbtn('📷 촬영','acc big',async()=>{hideQMenu();const m=await mk('기존');shootMarkObj(m,false);}));
   if(NATIVE)r.appendChild(qbtn(settings.camMode==='app'?'기본 카메라':'앱 카메라','',async()=>{hideQMenu();const m=await mk('기존');shootMarkObj(m,true);}));b.appendChild(r);
   r=qrow();[['기존','기존(변화 없음)'],['변경','변경'],['보수','보수'],['삭제','삭제(없어짐)']].forEach(([t,lbl])=>r.appendChild(qbtn(lbl,'chip',async()=>{const m=await mk(t);openMarkMenu(m,q);})));b.appendChild(r);

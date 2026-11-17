@@ -13,7 +13,7 @@ android {
         minSdk 29          // 안드로이드 10 이상
         targetSdk 34
         versionCode runNo
-        versionName "1.14.${runNo}"
+        versionName "1.15.${runNo}"
     }
 
     // 고정 서명키: 업데이트 설치 시 기존 앱(기록)을 지우지 않고 덮어쓰기 위해 항상 같은 키 사용
