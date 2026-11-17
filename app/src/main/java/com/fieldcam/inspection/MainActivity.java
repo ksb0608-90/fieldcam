@@ -7,6 +7,11 @@ import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.pdf.PdfRenderer;
+import android.os.ParcelFileDescriptor;
+import android.provider.OpenableColumns;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -25,7 +30,12 @@ import android.widget.Toast;
 import androidx.core.content.FileProvider;
 import androidx.webkit.WebViewAssetLoader;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.File;
+import java.io.FileOutputStream;
+import java.util.ArrayList;
 import java.io.OutputStream;
 import java.util.Map;
 import java.util.UUID;
@@ -40,6 +50,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MainActivity extends Activity {
 
     private static final int REQ_CAMERA = 1001;
+    private static final int REQ_INAPP = 1002;
+    private static final int REQ_PDF = 1003;
+    private static final int PAGE_PX = 3600;   // 망도 페이지 가로 해상도(px)
     private static final String START_URL = "https://appassets.androidplatform.net/assets/index.html";
     private static final String ROOT_DIR = Environment.DIRECTORY_DOWNLOADS + "/현장카메라";
 
@@ -56,8 +69,14 @@ public class MainActivity extends Activity {
         web = new WebView(this);
         setContentView(web);
 
+        File camDir = new File(getCacheDir(), "cam");
+        File drawDir = new File(getFilesDir(), "drawings");
+        camDir.mkdirs();
+        drawDir.mkdirs();
         final WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .addPathHandler("/cam/", new WebViewAssetLoader.InternalStoragePathHandler(this, camDir))
+                .addPathHandler("/drawings/", new WebViewAssetLoader.InternalStoragePathHandler(this, drawDir))
                 .build();
 
         WebSettings s = web.getSettings();
@@ -138,6 +157,18 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_INAPP) {
+            ArrayList<String> files = data == null ? null : data.getStringArrayListExtra(CameraActivity.RESULT_FILES);
+            JSONArray arr = new JSONArray();
+            if (files != null) for (String f : files) arr.put(f);
+            callJs("window.onCameraResult && window.onCameraResult(" + arr.toString() + ")");
+            return;
+        }
+        if (requestCode == REQ_PDF) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) renderPdf(data.getData());
+            else callJs("window.onPdfError && window.onPdfError('')");
+            return;
+        }
         if (requestCode != REQ_CAMERA) return;
         if (resultCode == RESULT_OK && cameraUri != null) {
             finishChooser(new Uri[]{cameraUri});
@@ -152,6 +183,69 @@ public class MainActivity extends Activity {
         web.evaluateJavascript("(window.onAndroidBack && window.onAndroidBack()) ? 'y' : 'n'", value -> {
             if (value == null || !value.contains("y")) finish();
         });
+    }
+
+    private void callJs(final String code) {
+        runOnUiThread(() -> web.evaluateJavascript(code, null));
+    }
+
+    /* ---------- 망도 PDF → 페이지 이미지 ---------- */
+    private void renderPdf(final Uri uri) {
+        new Thread(() -> {
+            try {
+                String name = "망도";
+                try (Cursor c = getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+                    if (c != null && c.moveToFirst()) name = c.getString(0);
+                } catch (Exception ignored) {
+                }
+                String id = "d" + System.currentTimeMillis();
+                File dir = new File(getFilesDir(), "drawings/" + id);
+                dir.mkdirs();
+                JSONArray pages = new JSONArray();
+                try (ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r")) {
+                    PdfRenderer r = new PdfRenderer(pfd);
+                    int n = r.getPageCount();
+                    for (int i = 0; i < n; i++) {
+                        callJs("window.onPdfProgress && window.onPdfProgress(" + (i + 1) + "," + n + ")");
+                        PdfRenderer.Page p = r.openPage(i);
+                        int w = PAGE_PX;
+                        int h = Math.round((float) p.getHeight() * w / p.getWidth());
+                        if (h > PAGE_PX * 2) {   // 세로로 아주 긴 페이지
+                            h = PAGE_PX * 2;
+                            w = Math.round((float) p.getWidth() * h / p.getHeight());
+                        }
+                        Bitmap b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                        b.eraseColor(Color.WHITE);
+                        p.render(b, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                        p.close();
+                        File f = new File(dir, "p" + (i + 1) + ".png");
+                        try (FileOutputStream os = new FileOutputStream(f)) {
+                            b.compress(Bitmap.CompressFormat.PNG, 100, os);
+                        }
+                        b.recycle();
+                        JSONObject o = new JSONObject();
+                        o.put("file", id + "/p" + (i + 1) + ".png");
+                        o.put("w", w);
+                        o.put("h", h);
+                        pages.put(o);
+                    }
+                    r.close();
+                }
+                JSONObject res = new JSONObject();
+                res.put("id", id);
+                res.put("name", name);
+                res.put("pages", pages);
+                callJs("window.onPdfLoaded && window.onPdfLoaded(" + res.toString() + ")");
+            } catch (Throwable e) {
+                callJs("window.onPdfError && window.onPdfError(" + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
+            }
+        }).start();
+    }
+
+    private static void deleteTree(File f) {
+        File[] ch = f.listFiles();
+        if (ch != null) for (File c : ch) deleteTree(c);
+        f.delete();
     }
 
     /* ---------- 다운로드/현장카메라 폴더 저장 ---------- */
@@ -234,6 +328,45 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 return "ERR:" + e.getMessage();
             }
+        }
+
+        /** 앱 안 카메라 열기: {startNo, digits, info} */
+        @JavascriptInterface
+        public void openCamera(String json) {
+            runOnUiThread(() -> {
+                try {
+                    JSONObject o = new JSONObject(json);
+                    Intent i = new Intent(MainActivity.this, CameraActivity.class);
+                    i.putExtra(CameraActivity.EXTRA_START, o.optInt("startNo", 1));
+                    i.putExtra(CameraActivity.EXTRA_DIGITS, o.optInt("digits", 4));
+                    i.putExtra(CameraActivity.EXTRA_INFO, o.optString("info", ""));
+                    startActivityForResult(i, REQ_INAPP);
+                } catch (Exception e) {
+                    callJs("window.onCameraResult && window.onCameraResult([])");
+                }
+            });
+        }
+
+        /** 망도 PDF 선택 */
+        @JavascriptInterface
+        public void pickPdf() {
+            runOnUiThread(() -> {
+                try {
+                    Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    i.addCategory(Intent.CATEGORY_OPENABLE);
+                    i.setType("application/pdf");
+                    startActivityForResult(i, REQ_PDF);
+                } catch (Exception e) {
+                    callJs("window.onPdfError && window.onPdfError(" + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public String deleteDrawing(String id) {
+            if (id == null || id.isEmpty() || id.contains("/") || id.contains("..")) return "ERR:id";
+            deleteTree(new File(getFilesDir(), "drawings/" + id));
+            return "OK";
         }
 
         @JavascriptInterface

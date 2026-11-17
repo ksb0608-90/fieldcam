@@ -2,7 +2,7 @@ name: APK 빌드
 
 on:
   push:
-    branches: [ main ]
+    branches: [ '**' ]
   workflow_dispatch:
 
 permissions:
@@ -35,9 +35,10 @@ jobs:
           path: FieldCam.apk
 
       - name: 릴리스(다운로드 링크) 올리기
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.1.${{ github.run_number }}
-          name: 현장카메라 v1.1.${{ github.run_number }}
+          tag_name: v1.2.${{ github.run_number }}
+          name: 현장카메라 v1.2.${{ github.run_number }}
           files: FieldCam.apk
           make_latest: true
