@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#1f3a5f">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="현장카메라">
+<meta name="apple-mobile-web-app-title" content="인스펙맵">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>현장 카메라</title>
+<title>인스펙맵</title>
 <style>
 :root{--pri:#1f3a5f;--acc:#e8590c;--bg:#f2f4f7;--card:#fff;--line:#d0d5dd;--txt:#1d2939;--sub:#667085;--ok:#12a150;--bad:#d92d20}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -122,12 +122,22 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 .kpad .kg button{border:0;border-radius:10px;padding:14px 0;font-size:22px;font-weight:700;background:#344054;color:#fff}
 .kpad .kg button.f{background:#475467;font-size:17px}
 .kpad .kg button.ok{background:var(--acc);font-size:18px}
+#v-map:not(.viewing) .maptop,#v-map:not(.viewing) .mapwrap{display:none}
+#v-map.viewing .browse{display:none}
+.browse{flex:1;overflow:auto;padding:12px;max-width:1100px;width:100%;margin:0 auto}
+.crumbs{font-size:18px;font-weight:700;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.crumbs a{color:var(--pri);cursor:pointer;padding:4px 2px}
+.bitem{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer}
+.bitem .ic{font-size:30px}.bitem .nm{flex:1;min-width:0}.bitem .nm b{font-size:18px}
+.mtitle{max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-left:4px}
+.updbar{position:fixed;top:var(--hh);left:0;right:0;z-index:12;background:#027a48;color:#fff;padding:10px 14px;display:none;align-items:center;gap:10px;font-size:16px}
+.updbar.on{display:flex}.updbar .t{flex:1}
 </style>
 </head>
 <body>
 <header>
-  <div class="ttl" id="hdr">현장 카메라</div>
-  <button class="btn" id="hdrSess" style="padding:8px 12px;font-size:15px">조사 변경</button>
+  <div class="ttl" id="hdr">인스펙맵</div>
+  <button class="btn" id="hdrSess" style="padding:8px 12px;font-size:15px">망도 목록</button>
 </header>
 
 <main>
@@ -195,8 +205,13 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <!-- 망도 -->
 <section class="view" id="v-map">
+  <div class="browse" id="mapBrowse">
+    <div class="crumbs" id="crumbs"></div>
+    <div class="row" style="margin:10px 0"><button class="btn pri" onclick="addFolder()">＋ 폴더</button><button class="btn acc hide" id="bAddPdf" onclick="addDrawing()">＋ 망도 (PDF)</button></div>
+    <div id="browseList"></div>
+  </div>
   <div class="maptop">
-    <div class="grp"><select id="mapSel"></select><button class="btn" onclick="addDrawing()">＋ 망도</button><button class="btn" id="mapDel" title="망도 삭제">🗑</button></div>
+    <div class="grp"><button class="btn" onclick="closeDrawing()">◀ 목록</button><b id="mapTitle" class="mtitle"></b></div>
     <span class="sep"></span>
     <div class="grp"><button class="btn" onclick="goPage(-1)">◀</button><b id="mapPage" style="min-width:56px;text-align:center">-</b><button class="btn" onclick="goPage(1)">▶</button></div>
     <span class="sep"></span>
@@ -240,6 +255,10 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 <!-- 설정 -->
 <section class="view" id="v-set">
   <div class="card">
+    <div class="sw"><div>조사자<div class="muted">사진번호(파일명)에 들어가는 이름</div></div><div class="row"><b id="s-insp"></b><button class="btn" onclick="askInspector(true)">변경</button></div></div>
+    <div class="sw"><div>앱 버전 <span id="ver2"></span><div class="muted" id="updInfo"></div></div><div class="row"><button class="btn" onclick="checkUpd(true)">업데이트 확인</button><button class="btn acc hide" id="updBtn2" onclick="startUpd()">업데이트</button></div></div>
+  </div>
+  <div class="card">
     <div class="sw"><div>사진에 정보판 넣기<div class="muted">사진번호·손상번호·규모·날짜를 사진 하단에 표기</div></div><input type="checkbox" id="s-overlay"></div>
     <div class="sw" id="row-dl"><div>촬영 즉시 기기에도 저장<div class="muted">사진을 다운로드 폴더에 파일명 그대로 저장(백업용)</div></div><input type="checkbox" id="s-dl"></div>
     <div class="sw" id="row-cam"><div>기본 촬영 방식<div class="muted">앱 카메라: 셔터 한 번에 저장·연속 촬영 / 기본 카메라: 삼성 카메라 기능 사용</div></div><select id="s-cam"><option value="app">앱 카메라</option><option value="sys">기본 카메라</option></select></div>
@@ -278,10 +297,10 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 <input type="file" id="cam2" accept="image/*" capture="environment" class="hide">
 
 <nav>
-  <button data-v="shot" class="on">촬영</button>
-  <button data-v="map">망도</button>
+  <button data-v="map" class="on">망도</button>
+  <button data-v="shot">촬영</button>
   <button data-v="list">기록</button>
-  <button data-v="sess">조사 목록</button>
+  <button data-v="sess">조사</button>
   <button data-v="set">설정</button>
 </nav>
 
@@ -380,11 +399,32 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
   </div>
 </div>
 
+<div class="updbar" id="updBar"><span class="t" id="upd-txt"></span><button class="btn" onclick="startUpd()" style="background:#fff;color:#027a48">업데이트</button><button class="btn" onclick="$('#updBar').classList.remove('on')" style="background:transparent;color:#fff">나중에</button></div>
+
+<!-- 입력창 -->
+<div class="modal" id="m-in"><div class="box" style="max-width:460px">
+  <h3 id="ib-title"></h3><input id="ib-in" style="width:100%" autocomplete="off">
+  <div class="acts"><button class="btn" id="ib-no">취소</button><button class="btn pri" id="ib-ok">확인</button></div>
+</div></div>
+<!-- 메뉴 -->
+<div class="modal" id="m-act"><div class="box" style="max-width:420px">
+  <h3 id="ab-title"></h3><div class="acts" id="ab-acts" style="justify-content:flex-start"></div>
+</div></div>
+<!-- 조사자 -->
+<div class="modal" id="m-ins"><div class="box" style="max-width:480px">
+  <h3>조사자 설정</h3>
+  <div class="muted">사진번호(파일명)에 들어갑니다. 이 태블릿을 쓰는 사람 이름을 짧게 입력하세요. (예: 권)</div>
+  <input id="ins-name" style="width:100%;margin-top:10px" autocomplete="off" placeholder="조사자 이름">
+  <div class="lbl">주로 하는 시설물</div><div class="chips" id="ins-type"></div>
+  <div class="muted" style="margin-top:6px">부재·손상 목록의 기본값입니다. 시설물별로 [조사] 탭에서 바꿀 수 있습니다.</div>
+  <div class="acts"><button class="btn pri" id="ins-ok">확인</button></div>
+</div></div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 'use strict';
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -405,13 +445,14 @@ const DEF_WS = '0.1,0.2,0.3,0.4,0.5,1.0';
 /* ---------- 저장소 ---------- */
 let db;
 function openDB(){return new Promise((res,rej)=>{
-  const r=indexedDB.open('fieldcam',2);
+  const r=indexedDB.open('fieldcam',3);
   r.onupgradeneeded=e=>{const d=r.result;const old=e.oldVersion||0;
     if(old<1){d.createObjectStore('sessions',{keyPath:'id'});
       const rs=d.createObjectStore('records',{keyPath:'id'}); rs.createIndex('sid','sid');
       d.createObjectStore('photos');}
     if(old<2){d.createObjectStore('drawings',{keyPath:'id'}).createIndex('sid','sid');
-      d.createObjectStore('marks',{keyPath:'id'}).createIndex('sid','sid');}};
+      d.createObjectStore('marks',{keyPath:'id'}).createIndex('sid','sid');}
+    if(old<3){d.createObjectStore('folders',{keyPath:'id'});e.target.transaction.objectStore('marks').createIndex('did','did');}};
   r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);});}
 function tx(stores,mode,fn){return new Promise((res,rej)=>{
   const t=db.transaction(stores,mode); let out;
@@ -456,7 +497,7 @@ function chips(el,items,val,onPick,cls){el.innerHTML='';items.forEach(it=>{const
   b.className='chip'+(cls?' '+cls:'')+(it===val?' on':'');b.textContent=it;b.onclick=()=>onPick(it);el.appendChild(b);});}
 
 let view='shot';
-function show(v){view=v;document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));
+function show(v){view=v;renderHeader();document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#shutter').style.display=(v==='shot'&&curSess())?'':'none';
   $('#shutter2').classList.toggle('hide',!(NATIVE&&v==='shot'&&curSess()));
@@ -466,10 +507,10 @@ function show(v){view=v;document.querySelectorAll('.view').forEach(e=>e.classLis
   if(v==='map') renderMap();
   if(v==='list') renderList(); if(v==='sess') renderSess(); if(v==='set') renderSet(); if(v==='shot') renderShot();}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.v));
-$('#hdrSess').onclick=()=>show('sess');
+$('#hdrSess').onclick=()=>{if(curD)closeDrawing();show('map');};
 
 function renderHeader(){const s=curSess();
-  $('#hdr').innerHTML=s?`${esc(s.facility)}<small>${esc(s.site)} · ${esc(s.inspector)} · ${esc(s.ftype)}</small>`:'현장 카메라';}
+  $('#hdr').innerHTML=s?`${esc(s.facility)}<small>${esc(s.site)} · ${esc(s.inspector)} · ${esc(s.ftype)}</small>`:'인스펙맵';}
 
 /* ---------- 촬영 화면 ---------- */
 function saveDraft(){const s=curSess();if(s) LS.set('draft.'+s.id,form);}
@@ -648,7 +689,7 @@ let msType='도로교량',msEdit=null;
 function openSessModal(edit){msEdit=edit||null;const s=edit||{};
   $('#ms-title').textContent=edit?'조사 정보 수정':'새 조사';
   const last=curSess()||{};
-  $('#ms-site').value=s.site??last.site??'';$('#ms-fac').value=s.facility??'';$('#ms-insp').value=s.inspector??last.inspector??'';
+  $('#ms-site').value=s.site??last.site??'';$('#ms-fac').value=s.facility??'';$('#ms-insp').value=s.inspector??settings.inspector??last.inspector??'';
   $('#ms-p0').value=edit?s.nextPhoto:1;$('#ms-d0').value=edit?s.nextDmg:1;
   $('#ms-p0').previousElementSibling.textContent=edit?'다음 사진번호':'사진 시작번호';
   $('#ms-d0').previousElementSibling.textContent=edit?'다음 손상번호(금회)':'손상 시작번호(금회)';
@@ -696,13 +737,10 @@ function renderSess(){const g={};sessions.forEach(s=>(g[s.site]=g[s.site]||[]).p
       if(a==='exp')exportSess(s);
       if(a==='del')delSess(s);});});}
 
-async function delSess(s){if(!await confirmBox(`[${s.facility} · ${s.inspector}] 조사와 사진 ${s.count||0}장을 모두 삭제할까요?\n내보내기를 먼저 했는지 확인하세요.`,'모두 삭제'))return;
+async function delSess(s){if(!await confirmBox(`[${s.facility} · ${s.inspector}] 조사의 사진 기록 ${s.count||0}장을 앱에서 삭제할까요?\n(망도·손상 표시와 태블릿 폴더의 사진 파일은 남습니다)`,'모두 삭제'))return;
   if(!await confirmBox('정말 삭제합니다. 되돌릴 수 없습니다.','삭제'))return;
-  const recs=await recsOf(s.id);const dws=await byIdx('drawings',s.id);const mks=await byIdx('marks',s.id);
-  await tx(['records','photos','sessions','drawings','marks'],'readwrite',t=>{recs.forEach(r=>{t.objectStore('records').delete(r.id);t.objectStore('photos').delete(r.id);});
-    dws.forEach(d=>{t.objectStore('drawings').delete(d.id);d.pages.forEach((p,i)=>t.objectStore('photos').delete('dpg_'+d.id+'_'+i));});
-    mks.forEach(m=>t.objectStore('marks').delete(m.id));t.objectStore('sessions').delete(s.id);});
-  if(NATIVE)dws.forEach(d=>{try{Android.deleteDrawing(d.id)}catch(e){}});
+  const recs=await recsOf(s.id);
+  await tx(['records','photos','sessions'],'readwrite',t=>{recs.forEach(r=>{t.objectStore('records').delete(r.id);t.objectStore('photos').delete(r.id);});t.objectStore('sessions').delete(s.id);});
   sessions=sessions.filter(x=>x.id!==s.id);if(curId===s.id){curId=null;LS.set('cur',null);}
   renderHeader();renderSess();toast('삭제됨');}
 
@@ -744,18 +782,18 @@ async function runExport(list,zipName){if(!list.length){toast('내보낼 조사�
     if(navigator.canShare&&isIOS){try{const f=new File([zip],name,{type:'application/zip'});if(navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return;}}catch(e){if(e.name==='AbortError')return;}}
     if(NATIVE){$('#pg-msg').textContent='파일로 저장 중…';openModal('m-prog');
       try{await nativeWrite('내보내기',name,zip,'application/zip');}finally{closeModal('m-prog');}
-      toast(`다운로드/현장카메라/내보내기/${name} 저장 (${(zip.size/1048576).toFixed(1)}MB)`,5000);return;}
+      toast(`다운로드/인스펙맵/내보내기/${name} 저장 (${(zip.size/1048576).toFixed(1)}MB)`,5000);return;}
     downloadBlob(zip,name);toast(`${name} 저장 (${(zip.size/1048576).toFixed(1)}MB)`,3500);
   }catch(err){closeModal('m-prog');toast('내보내기 실패: '+err.message,5000);console.error(err);}}
 function exportSess(s){if(!s){toast('조사를 먼저 선택하세요');return;}runExport([s],`${safe(s.facility)}_${safe(s.inspector)}_${stampName()}`);}
-function exportAll(){runExport(sessions,`현장카메라_전체_${stampName()}`);}
+function exportAll(){runExport(sessions,`인스펙맵_전체_${stampName()}`);}
 
 /* ---------- 설정 ---------- */
-function renderSet(){$('#s-cam').value=settings.camMode;$('#row-cam').classList.toggle('hide',!NATIVE);$('#s-overlay').checked=settings.overlay;$('#s-dl').checked=settings.autoDl;$('#s-detail').checked=settings.detail;$('#s-digits').value=String(settings.digits);
+function renderSet(){$('#s-insp').textContent=settings.inspector||'-';$('#ver2').textContent=VERSION+(NATIVE?' (앱)':' (웹)');renderUpd();$('#s-cam').value=settings.camMode;$('#row-cam').classList.toggle('hide',!NATIVE);$('#s-overlay').checked=settings.overlay;$('#s-dl').checked=settings.autoDl;$('#s-detail').checked=settings.detail;$('#s-digits').value=String(settings.digits);
   const sel=$('#s-ptype');if(!sel.options.length)FTYPES.forEach(t=>sel.add(new Option(t,t)));if(curSess()&&!sel._touched)sel.value=curSess().ftype;loadPresetFields();
   $('#ver').textContent=VERSION+(NATIVE?' (앱)':' (웹)');
   $('#row-dl').classList.toggle('hide',NATIVE);$('#webInfo').classList.toggle('hide',NATIVE);
-  $('#nativeInfo').innerHTML=NATIVE?'사진과 촬영기록은 촬영할 때마다 <b>내 파일 &gt; 다운로드 &gt; 현장카메라 &gt; 현장 &gt; 시설물 &gt; 조사자</b> 폴더에 바로 저장됩니다. PC에 USB로 연결해 이 폴더를 복사하면 됩니다.<br>앱을 삭제해도 이 폴더의 사진은 남지만, 앱 안의 기록 목록은 지워집니다.':'';
+  $('#nativeInfo').innerHTML=NATIVE?'사진과 촬영기록은 촬영할 때마다 <b>내 파일 &gt; 다운로드 &gt; 인스펙맵 &gt; 현장 &gt; 시설물 &gt; 조사자</b> 폴더에 바로 저장됩니다. PC에 USB로 연결해 이 폴더를 복사하면 됩니다.<br>앱을 삭제해도 이 폴더의 사진은 남지만, 앱 안의 기록 목록은 지워집니다.':'';
   if(navigator.storage&&navigator.storage.estimate)navigator.storage.estimate().then(e=>{
     $('#storeInfo').textContent=`사용 ${(e.usage/1048576).toFixed(0)}MB / 가능 ${(e.quota/1073741824).toFixed(1)}GB`;});}
 function loadPresetFields(){const p=preset($('#s-ptype').value);$('#s-mem').value=p.mem.join(', ');$('#s-dmgs').value=p.dmg.join(', ');$('#s-ws').value=p.ws.join(', ');}
@@ -783,35 +821,89 @@ document.addEventListener('pointerdown',e=>{if(kpT&&!(e.target.closest&&e.target
 const MK_COLOR={금회:'#e11d48',기존:'#2563eb',변경:'#ea580c',보수:'#16a34a',삭제:'#6b7280',일반:'#7c3aed'};
 const MK_KEY={금회:'n',기존:'e',변경:'c',보수:'r',삭제:'d',일반:'g'};
 const SHAPE_NAME={line:'균열선',area:'면적',point:'점'};
-let drawings=[],marks=[],curDid=null,curPage=0,tool='pan',mv={s:1,tx:0,ty:0,fit:1},pageUrls={},selMark=null,tmpPts=null;
-const curDrawing=()=>drawings.find(d=>d.id===curDid)||null;
+let marks=[],curDid=null,curD=null,curPage=0,tool='pan',mv={s:1,tx:0,ty:0,fit:1},pageUrls={},selMark=null,tmpPts=null;
+let folders=[],curFolder=LS.get('map.folder',null);
+const curDrawing=()=>curD;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-async function loadMapData(){const s=curSess();if(!s){drawings=[];marks=[];curDid=null;return;}
-  drawings=(await byIdx('drawings',s.id)).sort((a,b)=>(a.created||'').localeCompare(b.created||''));
-  marks=await byIdx('marks',s.id);
-  if(!curDid||!drawings.find(d=>d.id===curDid)){const pref=LS.get('map.'+s.id,{});
-    if(pref.did&&drawings.find(d=>d.id===pref.did)){curDid=pref.did;curPage=pref.page||0;}else{curDid=drawings[0]?drawings[0].id:null;curPage=0;}}}
+const byIndex=(st,idx,val)=>tx([st],'readonly',t=>t.objectStore(st).index(idx).getAll(val));
+const byName=(a,b)=>a.name.localeCompare(b.name,'ko',{numeric:true});
+
+/* ---------- 망도 폴더 ---------- */
+async function loadFolders(){folders=await dbAll('folders');if(curFolder&&!folders.find(f=>f.id===curFolder))curFolder=null;}
+const fChildren=pid=>folders.filter(f=>(f.parentId||null)===(pid||null)).sort(byName);
+function fPath(id){const out=[];let f=folders.find(x=>x.id===id);let guard=0;while(f&&guard++<20){out.unshift(f);f=folders.find(x=>x.id===f.parentId);}return out;}
+async function ensureFolder(name,parentId){let f=folders.find(x=>x.name===name&&(x.parentId||null)===(parentId||null));
+  if(!f){f={id:uid(),name,parentId:parentId||null,created:nowStr()};await dbPut('folders',f);folders.push(f);}return f;}
+function guessType(name){const tn=/터널|tunnel/i.test(name);return (settings.rail?'철도':'도로')+(tn?'터널':'교량');}
+async function sessForDrawing(d){const path=fPath(d.folderId);const site=path.length?path[0].name:'미분류';const fac=path.length>=2?path[path.length-1].name:d.name;
+  const insp=settings.inspector||'미지정';let s=sessions.find(x=>x.site===site&&x.facility===fac&&x.inspector===insp);
+  if(!s){s={id:uid(),site,facility:fac,inspector:insp,ftype:guessType(fac+' '+d.name),nextPhoto:1,nextDmg:1,count:0,created:nowStr(),updated:nowStr()};await dbPut('sessions',s);sessions.push(s);}
+  if(curId!==s.id){curId=s.id;LS.set('cur',curId);loadDraft();}renderHeader();return s;}
+function inputBox(title,val,ph){return new Promise(r=>{$('#ib-title').textContent=title;const i=$('#ib-in');i.value=val||'';i.placeholder=ph||'';openModal('m-in');setTimeout(()=>i.focus(),50);
+  const done=v=>{closeModal('m-in');r(v);};$('#ib-ok').onclick=()=>done(i.value.trim()||null);$('#ib-no').onclick=()=>done(null);i.onkeydown=e=>{if(e.key==='Enter')done(i.value.trim()||null);};});}
+const badName=n=>/[\\/:*?"<>|]/.test(n);
+
+async function renderBrowse(){await loadFolders();if(view==='map')$('#hdr').innerHTML=`인스펙맵<small>조사자 ${esc(settings.inspector||'-')}</small>`;const all=await dbAll('drawings');const path=fPath(curFolder);
+  $('#crumbs').innerHTML=`<a data-f="">📂 전체</a>`+path.map(f=>` › <a data-f="${f.id}">${esc(f.name)}</a>`).join('');
+  $('#crumbs').querySelectorAll('a').forEach(a=>a.onclick=()=>{curFolder=a.dataset.f||null;LS.set('map.folder',curFolder);renderBrowse();});
+  const subs=fChildren(curFolder),dws=all.filter(d=>(d.folderId||null)===(curFolder||null)).sort(byName);
+  const cnt=id=>{let n=0,m=0;const walk=fid=>{n+=all.filter(d=>d.folderId===fid).length;fChildren(fid).forEach(c=>{m++;walk(c.id);});};walk(id);return {n,m};};
+  let h='';
+  for(const f of subs){const c=cnt(f.id);h+=`<div class="bitem" data-k="f" data-id="${f.id}"><span class="ic">📁</span><div class="nm"><b>${esc(f.name)}</b><div class="muted">${c.m?`폴더 ${c.m} · `:''}망도 ${c.n}</div></div><button class="btn" data-a="more">⋯</button></div>`;}
+  for(const d of dws){h+=`<div class="bitem" data-k="d" data-id="${d.id}"><span class="ic">📄</span><div class="nm"><b>${esc(d.name)}</b><div class="muted">${d.pages.length}페이지 · ${esc((d.created||'').slice(0,10))}</div></div><button class="btn" data-a="more">⋯</button></div>`;}
+  if(!h)h=curFolder?`<div class="empty">비어 있습니다.<br>[＋ 폴더]로 구조물 폴더를 만들거나 [＋ 망도]로 PDF를 넣으세요.</div>`
+    :`<div class="empty">아직 폴더가 없습니다.<br>[＋ 폴더]로 용역 폴더(예: PQ6)를 만든 뒤,<br>그 안에 구조물 폴더(예: 금곡교)를 만들고 망도 PDF를 넣으세요.</div>`;
+  $('#browseList').innerHTML=h;
+  $('#bAddPdf').classList.toggle('hide',!curFolder);
+  $('#browseList').querySelectorAll('.bitem').forEach(el=>{const id=el.dataset.id,k=el.dataset.k;
+    el.onclick=e=>{if(e.target.closest('[data-a]'))return;if(k==='f'){curFolder=id;LS.set('map.folder',curFolder);renderBrowse();}else openDrawing(id);};
+    el.querySelector('[data-a=more]').onclick=()=>k==='f'?folderMenu(id):drawingMenu(id);});}
+async function addFolder(){const n=await inputBox(curFolder?'새 폴더 (예: 금곡교)':'새 폴더 (예: PQ6)','', '폴더 이름');if(!n)return;
+  if(badName(n)){toast('폴더 이름에 \\ / : * ? " < > | 는 쓸 수 없습니다');return;}
+  if(fChildren(curFolder).find(f=>f.name===n)){toast('같은 이름의 폴더가 있습니다');return;}
+  await ensureFolder(n,curFolder);renderBrowse();}
+function actionBox(title,acts){return new Promise(r=>{$('#ab-title').textContent=title;const box=$('#ab-acts');box.innerHTML='';
+  acts.forEach(([lbl,cls,v])=>{const b=document.createElement('button');b.className='btn '+(cls||'');b.textContent=lbl;b.onclick=()=>{closeModal('m-act');r(v);};box.appendChild(b);});
+  const c=document.createElement('button');c.className='btn';c.textContent='닫기';c.onclick=()=>{closeModal('m-act');r(null);};box.appendChild(c);openModal('m-act');});}
+async function folderMenu(id){const f=folders.find(x=>x.id===id);const a=await actionBox(f.name,[['이름 변경','', 'ren'],['삭제','bad','del']]);
+  if(a==='ren'){const n=await inputBox('폴더 이름 변경',f.name);if(!n||n===f.name)return;if(badName(n)){toast('쓸 수 없는 문자가 있습니다');return;}
+    f.name=n;await dbPut('folders',f);toast('변경됨 (이후 사진은 새 이름 폴더에 저장)',3000);renderBrowse();}
+  if(a==='del'){const ids=[];const walk=fid=>{ids.push(fid);fChildren(fid).forEach(c=>walk(c.id));};walk(id);
+    const dws=(await dbAll('drawings')).filter(d=>ids.includes(d.folderId));
+    if(!await confirmBox(`[${f.name}] 폴더를 삭제할까요?\n하위 폴더 ${ids.length-1}개, 망도 ${dws.length}개와 손상 표시가 함께 지워집니다.\n(찍은 사진·기록은 남습니다)`,'삭제'))return;
+    for(const d of dws)await deleteDrawing(d);
+    await tx(['folders'],'readwrite',t=>ids.forEach(i=>t.objectStore('folders').delete(i)));renderBrowse();toast('삭제됨');}}
+async function drawingMenu(id){const d=await dbGet('drawings',id);const a=await actionBox(d.name,[['열기','pri','open'],['이름 변경','','ren'],['삭제','bad','del']]);
+  if(a==='open')openDrawing(id);
+  if(a==='ren'){const n=await inputBox('망도 이름 변경',d.name);if(!n||n===d.name)return;d.name=n;await dbPut('drawings',d);renderBrowse();}
+  if(a==='del'){const ms=await byIndex('marks','did',d.id);if(!await confirmBox(`[${d.name}] 망도를 삭제할까요?\n손상 표시 ${ms.length}개도 함께 지워집니다.\n(사진·기록은 남습니다)`,'삭제'))return;
+    await deleteDrawing(d);renderBrowse();toast('삭제됨');}}
+async function deleteDrawing(d){const ms=await byIndex('marks','did',d.id);
+  await tx(['drawings','marks','photos'],'readwrite',t=>{t.objectStore('drawings').delete(d.id);ms.forEach(m=>t.objectStore('marks').delete(m.id));(d.pages||[]).forEach((p,i)=>t.objectStore('photos').delete('dpg_'+d.id+'_'+i));});
+  if(NATIVE){try{Android.deleteDrawing(d.id)}catch(e){}}if(curDid===d.id){curDid=null;curD=null;}}
+
+/* ---------- 망도 보기 ---------- */
+async function openDrawing(id){const d=await dbGet('drawings',id);if(!d)return;await loadFolders();curDid=id;curD=d;
+  const pref=LS.get('page.'+id,0);curPage=pref<d.pages.length?pref:0;selMark=null;mv.page=null;await sessForDrawing(d);
+  marks=await byIndex('marks','did',id);LS.set('map.open',id);renderMap();}
+function closeDrawing(){closeMarkSheet(true);curDid=null;curD=null;LS.set('map.open',null);renderMap();}
 async function pageSrc(d,i){const p=d.pages[i];if(p.file)return 'https://appassets.androidplatform.net/drawings/'+p.file;
   const k=d.id+':'+i;if(!pageUrls[k]){const b=await dbGet('photos','dpg_'+d.id+'_'+i);pageUrls[k]=b?URL.createObjectURL(b):'';}return pageUrls[k];}
-async function renderMap(keepView){const s=curSess();await loadMapData();const d=curDrawing();
-  const sel=$('#mapSel');sel.innerHTML=drawings.length?drawings.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join(''):'<option>망도 없음</option>';if(d)sel.value=d.id;
+async function renderMap(keepView){const d=curD;$('#v-map').classList.toggle('viewing',!!d);
+  if(!d){renderBrowse();return;}
   document.querySelectorAll('#toolGrp .tbtn').forEach(b=>b.classList.toggle('on',b.dataset.t===tool));
-  $('#mapEmpty').classList.toggle('hide',!!d);$('#mapStage').classList.toggle('hide',!d);
-  if(!d){$('#mapPage').textContent='-';$('#mapEmpty').innerHTML=s?`<div>이 조사(${esc(s.facility)} · ${esc(s.inspector)})에 불러온 망도가 없습니다.</div><button class="btn pri" onclick="addDrawing()">＋ 망도 불러오기 ${NATIVE?'(PDF)':'(이미지)'}</button>`:'<div>조사를 먼저 선택하세요.</div>';return;}
   if(curPage>=d.pages.length)curPage=0;
-  $('#mapPage').textContent=`${curPage+1} / ${d.pages.length}`;
-  LS.set('map.'+s.id,{did:curDid,page:curPage});
+  $('#mapTitle').textContent=d.name;$('#mapPage').textContent=`${curPage+1} / ${d.pages.length}`;LS.set('page.'+d.id,curPage);
   const p=d.pages[curPage];const st=$('#mapStage');st.style.width=p.w+'px';st.style.height=p.h+'px';
-  const svg=$('#mapSvg');svg.setAttribute('viewBox',`0 0 ${p.w} ${p.h}`);
-  const img=$('#mapImg'),key=curDid+':'+curPage;
+  $('#mapSvg').setAttribute('viewBox',`0 0 ${p.w} ${p.h}`);
+  const img=$('#mapImg'),key=d.id+':'+curPage;
   if(img.dataset.key!==key){img.dataset.key=key;img.src=await pageSrc(d,curPage);keepView=false;}
-  if(!keepView||!mv.page||mv.page!==key){mv.page=key;requestAnimationFrame(fitView);}else applyView();
+  if(!keepView||mv.page!==key){mv.page=key;requestAnimationFrame(fitView);}else applyView();
   drawMarks();}
 function fitView(){const d=curDrawing();if(!d)return;const p=d.pages[curPage];const W=$('#mapWrap').clientWidth,H=$('#mapWrap').clientHeight;if(!W||!H)return;
   const s=Math.min(W/p.w,H/p.h)*0.98;Object.assign(mv,{s,fit:s,tx:(W-p.w*s)/2,ty:(H-p.h*s)/2});applyView();}
 function applyView(){$('#mapStage').style.transform=`translate(${mv.tx}px,${mv.ty}px) scale(${mv.s})`;$('#mapSvg').style.setProperty('--fs',(16/mv.s).toFixed(3));}
 function goPage(d){const dr=curDrawing();if(!dr)return;const n=clamp(curPage+d,0,dr.pages.length-1);if(n===curPage)return;curPage=n;selMark=null;closeMarkSheet(true);renderMap();}
-$('#mapSel').onchange=e=>{curDid=e.target.value;curPage=0;selMark=null;closeMarkSheet(true);renderMap();};
 document.querySelectorAll('#toolGrp .tbtn').forEach(b=>b.onclick=()=>{tool=b.dataset.t;document.querySelectorAll('#toolGrp .tbtn').forEach(x=>x.classList.toggle('on',x===b));});
 window.addEventListener('resize',()=>{if(view==='map'&&curDrawing())fitView();});
 
@@ -918,28 +1010,55 @@ $('#mk-del').onclick=async()=>{const e=mkEdit;if(!e)return;if(!marks.find(x=>x.i
   if(!await confirmBox(`이 손상 표시를 삭제할까요?\n(이미 찍은 사진·기록은 그대로 남습니다)`,'삭제'))return;
   await dbDel('marks',e.id);marks=marks.filter(x=>x.id!==e.id);closeMarkSheet();toast('표시 삭제됨');};
 
-/* 망도 불러오기·삭제 */
-function addDrawing(){if(!curSess()){toast('조사를 먼저 선택하세요');return;}
+/* 망도 불러오기 */
+function addDrawing(){if(!curFolder){toast('폴더를 먼저 만들고 들어간 뒤 망도를 넣으세요');return;}
   if(NATIVE&&Android.pickPdf)Android.pickPdf();else{$('#mapFile').value='';$('#mapFile').click();}}
 window.onPdfProgress=(i,n)=>{openModal('m-prog');$('#pg-msg').textContent=`망도 변환 중… ${i} / ${n} 페이지`;$('#pg-bar').style.width=(i/n*100).toFixed(0)+'%';};
-window.onPdfLoaded=async o=>{closeModal('m-prog');const s=curSess();
-  const d={id:o.id,sid:s.id,name:String(o.name||'망도').replace(/\.pdf$/i,''),pages:o.pages,created:nowStr()};
-  await dbPut('drawings',d);curDid=d.id;curPage=0;toast(`${d.name} (${d.pages.length}페이지) 불러옴`,3000);if(view!=='map')show('map');else renderMap();};
+window.onPdfLoaded=async o=>{closeModal('m-prog');
+  const d={id:o.id,folderId:curFolder,name:String(o.name||'망도').replace(/\.pdf$/i,''),pages:o.pages,created:nowStr()};
+  await dbPut('drawings',d);toast(`${d.name} (${d.pages.length}페이지) 불러옴`,3000);if(view!=='map')show('map');else renderMap();};
 window.onPdfError=m=>{closeModal('m-prog');if(m)toast('망도 열기 실패: '+m,5000);};
-$('#mapFile').onchange=async e=>{const fs=[...(e.target.files||[])];if(!fs.length)return;const s=curSess();const id='w'+uid();const pages=[];
+$('#mapFile').onchange=async e=>{const fs=[...(e.target.files||[])];if(!fs.length)return;const id='w'+uid();const pages=[];
   for(let i=0;i<fs.length;i++){const img=await loadImg(fs[i]);pages.push({w:imgW(img),h:imgH(img)});if(img.close)img.close();await dbPut('photos',fs[i],'dpg_'+id+'_'+i);}
   window.onPdfLoaded({id,name:fs[0].name.replace(/\.[^.]+$/,''),pages});};
-$('#mapDel').onclick=async()=>{const d=curDrawing();if(!d)return;const n=marks.filter(m=>m.did===d.id).length;
-  if(!await confirmBox(`[${d.name}] 망도를 삭제할까요?\n이 망도의 손상 표시 ${n}개도 함께 지워집니다.\n(사진·기록은 남습니다)`,'삭제'))return;
-  await tx(['drawings','marks','photos'],'readwrite',t=>{t.objectStore('drawings').delete(d.id);marks.filter(m=>m.did===d.id).forEach(m=>t.objectStore('marks').delete(m.id));d.pages.forEach((p,i)=>t.objectStore('photos').delete('dpg_'+d.id+'_'+i));});
-  if(NATIVE){try{Android.deleteDrawing(d.id)}catch(e){}}curDid=null;closeMarkSheet(true);renderMap();toast('망도 삭제됨');};
+
+/* ---------- 조사자·업데이트 ---------- */
+let ftRail=false;
+function askInspector(force){if(settings.inspector&&!force)return;$('#ins-name').value=settings.inspector||'';ftRail=!!settings.rail;
+  const pt=()=>chips($('#ins-type'),['도로','철도'],ftRail?'철도':'도로',v=>{ftRail=v==='철도';pt();});pt();openModal('m-ins');}
+$('#ins-ok').onclick=()=>{const n=$('#ins-name').value.trim();if(!n){toast('조사자 이름을 입력하세요');return;}if(badName(n)){toast('쓸 수 없는 문자가 있습니다');return;}
+  const changed=settings.inspector&&settings.inspector!==n;settings.inspector=n;settings.rail=ftRail;LS.set('settings',settings);closeModal('m-ins');
+  if(curD)sessForDrawing(curD);if(view==='set')renderSet();toast(changed?`조사자: ${n} (이후 사진부터 적용)`:`조사자: ${n}`);};
+let updManual=false,updInfo=null;
+function checkUpd(manual){if(!NATIVE||!Android.checkUpdate){if(manual)toast('앱에서만 사용할 수 있습니다');return;}updManual=!!manual;if(manual)toast('확인 중…');Android.checkUpdate();}
+window.onUpdateInfo=o=>{updInfo=o;renderUpd();
+  if(o.error){if(updManual)toast('업데이트 확인 실패 (인터넷 연결 확인)',3500);return;}
+  if(o.latest>o.current){$('#upd-txt').innerHTML=`새 버전 <b>${esc(o.latestName)}</b> 이 있습니다${o.notes?` · <span style="opacity:.85">${esc(o.notes.split('\n')[0])}</span>`:''}`;$('#updBar').classList.add('on');}
+  else if(updManual)toast(`최신 버전입니다 (${o.currentName})`,2500);};
+function startUpd(){$('#updBar').classList.remove('on');$('#pg-msg').textContent='새 버전 내려받는 중…';$('#pg-bar').style.width='0';openModal('m-prog');Android.startUpdate();}
+window.onUpdateProgress=(p,msg)=>{if(p===-2){closeModal('m-prog');return;}
+  if(p===-1){closeModal('m-prog');toast('업데이트 실패: '+(msg||''),5000);return;}
+  $('#pg-msg').textContent=`새 버전 내려받는 중… ${p}%`;$('#pg-bar').style.width=p+'%';
+  if(p>=100){closeModal('m-prog');toast('설치 화면에서 [업데이트]를 누르세요',5000);}};
+function renderUpd(){const el=$('#updInfo');if(!el)return;const o=updInfo;
+  el.textContent=!NATIVE?'웹 버전':!o?'확인 전':o.error?'확인 실패':(o.latest>o.current?`새 버전 ${o.latestName} 있음`:'최신 버전');
+  $('#updBtn2').classList.toggle('hide',!(o&&!o.error&&o.latest>o.current));}
+
+/* 이전 버전 데이터(조사별 망도) → 폴더로 옮기기 */
+async function migrateDrawings(){const ds=await dbAll('drawings');let n=0;await loadFolders();
+  for(const d of ds){if(d.folderId)continue;const s=sessions.find(x=>x.id===d.sid);const site=await ensureFolder(s?s.site:'이전 망도',null);
+    const fac=await ensureFolder(s?s.facility:'미분류',site.id);d.folderId=fac.id;await dbPut('drawings',d);n++;}
+  if(n)toast(`이전 망도 ${n}개를 폴더로 옮겼습니다`,3000);}
 
 /* ---------- 시작 ---------- */
 (async()=>{
   try{db=await openDB();}catch(e){document.body.innerHTML='<div class="empty">이 브라우저에서는 저장소를 쓸 수 없습니다 (시크릿 모드 확인).</div>';return;}
   if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
   sessions=await dbAll('sessions');if(!curSess())curId=null;
-  loadDraft();renderHeader();show(curSess()?'shot':'sess');
+  await migrateDrawings();
+  loadDraft();renderHeader();show('map');
+  askInspector();
+  if(NATIVE)setTimeout(()=>checkUpd(false),1500);
   if(!NATIVE&&'serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
 </script>
