@@ -93,7 +93,7 @@ nav{height:calc(var(--nh) + env(safe-area-inset-bottom))}
 .maptop .sep{width:1px;height:28px;background:var(--line);margin:0 4px}
 .tbtn.on{background:var(--pri);color:#fff}
 .mapwrap{flex:1;position:relative;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
-#mapStage{position:absolute;left:0;top:0;transform-origin:0 0;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+#mapStage{transition:opacity .15s;position:absolute;left:0;top:0;transform-origin:0 0;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.25)}
 #mapStage img{display:block;width:100%;height:100%;pointer-events:none;-webkit-user-drag:none}
 #mapSvg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none}
 #mapSvg text{font-size:calc(var(--fs,15) * 1px);font-weight:700;paint-order:stroke;stroke:#fff;stroke-width:calc(var(--fs,15) * .25px);stroke-linejoin:round}
@@ -261,13 +261,13 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
   <div class="card">
     <div class="sw"><div>사진에 정보판 넣기<div class="muted">사진번호·손상번호·규모·날짜를 사진 하단에 표기</div></div><input type="checkbox" id="s-overlay"></div>
     <div class="sw" id="row-dl"><div>촬영 즉시 기기에도 저장<div class="muted">사진을 다운로드 폴더에 파일명 그대로 저장(백업용)</div></div><input type="checkbox" id="s-dl"></div>
+    <div class="sw"><div>펜으로만 그리기<div class="muted">켜면 펜=그리기, 손가락=이동·확대·페이지 넘김 (자동: 펜을 한 번 쓰면 켜짐)</div></div><select id="s-pen"><option value="auto">자동</option><option value="on">켜기</option><option value="off">끄기</option></select></div>
     <div class="sw" id="row-cam"><div>기본 촬영 방식<div class="muted">앱 카메라: 셔터 한 번에 저장·연속 촬영 / 기본 카메라: 삼성 카메라 기능 사용</div></div><select id="s-cam"><option value="app">앱 카메라</option><option value="sys">기본 카메라</option></select></div>
     <div class="sw"><div>세부 입력란 표시<div class="muted">끄면 구분·손상번호만 보고 바로 촬영</div></div><input type="checkbox" id="s-detail"></div>
     <div class="sw"><div>사진번호 자릿수</div><select id="s-digits"><option>3</option><option>4</option><option>5</option></select></div>
   </div>
   <div class="card">
     <div class="lbl" style="margin-top:0">목록 편집 (쉼표로 구분)</div>
-    <div class="row"><select id="s-ptype"></select><span class="muted">시설물 종류별로 따로 저장됩니다</span></div>
     <div class="lbl">부재명</div><textarea id="s-mem"></textarea>
     <div class="lbl">손상내용</div><textarea id="s-dmgs"></textarea>
     <div class="lbl">폭 빠른 입력</div><input id="s-ws" style="width:100%">
@@ -309,7 +309,6 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
   <h3 id="ms-title">새 조사</h3>
   <div class="lbl">현장(용역)명</div><input id="ms-site" style="width:100%" placeholder="예: PQ6 강원" autocomplete="off"><div class="chips" id="ms-siteChips" style="margin-top:6px"></div>
   <div class="lbl">시설물명 <span class="muted">(파일명에 들어가므로 짧게)</span></div><input id="ms-fac" style="width:100%" placeholder="예: 금곡교" autocomplete="off">
-  <div class="lbl">시설물 종류</div><div class="chips" id="ms-type"></div>
   <div class="lbl">조사자 <span class="muted">(파일명에 들어가므로 짧게)</span></div><input id="ms-insp" style="width:100%" placeholder="예: 권" autocomplete="off"><div class="chips" id="ms-inspChips" style="margin-top:6px"></div>
   <div class="grid2" style="margin-top:4px">
     <label class="fld"><span>사진 시작번호</span><input id="ms-p0" class="kp" data-int="1" data-lbl="사진번호" readonly value="1"></label>
@@ -415,8 +414,6 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
   <h3>조사자 설정</h3>
   <div class="muted">사진번호(파일명)에 들어갑니다. 이 태블릿을 쓰는 사람 이름을 짧게 입력하세요. (예: 권)</div>
   <input id="ins-name" style="width:100%;margin-top:10px" autocomplete="off" placeholder="조사자 이름">
-  <div class="lbl">주로 하는 시설물</div><div class="chips" id="ins-type"></div>
-  <div class="muted" style="margin-top:6px">부재·손상 목록의 기본값입니다. 시설물별로 [조사] 탭에서 바꿀 수 있습니다.</div>
   <div class="acts"><button class="btn pri" id="ins-ok">확인</button></div>
 </div></div>
 
@@ -424,7 +421,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -470,9 +467,11 @@ const LS={get(k,d){try{const v=localStorage.getItem('fc.'+k);return v==null?d:JS
 const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 let settings=Object.assign({overlay:false,autoDl:!isIOS,detail:true,digits:4,camMode:'app'},LS.get('settings',{}));
 let presets=LS.get('presets',{});
-function preset(ft){const p=presets[ft]||{};const d=DEF_PRESET[ft]||DEF_PRESET['도로교량'];
-  return {mem:(p.mem??d.mem).split(',').map(s=>s.trim()).filter(Boolean),
-          dmg:(p.dmg??d.dmg).split(',').map(s=>s.trim()).filter(Boolean),
+function uniq(a){return [...new Set(a)];}
+const DEF_ALL={mem:uniq(Object.values(DEF_PRESET).flatMap(x=>x.mem.split(','))).join(','),dmg:uniq(Object.values(DEF_PRESET).flatMap(x=>x.dmg.split(','))).join(',')};
+function preset(){const p=presets.all||{};
+  return {mem:(p.mem??DEF_ALL.mem).split(',').map(s=>s.trim()).filter(Boolean),
+          dmg:(p.dmg??DEF_ALL.dmg).split(',').map(s=>s.trim()).filter(Boolean),
           ws:(p.ws??DEF_WS).split(',').map(s=>s.trim()).filter(Boolean)};}
 
 let sessions=[], curId=LS.get('cur',null);
@@ -510,7 +509,7 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.
 $('#hdrSess').onclick=()=>{if(curD)closeDrawing();show('map');};
 
 function renderHeader(){const s=curSess();
-  $('#hdr').innerHTML=s?`${esc(s.facility)}<small>${esc(s.site)} · ${esc(s.inspector)} · ${esc(s.ftype)}</small>`:'인스펙맵';}
+  $('#hdr').innerHTML=s?`${esc(s.facility)}<small>${esc(s.site)} · ${esc(s.inspector)}</small>`:'인스펙맵';}
 
 /* ---------- 촬영 화면 ---------- */
 function saveDraft(){const s=curSess();if(s) LS.set('draft.'+s.id,form);}
@@ -694,7 +693,6 @@ function openSessModal(edit){msEdit=edit||null;const s=edit||{};
   $('#ms-p0').previousElementSibling.textContent=edit?'다음 사진번호':'사진 시작번호';
   $('#ms-d0').previousElementSibling.textContent=edit?'다음 손상번호(금회)':'손상 시작번호(금회)';
   msType=s.ftype||last.ftype||'도로교량';
-  const pt=()=>chips($('#ms-type'),FTYPES,msType,t=>{msType=t;pt();});pt();
   chips($('#ms-siteChips'),[...new Set(sessions.map(x=>x.site))].slice(-8),null,v=>$('#ms-site').value=v,'rec');
   chips($('#ms-inspChips'),[...new Set(sessions.map(x=>x.inspector))].slice(-8),null,v=>$('#ms-insp').value=v,'rec');
   openModal('m-sess');}
@@ -722,7 +720,7 @@ function renderSess(){const g={};sessions.forEach(s=>(g[s.site]=g[s.site]||[]).p
   $('#sessBody').innerHTML=sites.length?sites.map(site=>`<div class="lbl">${esc(site)}</div>`+
     g[site].sort((a,b)=>(b.updated||'').localeCompare(a.updated||'')).map(s=>`
     <div class="card sess ${s.id===curId?'cur':''}" data-id="${s.id}">
-      <div class="info"><b>${esc(s.facility)}</b> <span class="tag">${esc(s.ftype)}</span>
+      <div class="info"><b>${esc(s.facility)}</b>
         <div>조사자 ${esc(s.inspector)} · ${s.count||0}장 · 다음 사진 ${pad(s.nextPhoto)} · 다음 손상 #${s.nextDmg}</div>
         <div>최근 ${esc((s.updated||'').slice(0,16))}</div></div>
       <button class="btn pri" data-a="use">${s.id===curId?'사용 중':'선택'}</button>
@@ -763,7 +761,7 @@ async function makeZip(entries,onProg){const enc=new TextEncoder(),parts=[],cen=
   z.setUint32(12,cenSize,true);z.setUint32(16,off,true);z.setUint16(20,0,true);
   return new Blob([...parts,...cen,z.buffer],{type:'application/zip'});}
 
-const CSV_COLS=[['사진번호',(r,s)=>pad(r.no)],['파일명',r=>r.file],['현장',(r,s)=>s.site],['시설물',(r,s)=>s.facility],['시설물종류',(r,s)=>s.ftype],['조사자',(r,s)=>s.inspector],
+const CSV_COLS=[['사진번호',(r,s)=>pad(r.no)],['파일명',r=>r.file],['현장',(r,s)=>s.site],['시설물',(r,s)=>s.facility],['조사자',(r,s)=>s.inspector],
   ['구분',r=>r.type],['손상번호',r=>r.dmg],['부재명',r=>r.mem],['세부위치',r=>r.loc],['손상내용',r=>r.content],['폭',r=>r.w],['길이',r=>r.l],['너비',r=>r.b],['개소',r=>r.n],['비고',r=>r.note],['촬영일시',r=>r.time],['망도',r=>r.dname||''],['페이지',r=>r.page||''],['표시형태',r=>r.shape||'']];
 function csvOf(s,recs){const q=v=>{v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
   return '﻿'+[CSV_COLS.map(c=>c[0]).join(','),...recs.map(r=>CSV_COLS.map(c=>q(c[1](r,s))).join(','))].join('\r\n');}
@@ -789,19 +787,18 @@ function exportSess(s){if(!s){toast('조사를 먼저 선택하세요');return;}
 function exportAll(){runExport(sessions,`인스펙맵_전체_${stampName()}`);}
 
 /* ---------- 설정 ---------- */
-function renderSet(){$('#s-insp').textContent=settings.inspector||'-';$('#ver2').textContent=VERSION+(NATIVE?' (앱)':' (웹)');renderUpd();$('#s-cam').value=settings.camMode;$('#row-cam').classList.toggle('hide',!NATIVE);$('#s-overlay').checked=settings.overlay;$('#s-dl').checked=settings.autoDl;$('#s-detail').checked=settings.detail;$('#s-digits').value=String(settings.digits);
-  const sel=$('#s-ptype');if(!sel.options.length)FTYPES.forEach(t=>sel.add(new Option(t,t)));if(curSess()&&!sel._touched)sel.value=curSess().ftype;loadPresetFields();
+function renderSet(){$('#s-pen').value=settings.penMode||'auto';$('#s-insp').textContent=settings.inspector||'-';$('#ver2').textContent=VERSION+(NATIVE?' (앱)':' (웹)');renderUpd();$('#s-cam').value=settings.camMode;$('#row-cam').classList.toggle('hide',!NATIVE);$('#s-overlay').checked=settings.overlay;$('#s-dl').checked=settings.autoDl;$('#s-detail').checked=settings.detail;$('#s-digits').value=String(settings.digits);
+  loadPresetFields();
   $('#ver').textContent=VERSION+(NATIVE?' (앱)':' (웹)');
   $('#row-dl').classList.toggle('hide',NATIVE);$('#webInfo').classList.toggle('hide',NATIVE);
   $('#nativeInfo').innerHTML=NATIVE?'사진과 촬영기록은 촬영할 때마다 <b>내 파일 &gt; 다운로드 &gt; 인스펙맵 &gt; 현장 &gt; 시설물 &gt; 조사자</b> 폴더에 바로 저장됩니다. PC에 USB로 연결해 이 폴더를 복사하면 됩니다.<br>앱을 삭제해도 이 폴더의 사진은 남지만, 앱 안의 기록 목록은 지워집니다.':'';
   if(navigator.storage&&navigator.storage.estimate)navigator.storage.estimate().then(e=>{
     $('#storeInfo').textContent=`사용 ${(e.usage/1048576).toFixed(0)}MB / 가능 ${(e.quota/1073741824).toFixed(1)}GB`;});}
-function loadPresetFields(){const p=preset($('#s-ptype').value);$('#s-mem').value=p.mem.join(', ');$('#s-dmgs').value=p.dmg.join(', ');$('#s-ws').value=p.ws.join(', ');}
-$('#s-ptype').onchange=()=>{$('#s-ptype')._touched=true;loadPresetFields();};
-function savePreset(){const ft=$('#s-ptype').value;presets[ft]={mem:$('#s-mem').value,dmg:$('#s-dmgs').value,ws:$('#s-ws').value};LS.set('presets',presets);toast('목록 저장됨');}
-function resetPreset(){delete presets[$('#s-ptype').value];LS.set('presets',presets);loadPresetFields();toast('기본값으로 되돌림');}
-function saveSet(){settings.camMode=$('#s-cam').value;settings.overlay=$('#s-overlay').checked;settings.autoDl=$('#s-dl').checked;settings.detail=$('#s-detail').checked;settings.digits=parseInt($('#s-digits').value,10);LS.set('settings',settings);}
-['s-cam','s-overlay','s-dl','s-detail','s-digits'].forEach(id=>$('#'+id).onchange=saveSet);
+function loadPresetFields(){const p=preset();$('#s-mem').value=p.mem.join(', ');$('#s-dmgs').value=p.dmg.join(', ');$('#s-ws').value=p.ws.join(', ');}
+function savePreset(){presets.all={mem:$('#s-mem').value,dmg:$('#s-dmgs').value,ws:$('#s-ws').value};LS.set('presets',presets);toast('목록 저장됨');}
+function resetPreset(){delete presets.all;LS.set('presets',presets);loadPresetFields();toast('기본값으로 되돌림');}
+function saveSet(){settings.penMode=$('#s-pen').value;settings.camMode=$('#s-cam').value;settings.overlay=$('#s-overlay').checked;settings.autoDl=$('#s-dl').checked;settings.detail=$('#s-detail').checked;settings.digits=parseInt($('#s-digits').value,10);LS.set('settings',settings);}
+['s-pen','s-cam','s-overlay','s-dl','s-detail','s-digits'].forEach(id=>$('#'+id).onchange=saveSet);
 
 /* ---------- 숫자패드 ---------- */
 let kpT=null;
@@ -834,7 +831,7 @@ const fChildren=pid=>folders.filter(f=>(f.parentId||null)===(pid||null)).sort(by
 function fPath(id){const out=[];let f=folders.find(x=>x.id===id);let guard=0;while(f&&guard++<20){out.unshift(f);f=folders.find(x=>x.id===f.parentId);}return out;}
 async function ensureFolder(name,parentId){let f=folders.find(x=>x.name===name&&(x.parentId||null)===(parentId||null));
   if(!f){f={id:uid(),name,parentId:parentId||null,created:nowStr()};await dbPut('folders',f);folders.push(f);}return f;}
-function guessType(name){const tn=/터널|tunnel/i.test(name);return (settings.rail?'철도':'도로')+(tn?'터널':'교량');}
+function guessType(){return '';}
 async function sessForDrawing(d){const path=fPath(d.folderId);const site=path.length?path[0].name:'미분류';const fac=path.length>=2?path[path.length-1].name:d.name;
   const insp=settings.inspector||'미지정';let s=sessions.find(x=>x.site===site&&x.facility===fac&&x.inspector===insp);
   if(!s){s={id:uid(),site,facility:fac,inspector:insp,ftype:guessType(fac+' '+d.name),nextPhoto:1,nextDmg:1,count:0,created:nowStr(),updated:nowStr()};await dbPut('sessions',s);sessions.push(s);}
@@ -903,7 +900,8 @@ async function renderMap(keepView){const d=curD;$('#v-map').classList.toggle('vi
 function fitView(){const d=curDrawing();if(!d)return;const p=d.pages[curPage];const W=$('#mapWrap').clientWidth,H=$('#mapWrap').clientHeight;if(!W||!H)return;
   const s=Math.min(W/p.w,H/p.h)*0.98;Object.assign(mv,{s,fit:s,tx:(W-p.w*s)/2,ty:(H-p.h*s)/2});applyView();}
 function applyView(){$('#mapStage').style.transform=`translate(${mv.tx}px,${mv.ty}px) scale(${mv.s})`;$('#mapSvg').style.setProperty('--fs',(16/mv.s).toFixed(3));}
-function goPage(d){const dr=curDrawing();if(!dr)return;const n=clamp(curPage+d,0,dr.pages.length-1);if(n===curPage)return;curPage=n;selMark=null;closeMarkSheet(true);renderMap();}
+function goPage(d){const dr=curDrawing();if(!dr)return;const n=clamp(curPage+d,0,dr.pages.length-1);if(n===curPage){toast(d>0?'마지막 페이지입니다':'첫 페이지입니다',1200);return;}
+  curPage=n;selMark=null;closeMarkSheet(true);const st=$('#mapStage');st.style.opacity='0.2';renderMap().then(()=>setTimeout(()=>st.style.opacity='',60));toast(`${n+1} / ${dr.pages.length} 페이지`,900);}
 document.querySelectorAll('#toolGrp .tbtn').forEach(b=>b.onclick=()=>{tool=b.dataset.t;document.querySelectorAll('#toolGrp .tbtn').forEach(x=>x.classList.toggle('on',x===b));});
 window.addEventListener('resize',()=>{if(view==='map'&&curDrawing())fitView();});
 
@@ -931,25 +929,40 @@ const wrap=$('#mapWrap'),ptrs=new Map();let G=null;
 const wp=e=>{const r=wrap.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};};
 const toPage=q=>[(q.x-mv.tx)/mv.s,(q.y-mv.ty)/mv.s];
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
-wrap.addEventListener('pointerdown',e=>{if(!curDrawing())return;try{wrap.setPointerCapture(e.pointerId)}catch(_){}ptrs.set(e.pointerId,wp(e));kpClose();
+let penDown=false;
+const penMode=()=>settings.penMode==='on'||(settings.penMode!=='off'&&settings.penSeen);
+wrap.addEventListener('pointerdown',e=>{if(!curDrawing())return;
+  const isPen=e.pointerType==='pen';
+  if(isPen&&!settings.penSeen){settings.penSeen=true;LS.set('settings',settings);if(settings.penMode!=='off')toast('펜이 감지되었습니다: 펜=그리기, 손가락=이동·확대·페이지 넘김',3500);}
+  if(!isPen&&penDown)return; /* 펜으로 그리는 중 손바닥 무시 */
+  try{wrap.setPointerCapture(e.pointerId)}catch(_){}ptrs.set(e.pointerId,wp(e));kpClose();
+  if(isPen){penDown=true;ptrs.clear();ptrs.set(e.pointerId,wp(e));}
   if(ptrs.size===2){const [a,b]=[...ptrs.values()];G={k:'pinch',d0:Math.max(dist(a,b),1),s0:mv.s,m0:mid(a,b),t0:{x:mv.tx,y:mv.ty}};tmpPts=null;drawMarks();return;}
   if(ptrs.size>2)return;const q=wp(e);
-  if((tool==='line'||tool==='area')&&e.button!==1)G={k:'draw',pts:[toPage(q)],last:q,start:q,maxd:0};
-  else G={k:'pan',start:q,t0:{x:mv.tx,y:mv.ty},moved:false};});
+  const canDraw=isPen||!penMode();
+  if(canDraw&&(tool==='line'||tool==='area')&&e.button!==1)G={k:'draw',pts:[toPage(q)],last:q,start:q,maxd:0,pen:isPen};
+  else G={k:'pan',start:q,t0:{x:mv.tx,y:mv.ty},moved:false,t:Date.now(),pen:isPen,canPoint:canDraw};});
 wrap.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,wp(e));if(!G)return;
   if(G.k==='pinch'&&ptrs.size>=2){const [a,b]=[...ptrs.values()];const ns=clamp(G.s0*dist(a,b)/G.d0,mv.fit*0.5,mv.fit*25);const m=mid(a,b);
     const px=(G.m0.x-G.t0.x)/G.s0,py=(G.m0.y-G.t0.y)/G.s0;mv.s=ns;mv.tx=m.x-px*ns;mv.ty=m.y-py*ns;applyView();}
   else if(G.k==='pan'){const q=wp(e),dx=q.x-G.start.x,dy=q.y-G.start.y;if(Math.hypot(dx,dy)>8)G.moved=true;if(G.moved){mv.tx=G.t0.x+dx;mv.ty=G.t0.y+dy;applyView();}}
   else if(G.k==='draw'){const q=wp(e);G.maxd=Math.max(G.maxd,dist(q,G.start));if(dist(q,G.last)>=3){G.pts.push(toPage(q));G.last=q;tmpPts=G.pts;drawMarks();}}});
-function endPtr(e){if(!ptrs.has(e.pointerId))return;const q=ptrs.get(e.pointerId);ptrs.delete(e.pointerId);if(!G)return;
+function endPtr(e){if(e.pointerType==='pen')penDown=false;if(!ptrs.has(e.pointerId))return;const q=ptrs.get(e.pointerId);ptrs.delete(e.pointerId);if(!G)return;
   if(G.k==='pinch'){if(ptrs.size===1){const r=[...ptrs.values()][0];G={k:'pan',start:r,t0:{x:mv.tx,y:mv.ty},moved:true};}else G=null;return;}
   if(ptrs.size>0)return;const g=G;G=null;tmpPts=null;
-  if(g.k==='pan'){if(!g.moved)onMapTap(g.start);return;}
+  if(g.k==='pan'){if(!g.moved){onMapTap(g.start,g.canPoint);return;}
+    /* 좌우로 밀기 → 페이지 넘김 (전체보기 상태이거나 페이지 끝이 보일 때) */
+    const dx=q.x-g.start.x,dy=q.y-g.start.y,d=curD,p=d&&d.pages[curPage];
+    if(p&&!g.pen&&Math.abs(dx)>90&&Math.abs(dx)>Math.abs(dy)*1.8&&Date.now()-g.t<700){const W=wrap.clientWidth,pw=p.w*mv.s;
+      const atFit=mv.s<=mv.fit*1.08,rightVis=g.t0.x+pw<=W+4,leftVis=g.t0.x>=-4;
+      if(dx<0&&(atFit||rightVis)&&curPage<d.pages.length-1){goPage(1);return;}
+      if(dx>0&&(atFit||leftVis)&&curPage>0){goPage(-1);return;}}
+    return;}
   if(g.k==='draw'){if(g.maxd<12||g.pts.length<3){drawMarks();onMapTap(g.start);return;}
     let pts=g.pts;if(pts.length>400){const st=Math.ceil(pts.length/400);pts=pts.filter((_,i)=>i%st===0||i===pts.length-1);}
     if(tool==='area'&&pts.length<3){drawMarks();return;}newMark(tool,pts);}}
 wrap.addEventListener('pointerup',endPtr);
-wrap.addEventListener('pointercancel',e=>{ptrs.delete(e.pointerId);if(!ptrs.size){G=null;tmpPts=null;drawMarks();}});
+wrap.addEventListener('pointercancel',e=>{if(e.pointerType==='pen')penDown=false;ptrs.delete(e.pointerId);if(!ptrs.size){G=null;tmpPts=null;drawMarks();}});
 wrap.addEventListener('wheel',e=>{if(!curDrawing())return;e.preventDefault();const q=wp(e),f=e.deltaY<0?1.15:1/1.15;const ns=clamp(mv.s*f,mv.fit*0.5,mv.fit*25);
   const px=(q.x-mv.tx)/mv.s,py=(q.y-mv.ty)/mv.s;mv.s=ns;mv.tx=q.x-px*ns;mv.ty=q.y-py*ns;applyView();},{passive:false});
 
@@ -959,8 +972,8 @@ function hitMark(q){const d=curDrawing(),p=d.pages[curPage];let best=null,bd=26;
   for(const m of marks){if(m.did!==curDid||m.page!==curPage)continue;const sp=m.pts.map(t=>({x:t[0]*p.w*mv.s+mv.tx,y:t[1]*p.h*mv.s+mv.ty}));let dd=Infinity;
     if(sp.length===1)dd=dist(sp[0],q);else{const seg=m.shape==='area'?[...sp,sp[0]]:sp;for(let i=1;i<seg.length;i++)dd=Math.min(dd,segDist(q,seg[i-1],seg[i]));if(m.shape==='area'&&inPoly(q,sp))dd=Math.min(dd,10);}
     if(dd<bd){bd=dd;best=m;}}return best;}
-function onMapTap(q){const m=hitMark(q);if(m){openMarkSheet(m);return;}
-  if(tool==='point'){newMark('point',[toPage(q)]);return;}
+function onMapTap(q,canPoint){const m=hitMark(q);if(m){openMarkSheet(m);return;}
+  if(tool==='point'&&canPoint!==false){newMark('point',[toPage(q)]);return;}
   if(selMark){closeMarkSheet();}}
 
 /* 손상 표시 */
@@ -1023,11 +1036,9 @@ $('#mapFile').onchange=async e=>{const fs=[...(e.target.files||[])];if(!fs.lengt
   window.onPdfLoaded({id,name:fs[0].name.replace(/\.[^.]+$/,''),pages});};
 
 /* ---------- 조사자·업데이트 ---------- */
-let ftRail=false;
-function askInspector(force){if(settings.inspector&&!force)return;$('#ins-name').value=settings.inspector||'';ftRail=!!settings.rail;
-  const pt=()=>chips($('#ins-type'),['도로','철도'],ftRail?'철도':'도로',v=>{ftRail=v==='철도';pt();});pt();openModal('m-ins');}
+function askInspector(force){if(settings.inspector&&!force)return;$('#ins-name').value=settings.inspector||'';openModal('m-ins');}
 $('#ins-ok').onclick=()=>{const n=$('#ins-name').value.trim();if(!n){toast('조사자 이름을 입력하세요');return;}if(badName(n)){toast('쓸 수 없는 문자가 있습니다');return;}
-  const changed=settings.inspector&&settings.inspector!==n;settings.inspector=n;settings.rail=ftRail;LS.set('settings',settings);closeModal('m-ins');
+  const changed=settings.inspector&&settings.inspector!==n;settings.inspector=n;LS.set('settings',settings);closeModal('m-ins');
   if(curD)sessForDrawing(curD);if(view==='set')renderSet();toast(changed?`조사자: ${n} (이후 사진부터 적용)`:`조사자: ${n}`);};
 let updManual=false,updInfo=null;
 function checkUpd(manual){if(!NATIVE||!Android.checkUpdate){if(manual)toast('앱에서만 사용할 수 있습니다');return;}updManual=!!manual;if(manual)toast('확인 중…');Android.checkUpdate();}
