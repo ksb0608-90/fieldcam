@@ -482,7 +482,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.10.0';
+const VERSION = '1.11.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -1122,6 +1122,7 @@ async function endPtr(e){if(e.pointerType==='pen')penDown=false;if(!ptrs.has(e.p
   if(g.k==='draw'){const bb=sbb(g.spts),size=Math.max(bb.w,bb.h);
     if(g.maxd<6){ /* 점 찍기: 글씨 중이면 소수점 */
       if(nearInk(bb)){addInkStroke(g);return;}drawMarks();onMapTap(g.start,true,g.pen);return;}
+    if(isClosed(g.spts)&&!nearInk(bb)){const l=await labelInLoop(g.spts);if(l){drawMarks();openPdfLabelMenu(l,{x:(bb.x0+bb.x1)/2,y:(bb.y0+bb.y1)/2});return;}}
     if(size<SMALL||(nearInk(bb)&&size<SMALL*1.6)){addInkStroke(g);return;}
     flushInk();
     let pts=g.pts;if(pts.length>400){const st=Math.ceil(pts.length/400);pts=pts.filter((_,i)=>i%st===0||i===pts.length-1);}
@@ -1283,6 +1284,13 @@ async function scanLabels(d,i){const k=d.id+':'+i;if(labelCache[k])return labelC
       for(const a of it){if(a.w[1]>=y1-L.h*0.3&&a.w[1]<y1+L.h*1.6&&a.w[2]>x0-L.h&&a.w[0]<x1+L.h&&isSize(a.w[4])){sizes.push(a.w[4]);bx1=Math.max(bx1,a.w[2]);by1=Math.max(by1,a.w[3]);}}
       out.push({num,name:names.join(' '),size:sizes.join(' '),box:[x0,y0,bx1,by1]});});}
   return labelCache[k]=out;}
+/* 펜으로 초록 상자(기존 손상)를 동그라미 쳤는지: 상자 중심이 동그라미 안에 있고 동그라미가 상자보다 너무 크지 않을 때 */
+async function labelInLoop(sp){if(!curD)return null;const p=curD.pages[curPage];const ls=await scanLabels(curD,curPage);if(!ls.length)return null;
+  const poly=sp.map(a=>({x:a[0],y:a[1]})),bb=sbb(sp),area=bb.w*bb.h,cx=(bb.x0+bb.x1)/2,cy=(bb.y0+bb.y1)/2;let best=null,bd=1e9;
+  for(const l of ls){const a=pg2s([l.box[0]*p.w,l.box[1]*p.h]),b=pg2s([l.box[2]*p.w,l.box[3]*p.h]);const c={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+    const ba=Math.max((b.x-a.x)*(b.y-a.y),1);if(!inPoly(c,poly))continue;if(area>Math.max(ba*12,150*150))continue;
+    const d=Math.hypot(c.x-cx,c.y-cy);if(d<bd){bd=d;best=l;}}
+  return best?Object.assign({},best,{dno:dnoOf(await pageWords(curD,curPage))}):null;}
 async function findLabel(q){const d=curD,p=d.pages[curPage];const ls=await scanLabels(d,curPage);let best=null,bd=1e9;
   for(const l of ls){const a=pg2s([l.box[0]*p.w,l.box[1]*p.h]),b=pg2s([l.box[2]*p.w,l.box[3]*p.h]);const pad=14;
     if(q.x>=a.x-pad&&q.x<=b.x+pad&&q.y>=a.y-pad&&q.y<=b.y+pad){const dd=Math.hypot(q.x-(a.x+b.x)/2,q.y-(a.y+b.y)/2);if(dd<bd){bd=dd;best=l;}}}
