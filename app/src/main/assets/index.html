@@ -267,6 +267,12 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <!-- 기록 -->
 <section class="view" id="v-list">
+  <div class="card" id="photoTop">
+    <div class="row"><div style="flex:1;min-width:220px"><div class="muted">다음 사진번호</div><div style="font-size:34px;font-weight:800;color:var(--acc);line-height:1.1" id="pNext">-</div>
+      <div class="muted" id="pCtx"></div></div>
+      <div class="fld" style="flex:1;min-width:200px"><span>비고 (일반 사진 설명, 선택)</span><input id="pNote" placeholder="예: A1 전경, 교량 측면" autocomplete="off"></div></div>
+    <div class="muted" style="margin-top:8px">손상 사진은 [망도]에서 표시를 길게 누르거나 기존 손상 글자를 탭해 촬영하세요. 여기 촬영 버튼은 전경·일반 사진용입니다.</div>
+  </div>
   <div class="row" style="margin-bottom:10px">
     <select id="listScope"><option value="cur">열린 망도</option><option value="all">이 구조물 전체</option></select>
     <select id="listFilter"><option value="">전체 구분</option></select>
@@ -305,13 +311,13 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
     <div class="sw" id="row-cam"><div>기본 촬영 방식<div class="muted">앱 카메라: 셔터 한 번에 저장·연속 촬영 / 기본 카메라: 삼성 카메라 기능 사용</div></div><select id="s-cam"><option value="app">앱 카메라</option><option value="sys">기본 카메라</option></select></div>
     <div class="sw"><div>사진에 정보판 넣기<div class="muted">사진번호·손상번호·규모·날짜를 사진 하단에 표기</div></div><input type="checkbox" id="s-overlay"></div>
     <div class="sw"><div>사진번호 자릿수</div><select id="s-digits"><option>3</option><option>4</option><option>5</option></select></div>
-    <div class="sw"><div>[촬영] 탭 세부 입력란 표시</div><input type="checkbox" id="s-detail"></div>
+    <input type="checkbox" id="s-detail" class="hide">
     <div class="sw" id="row-dl"><div>촬영 즉시 기기에도 저장 (웹)</div><input type="checkbox" id="s-dl"></div>
   </div>
   <div class="card">
     <div class="lbl" style="margin-top:0">구조물별 사진 번호 · 내보내기</div>
     <div class="sw"><div>구조물</div><select id="s-sess" style="max-width:60%"></select></div>
-    <div class="sw"><div>다음 사진번호 <b id="s-np">-</b> · 다음 손상번호 <b id="s-nd">-</b><div class="muted">태블릿 2대로 같은 구조물을 찍을 때는 한 대의 사진번호를 5001부터 시작</div></div><button class="btn" onclick="editNums()">번호 변경</button></div>
+    <div class="sw"><div>다음 사진번호 <b id="s-np">-</b><div class="muted">태블릿 2대로 같은 구조물을 찍을 때는 한 대의 사진번호를 5001부터 시작 · 신규 손상번호는 도면(페이지)별로 기존 손상 다음 번호가 자동 부여됨</div></div><button class="btn" onclick="editNums()">번호 변경</button></div>
     <div class="sw"><div>사진 ZIP 내보내기<div class="muted">카톡·메일 전송용 (사진은 이미 태블릿 폴더에 저장되어 있음)</div></div><div class="row"><button class="btn" onclick="exportSel()">이 구조물</button><button class="btn" onclick="exportAll()">전체</button></div></div>
     <div class="sw"><div>앱 안의 사진 기록 삭제<div class="muted">[기록] 목록에서만 지움 · 태블릿 폴더 사진과 망도 표시는 남음</div></div><button class="btn bad" onclick="delSel()">삭제</button></div>
   </div>
@@ -348,8 +354,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <nav>
   <button data-v="map" class="on">망도</button>
-  <button data-v="shot">촬영</button>
-  <button data-v="list">기록</button>
+  <button data-v="list">사진</button>
   <button data-v="set">설정</button>
 </nav>
 
@@ -473,7 +478,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.8.0';
+const VERSION = '1.9.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -548,10 +553,10 @@ function chips(el,items,val,onPick,cls){el.innerHTML='';items.forEach(it=>{const
   b.className='chip'+(cls?' '+cls:'')+(it===val?' on':'');b.textContent=it;b.onclick=()=>onPick(it);el.appendChild(b);});}
 
 let view='shot';
-function show(v){view=v;renderHeader();document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));
+function show(v){if(v==='shot')v='list';view=v;renderHeader();document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
-  $('#shutter').style.display=(v==='shot'&&curSess())?'':'none';
-  $('#shutter2').classList.toggle('hide',!(NATIVE&&v==='shot'&&curSess()));
+  $('#shutter').style.display=(v==='list'&&curSess())?'':'none';
+  $('#shutter2').classList.toggle('hide',!(NATIVE&&v==='list'&&curSess()));
   if(v!=='shot') $('#after').classList.remove('on');
   if(v!=='map'){closeMarkSheet(true);hideQMenu();flushInk();}
   kpClose();
@@ -616,7 +621,7 @@ async function renderShot(){const s=curSess();
 function rowHtml(r){const size=[r.w&&('폭 '+r.w),r.l&&('L '+r.l),r.b&&('B '+r.b),r.n&&(r.n+'개소')].filter(Boolean).join(' · ');
   return `<tr class="click" data-id="${r.id}"><td style="width:80px"><img src="${r.thumb||''}"></td>
   <td><b style="font-size:18px">${pad(r.no)}</b><br><span class="tag ${esc(r.type)}">${esc(r.type)}</span> ${r.dmg?'#'+esc(r.dmg):''}</td>
-  <td>${esc([r.mem,r.loc].filter(Boolean).join(' '))}<br><span class="muted">${esc(r.content)} ${esc(size)}</span></td>
+  <td>${esc([r.mem,r.loc].filter(Boolean).join(' '))}<br><span class="muted">${esc(r.content)} ${esc(size)}${r.note?' · '+esc(r.note):''}</span></td>
   <td class="muted" style="width:90px">${esc((r.time||'').slice(5,16))}</td></tr>`;}
 function bindRows(el){el.querySelectorAll('tr.click').forEach(tr=>tr.onclick=()=>openRec(tr.dataset.id));}
 
@@ -627,7 +632,7 @@ function camInfo(c){const s=curSess();return [`${s.facility} · ${s.inspector}`,
 function shoot(ctx,mode){if(!curSess())return;kpClose();camCtx=ctx;mode=mode||settings.camMode;
   if(NATIVE&&mode==='app'&&Android.openCamera){Android.openCamera(JSON.stringify({startNo:curSess().nextPhoto,digits:settings.digits,info:camInfo(ctx)}));}
   else{$('#cam').value='';$('#cam').click();}}
-const formCtx=()=>Object.assign({},form,curD?{did:curD.id,dname:curD.name,page:curPage+1,dno:dnoOf(wordCache[curDid+':'+curPage]||[])}:{});
+const formCtx=()=>Object.assign({type:'일반',note:($('#pNote').value||'').trim()},curD?{did:curD.id,dname:curD.name,page:curPage+1,dno:dnoOf(wordCache[curDid+':'+curPage]||[]),shape:'일반'}:{});
 $('#shutter').onclick=()=>shoot(formCtx());
 $('#shutter2').onclick=()=>shoot(formCtx(),settings.camMode==='app'?'sys':'app');
 $('#cam').onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;const ctx=camCtx||formCtx();
@@ -690,9 +695,7 @@ async function saveCapture(file,ctx,quiet){ctx=ctx||form;const s=curSess();
   if(NATIVE) await nativeSavePhoto(s,r,blob); else if(settings.autoDl) downloadBlob(blob,r.file);
   lastSaved=r;
   if(ctx.markId){if(!quiet)toast(`${r.file} 저장`);return r;}
-  $('#afterImg').src=r.thumb;$('#afterTxt').innerHTML=`<b>${pad(r.no)}</b> 저장됨 ${r.dmg?'· 손상 #'+esc(r.dmg):''}<br><span style="opacity:.75">같은 손상은 바로 [촬영]</span>`;
-  $('#after').classList.add('on');clearTimeout(saveCapture._t);saveCapture._t=setTimeout(()=>$('#after').classList.remove('on'),12000);
-  if(!quiet)toast(`${r.file} 저장`);renderShot();return r;}
+  if(!quiet)toast(`${r.file} 저장`);if(view==='list')renderList();return r;}
 
 function nextDamage(){const s=curSess();const t=form.type;form=blankForm();form.type=t;
   if(t==='금회') form.dmg=String(s.nextDmg);
@@ -700,8 +703,10 @@ function nextDamage(){const s=curSess();const t=form.type;form=blankForm();form.
 
 /* ---------- 기록 ---------- */
 async function renderList(){const s=curSess();const sel=$('#listFilter');
+  $('#pNext').textContent=s?pad(s.nextPhoto):'-';$('#pCtx').textContent=s?(curD?`${s.facility} · 망도: ${curD.name} ${curPage+1}페이지${(()=>{const n=dnoOf(wordCache[curDid+':'+curPage]||[]);return n?' (도면 '+n+')':'';})()}`:`${s.facility} · 망도 없음`):'망도를 먼저 여세요';
+  $('#shutter').style.display=view==='list'&&s?'':'none';
   if(sel.options.length===1) TYPES.forEach(t=>sel.add(new Option(t,t)));
-  if(!s){$('#listBody').innerHTML='<div class="empty">선택된 조사가 없습니다.</div>';$('#listCount').textContent='';return;}
+  if(!s){$('#listBody').innerHTML='<div class="empty">아직 연 망도가 없습니다. [망도] 탭에서 구조물 망도를 여세요.</div>';$('#listCount').textContent='';return;}
   let rs=(await recsOf(s.id)).sort((a,b)=>b.no-a.no);const f=sel.value;if(f) rs=rs.filter(r=>r.type===f);
   const scope=curD?$('#listScope').value:'all';$('#listScope').classList.toggle('hide',!curD);
   if(scope==='cur')rs=rs.filter(r=>recIn(r,curD));
@@ -857,14 +862,14 @@ function renderSet(){$('#s-words').checked=!!settings.showWords;$('#s-pen').valu
   sel.innerHTML=ss.length?ss.map(x=>`<option value="${x.id}">${esc(x.site)} › ${esc(x.facility)} · ${esc(x.inspector)} (${x.count||0}장)</option>`).join(''):'<option value="">(아직 없음)</option>';
   if(curSess())sel.value=curId;showNums();}
 const selSess=()=>sessions.find(x=>x.id===$('#s-sess').value)||null;
-function showNums(){const x=selSess();$('#s-np').textContent=x?pad(x.nextPhoto):'-';$('#s-nd').textContent=x?'#'+x.nextDmg:'-';}
+function showNums(){const x=selSess();$('#s-np').textContent=x?pad(x.nextPhoto):'-';}
 $('#s-sess').onchange=showNums;
 async function editNums(){const x=selSess();if(!x)return;
   const a=await inputBox(`다음 사진번호 (${x.facility} · ${x.inspector})`,String(x.nextPhoto));if(a===null)return;const np=parseInt(a,10);if(!(np>=1)){toast('숫자를 입력하세요');return;}
-  const b=await inputBox('다음 손상번호(신규)',String(x.nextDmg));if(b===null)return;const nd=parseInt(b,10);if(!(nd>=1)){toast('숫자를 입력하세요');return;}
+  const nd=x.nextDmg;
   const recs=await recsOf(x.id);const mx=recs.reduce((m,r)=>Math.max(m,r.no),0);
   if(np<=mx&&!await confirmBox(`이미 ${pad(mx)}번까지 찍었습니다. ${pad(np)}부터 쓰면 번호가 겹칠 수 있습니다. 계속할까요?`))return;
-  x.nextPhoto=np;x.nextDmg=nd;await dbPut('sessions',x);showNums();toast('번호 변경됨');if(view==='shot')renderShot();}
+  x.nextPhoto=np;x.nextDmg=nd;await dbPut('sessions',x);showNums();toast('번호 변경됨');}
 function exportSel(){const x=selSess();if(!x){toast('구조물이 없습니다');return;}exportSess(x);}
 async function delSel(){const x=selSess();if(!x)return;await delSess(x);renderSet();}
 function loadPresetFields(){const p=preset();$('#s-mem').value=p.mem.join(', ');$('#s-dmgs').value=p.dmg.join(', ');$('#s-ws').value=p.ws.join(', ');}
@@ -1248,6 +1253,18 @@ async function findLabel(q){const d=curD,p=d.pages[curPage];const ws=await pageW
   sw.filter(w=>w.y0>=by1-h*0.3&&w.y0<by1+h*1.6&&w.x1>bx0-h&&w.x0<bx1+h&&isSize(w.t)).sort((x,y)=>x.x0-y.x0).forEach(w=>sizes.push(w.t));
   const box=[Math.min(...cl.map(w=>w.w[0])),Math.min(...cl.map(w=>w.w[1])),Math.max(...cl.map(w=>w.w[2])),Math.max(...cl.map(w=>w.w[3]))];
   return {num,name:names.join(' '),size:sizes.join(' '),box,dno:dnoOf(ws)};}
+/* 페이지(도면)에 인쇄된 기존 손상 번호 중 가장 큰 값 */
+const exMaxCache={};
+async function existingMax(d,i){const k=d.id+':'+i;if(exMaxCache[k]!==undefined)return exMaxCache[k];const ws=await pageWords(d,i);let mx=0;
+  const lines=ws.map(w=>({w,cy:(w[1]+w[3])/2,h:Math.max(w[3]-w[1],1e-4)}));
+  for(const a of lines){if(!isName(a.w[4]))continue;
+    const same=lines.filter(b=>Math.abs(b.cy-a.cy)<a.h*0.6).sort((x,y)=>x.w[0]-y.w[0]);const i0=same.indexOf(a);let num=null;
+    for(let j=i0-1;j>=0;j--){const gap=same[j+1].w[0]-same[j].w[2];if(gap>a.h*(j===i0-1?8:2.2))break;const n=numOf(same[j].w[4]);if(n!==null){num=n;break;}}
+    if(num===null)for(let j=i0+1;j<same.length;j++){const gap=same[j].w[0]-same[j-1].w[2];if(gap>a.h*2.2)break;const n=numOf(same[j].w[4]);if(n!==null){num=n;break;}}
+    if(num!==null&&+num<1000)mx=Math.max(mx,+num);}
+  return exMaxCache[k]=mx;}
+/* 신규 손상번호: 그 페이지의 기존 손상 마지막 번호와 이미 표시한 번호 다음 */
+async function nextDmgFor(d,i){const ex=await existingMax(d,i);let mx=ex;for(const m of marks)if(m.did===d.id&&m.page===i&&m.shape!=='ink'&&/^\d+$/.test(m.dmg||''))mx=Math.max(mx,+m.dmg);return mx+1;}
 function openPdfLabelMenu(l,q){const ex=marks.find(m=>m.src==='pdf'&&m.did===curDid&&m.page===curPage&&m.dmg===l.num);if(ex)return openMarkMenu(ex,q);
   const b=$('#qm-b');b.innerHTML='';$('#qm-h').textContent=`기존 손상 #${l.num} ${l.name}${l.size?' · '+l.size:''}${l.dno?'  (도면 '+l.dno+')':''}`;
   const mk=async type=>{const p=curD.pages[curPage];const sz=parseSize(l.size);
@@ -1279,11 +1296,11 @@ async function openMarkMenu(m,q){selMark=m;drawMarks();const b=$('#qm-b');b.inne
   b.appendChild(r);
   if(!m.group){r=qrow();const list=m.shape==='line'?LINE_DMG():m.shape==='area'?AREA_DMG():preset().dmg;
     list.forEach(c=>r.appendChild(qbtn(esc(c),'chip'+(m.content===c?' on':''),async()=>{m.content=c;m.contentManual=true;await saveMarkObj(m);openMarkMenu(m,q);})));b.appendChild(r);}
-  r=qrow();TYPES.filter(t=>t!=='일반').forEach(t=>r.appendChild(qbtn(t,'chip'+(m.type===t?' on':''),async()=>{m.type=t;if(t==='금회'&&!m.dmg)m.dmg=String(curSess().nextDmg);await saveMarkObj(m);openMarkMenu(m,q);})));b.appendChild(r);
+  r=qrow();TYPES.filter(t=>t!=='일반').forEach(t=>r.appendChild(qbtn(t,'chip'+(m.type===t?' on':''),async()=>{m.type=t;if(t==='금회'&&!m.dmg)m.dmg=String(await nextDmgFor(curD,m.page));await saveMarkObj(m);openMarkMenu(m,q);})));b.appendChild(r);
   r=qrow();
   r.appendChild(qbtn('상세 입력','',()=>{hideQMenu();openMarkSheet(m);}));
   if(m.shape==='line')r.appendChild(qbtn(m.group?'균열로 바꾸기':'묶음선으로','',async()=>{const ss=curSess();m.group=!m.group;
-    if(m.group){if(m.type==='금회'&&parseInt(m.dmg,10)===ss.nextDmg-1){ss.nextDmg--;await dbPut('sessions',ss);}m.dmg='';}else if(m.type==='금회'&&!m.dmg)m.dmg=String(ss.nextDmg);
+    if(m.group)m.dmg='';else if(m.type==='금회'&&!m.dmg){m.dmg='';m.dmg=String(await nextDmgFor(curD,m.page));}
     await saveMarkObj(m);openMarkMenu(m,q);}));
   if(m.shape!=='point')r.appendChild(qbtn(m.shape==='line'?'영역으로':'선으로','',async()=>{m.shape=m.shape==='line'?'area':'line';await saveMarkObj(m);openMarkMenu(m,q);}));
   r.appendChild(qbtn('삭제','bad',async()=>{hideQMenu();if(!await confirmBox('이 손상 표시를 삭제할까요?\n(찍은 사진·기록은 남습니다)','삭제'))return;await deleteMark(m);}));
@@ -1308,7 +1325,7 @@ async function newMark(shape,pts,q,type,opt){const s=curSess(),d=curD,p=d.pages[
   const m={id:uid(),sid:s.id,did:d.id,page:curPage,shape,pts:pts.map(t=>[+(clamp(t[0],0,p.w)/p.w).toFixed(5),+(clamp(t[1],0,p.h)/p.h).toFixed(5)]),
     type:type||'금회',dmg:'',mem:last.mem||'',loc:last.loc||'',content:shape==='line'?'균열':'',w:'',l:'',b:'',n:'',note:'',photoNos:[],created:nowStr(),ts:Date.now(),pw:opt.pw||penSt.w,hl:!!opt.hl};
   if(opt.extra)Object.assign(m,opt.extra);
-  if(m.type==='금회'&&!m.dmg)m.dmg=String(s.nextDmg);
+  if(m.type==='금회'&&!m.dmg)m.dmg=String(await nextDmgFor(d,curPage));
   if(!m.dno){const ws=await pageWords(d,curPage);m.dno=dnoOf(ws);}
   await saveMarkObj(m);pushUndo({op:'add',objs:[clone(m)]});return m;
   if(q)openMarkMenu(m,q);else{selMark=null;drawMarks();}return m;}
@@ -1337,14 +1354,14 @@ function openMarkSheet(m){kpClose();mkEdit=JSON.parse(JSON.stringify(m));selMark
   $('#mk-shoot2').classList.toggle('hide',!NATIVE);$('#mk-shoot2').textContent=settings.camMode==='app'?'기본 카메라':'앱 카메라';
   mkChips();mkPhotos();$('#mk-sheet').classList.add('on');$('#v-map').classList.add('sheeton');$('#mk-sheet').scrollTop=0;}
 function mkChips(){const s=curSess(),p=preset(s.ftype),e=mkEdit;
-  chips($('#mk-typ'),TYPES.filter(t=>t!=='일반'),e.type,t=>{const prev=e.type;e.type=t;
-    if(t==='금회'&&prev!=='금회'&&!e.dmg)e.dmg=String(s.nextDmg);$('#mk-dmg').value=e.dmg||'';mkChips();});
+  chips($('#mk-typ'),TYPES.filter(t=>t!=='일반'),e.type,async t=>{const prev=e.type;e.type=t;
+    if(t==='금회'&&prev!=='금회'&&!e.dmg)e.dmg=String(await nextDmgFor(curD,e.page));$('#mk-dmg').value=e.dmg||'';mkChips();});
   chips($('#mk-mem'),[...p.mem,...recent('mem').filter(x=>!p.mem.includes(x))],e.mem,v=>{e.mem=e.mem===v?'':v;mkChips();});
   chips($('#mk-content'),[...p.dmg,...recent('content').filter(x=>!p.dmg.includes(x))],e.content,v=>{e.content=e.content===v?'':v;mkChips();});
   chips($('#mk-locChips'),recent('loc'),e.loc,v=>{e.loc=v;$('#mk-loc').value=v;mkChips();},'rec');
   chips($('#mk-wChips'),p.ws,e.w,v=>{e.w=e.w===v?'':v;$('#mk-w').value=e.w;mkChips();});}
 ['dmg','loc','w','l','b','n','note'].forEach(k=>$('#mk-'+k).addEventListener('input',()=>{if(mkEdit)mkEdit[k]=$('#mk-'+k).value.trim();}));
-function mkBump(d){let n=parseInt(mkEdit.dmg,10);if(isNaN(n))n=mkEdit.type==='금회'?curSess().nextDmg:0;mkEdit.dmg=String(Math.max(1,n+d));$('#mk-dmg').value=mkEdit.dmg;}
+function mkBump(d){let n=parseInt(mkEdit.dmg,10);if(isNaN(n))n=0;mkEdit.dmg=String(Math.max(1,n+d));$('#mk-dmg').value=mkEdit.dmg;}
 async function mkPhotos(){const m=mkEdit;const rs=m.isNew?[]:(await recsOf(curSess().id)).filter(r=>r.markId===m.id).sort((a,b)=>a.no-b.no);
   $('#mk-photos').innerHTML=rs.length?rs.map(r=>`<div data-id="${r.id}"><img src="${r.thumb||''}">${pad(r.no)} <span class="tag ${esc(r.type)}">${esc(r.type)}</span></div>`).join(''):'<span class="muted">아직 사진이 없습니다.</span>';
   $('#mk-photos').querySelectorAll('div[data-id]').forEach(el=>el.onclick=()=>openRec(el.dataset.id));}
