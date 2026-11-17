@@ -13,7 +13,7 @@ android {
         minSdk 29          // 안드로이드 10 이상
         targetSdk 34
         versionCode runNo
-        versionName "1.7.${runNo}"
+        versionName "1.8.${runNo}"
     }
 
     // 고정 서명키: 업데이트 설치 시 기존 앱(기록)을 지우지 않고 덮어쓰기 위해 항상 같은 키 사용
@@ -52,4 +52,5 @@ dependencies {
     implementation "androidx.camera:camera-view:$camerax"
     implementation 'com.google.guava:listenablefuture:1.0'
     implementation 'com.google.mlkit:digital-ink-recognition:18.1.0'
+    implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
 }

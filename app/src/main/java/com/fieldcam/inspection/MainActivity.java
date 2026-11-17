@@ -42,6 +42,14 @@ import com.google.mlkit.vision.digitalink.DigitalInkRecognizerOptions;
 import com.google.mlkit.vision.digitalink.Ink;
 import com.google.mlkit.vision.digitalink.RecognitionCandidate;
 
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
+import com.tom_roush.pdfbox.io.MemoryUsageSetting;
+import com.tom_roush.pdfbox.pdmodel.PDDocument;
+import com.tom_roush.pdfbox.pdmodel.PDPage;
+import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
+import com.tom_roush.pdfbox.text.PDFTextStripper;
+import com.tom_roush.pdfbox.text.TextPosition;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -52,6 +60,8 @@ import java.io.ByteArrayOutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.List;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Map;
 import java.util.UUID;
@@ -221,7 +231,14 @@ public class MainActivity extends Activity {
                 File dir = new File(getFilesDir(), "drawings/" + id);
                 dir.mkdirs();
                 JSONArray pages = new JSONArray();
-                try (ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r")) {
+                // 원본 PDF 보관(글자 정보 읽기·나중에 다시 쓰기용)
+                File src = new File(dir, "src.pdf");
+                try (InputStream in = getContentResolver().openInputStream(uri); FileOutputStream fo = new FileOutputStream(src)) {
+                    byte[] buf = new byte[65536];
+                    int k;
+                    while ((k = in.read(buf)) > 0) fo.write(buf, 0, k);
+                }
+                try (ParcelFileDescriptor pfd = ParcelFileDescriptor.open(src, ParcelFileDescriptor.MODE_READ_ONLY)) {
                     PdfRenderer r = new PdfRenderer(pfd);
                     int n = r.getPageCount();
                     for (int i = 0; i < n; i++) {
@@ -250,6 +267,7 @@ public class MainActivity extends Activity {
                     }
                     r.close();
                 }
+                extractWords(src, dir, id, pages);
                 JSONObject res = new JSONObject();
                 res.put("id", id);
                 res.put("name", name);
@@ -259,6 +277,60 @@ public class MainActivity extends Activity {
                 callJs("window.onPdfError && window.onPdfError(" + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
             }
         }).start();
+    }
+
+    /** PDF 글자와 위치(페이지 대비 0~1 비율, 왼쪽 위 기준) → drawings/<id>/w<n>.json  [[x0,y0,x1,y1,"글자"],...] */
+    private void extractWords(File src, File dir, String id, JSONArray pages) {
+        try {
+            PDFBoxResourceLoader.init(getApplicationContext());
+            try (PDDocument doc = PDDocument.load(src, MemoryUsageSetting.setupTempFileOnly())) {
+                int n = Math.min(doc.getNumberOfPages(), pages.length());
+                for (int i = 0; i < n; i++) {
+                    callJs("window.onPdfProgress && window.onPdfProgress(" + (i + 1) + "," + n + ",'text')");
+                    try {
+                        PDPage pg = doc.getPage(i);
+                        PDRectangle cb = pg.getCropBox();
+                        int rot = ((pg.getRotation() % 360) + 360) % 360;
+                        final float pw = (rot % 180 == 0) ? cb.getWidth() : cb.getHeight();
+                        final float ph = (rot % 180 == 0) ? cb.getHeight() : cb.getWidth();
+                        final JSONArray words = new JSONArray();
+                        PDFTextStripper st = new PDFTextStripper() {
+                            @Override
+                            protected void writeString(String text, List<TextPosition> tps) throws IOException {
+                                if (text == null || text.trim().isEmpty() || tps == null || tps.isEmpty()) return;
+                                float x0 = Float.MAX_VALUE, y0 = Float.MAX_VALUE, x1 = -Float.MAX_VALUE, y1 = -Float.MAX_VALUE;
+                                for (TextPosition t : tps) {
+                                    float x = t.getX(), y = t.getY(), w = t.getWidth(), h = Math.max(t.getHeight(), 1f);
+                                    x0 = Math.min(x0, x); x1 = Math.max(x1, x + w);
+                                    y0 = Math.min(y0, y - h); y1 = Math.max(y1, y);
+                                }
+                                try {
+                                    words.put(new JSONArray().put(r5(x0 / pw)).put(r5(y0 / ph)).put(r5(x1 / pw)).put(r5(y1 / ph)).put(text.trim()));
+                                } catch (Exception ignored) {
+                                }
+                            }
+                        };
+                        st.setSortByPosition(true);
+                        st.setStartPage(i + 1);
+                        st.setEndPage(i + 1);
+                        st.getText(doc);
+                        File wf = new File(dir, "w" + (i + 1) + ".json");
+                        try (FileOutputStream fo = new FileOutputStream(wf)) {
+                            fo.write(words.toString().getBytes("UTF-8"));
+                        }
+                        pages.getJSONObject(i).put("wfile", id + "/w" + (i + 1) + ".json");
+                        pages.getJSONObject(i).put("wn", words.length());
+                    } catch (Throwable ignored) {
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+            // 글자 정보가 없어도 망도는 그대로 사용
+        }
+    }
+
+    private static double r5(float v) {
+        return Math.round(v * 100000.0) / 100000.0;
     }
 
     /** URL 내려받기: out이 null이면 내용을 반환, 아니면 파일로 저장(진행률 JS 전달) */
