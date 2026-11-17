@@ -240,7 +240,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 <section class="view" id="v-map">
   <div class="browse" id="mapBrowse">
     <div class="crumbs" id="crumbs"></div>
-    <div class="row" style="margin:10px 0"><button class="btn pri" onclick="addFolder()">＋ 폴더</button><button class="btn acc hide" id="bAddPdf" onclick="addDrawing()">＋ 망도 (PDF)</button></div>
+    <div class="row" style="margin:10px 0"><button class="btn pri" onclick="addFolder()">＋ 폴더</button><button class="btn acc hide" id="bAddPdf" onclick="addDrawing()">＋ 망도 (PDF, 여러 개 선택 가능)</button></div>
     <div id="browseList"></div>
   </div>
   <div class="maptop">
@@ -490,7 +490,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.15.0';
+const VERSION = '1.16.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -1057,7 +1057,8 @@ async function renderSide(){$('#v-map').classList.toggle('sideon',sideOn);if(!si
   renderLabelList();
   const on=el.querySelector('.sp.on');if(on){const r=on.getBoundingClientRect(),R=el.getBoundingClientRect();if(r.top<R.top||r.bottom>R.bottom)on.scrollIntoView({block:'center'});}}
 function byNDone(l,all){for(const o of all)if(o.num===l.num){const d=labelDone(o,all);if(d)return d;}return null;}
-async function renderLabelList(){const el=$('#mapSide');if(!sideOn||!curD||!el)return;let box=$('#lblList');
+async function renderLabelList(){const old=$('#lblList');if(old)old.remove();return;   /* v1.16: 왼쪽 창 기존 손상 목록 삭제(사용자 요청) */
+  const el=$('#mapSide');if(!sideOn||!curD||!el)return;let box=$('#lblList');
   if(!box){box=document.createElement('div');box.id='lblList';el.prepend(box);}
   const all=await scanLabels(curD,curPage);const byN=new Map();
   for(const l of all){const o=byN.get(l.num);if(!o||(!o.size&&l.size))byN.set(l.num,l);}   /* 망도 표기와 손상현황표 행이 같은 번호면 하나로 */
@@ -1538,12 +1539,16 @@ $('#mk-del').onclick=async()=>{const e=mkEdit;if(!e)return;if(!marks.find(x=>x.i
 
 /* 망도 불러오기 */
 function addDrawing(){if(!curFolder){toast('폴더를 먼저 만들고 들어간 뒤 망도를 넣으세요');return;}
-  if(NATIVE&&Android.pickPdf)Android.pickPdf();else{$('#mapFile').value='';$('#mapFile').click();}}
-window.onPdfProgress=(i,n)=>{openModal('m-prog');$('#pg-msg').textContent=`망도 변환 중… ${i} / ${n} 페이지`;$('#pg-bar').style.width=(i/n*100).toFixed(0)+'%';};
-window.onPdfLoaded=async o=>{closeModal('m-prog');
-  const d={id:o.id,folderId:curFolder,name:String(o.name||'망도').replace(/\.pdf$/i,''),pages:o.pages,created:nowStr()};
-  await dbPut('drawings',d);toast(`${d.name} (${d.pages.length}페이지) 불러옴`,3000);if(view!=='map')show('map');else renderMap();};
-window.onPdfError=m=>{closeModal('m-prog');if(m)toast('망도 열기 실패: '+m,5000);};
+  pdfFolder=curFolder;if(NATIVE&&Android.pickPdf)Android.pickPdf();else{$('#mapFile').value='';$('#mapFile').click();}}
+window.onPdfProgress=(i,n,kind,fi,fn)=>{openModal('m-prog');$('#pg-msg').textContent=`${fn>1?`망도 ${fi} / ${fn} · `:''}${kind==='text'?'글자 읽는 중':'변환 중'}… ${i} / ${n} 페이지`;$('#pg-bar').style.width=(i/n*100).toFixed(0)+'%';};
+window.onPdfLoaded=async o=>{const multi=o.fn>1;if(!multi||o.fi>=o.fn)closeModal('m-prog');
+  const d={id:o.id,folderId:o.folder||pdfFolder||curFolder,name:String(o.name||'망도').replace(/\.pdf$/i,''),pages:o.pages,created:nowStr()};
+  await dbPut('drawings',d);if(!multi)toast(`${d.name} (${d.pages.length}페이지) 불러옴`,3000);
+  else{pdfBatch.push(d.name+' ('+d.pages.length+'p)');if(o.fi>=o.fn){toast(`망도 ${pdfBatch.length}개 불러옴\n`+pdfBatch.join('\n'),5000);pdfBatch=[];}}
+  if(!multi||o.fi>=o.fn){if(view!=='map')show('map');else renderMap();}};
+let pdfBatch=[],pdfFolder=null;
+window.onPdfFileError=(name,m)=>{toast(`${name} 열기 실패: ${m}`,5000);};
+window.onPdfError=m=>{closeModal('m-prog');if(pdfBatch.length){toast(`망도 ${pdfBatch.length}개 불러옴\n`+pdfBatch.join('\n'),5000);pdfBatch=[];renderMap();}if(m)toast('망도 열기 실패: '+m,5000);};
 $('#mapFile').onchange=async e=>{const fs=[...(e.target.files||[])];if(!fs.length)return;const id='w'+uid();const pages=[];
   for(let i=0;i<fs.length;i++){const img=await loadImg(fs[i]);pages.push({w:imgW(img),h:imgH(img)});if(img.close)img.close();await dbPut('photos',fs[i],'dpg_'+id+'_'+i);}
   window.onPdfLoaded({id,name:fs[0].name.replace(/\.[^.]+$/,''),pages});};

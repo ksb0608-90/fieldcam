@@ -194,7 +194,13 @@ public class MainActivity extends Activity {
             return;
         }
         if (requestCode == REQ_PDF) {
-            if (resultCode == RESULT_OK && data != null && data.getData() != null) renderPdf(data.getData());
+            ArrayList<Uri> uris = new ArrayList<>();
+            if (resultCode == RESULT_OK && data != null) {
+                if (data.getClipData() != null) {
+                    for (int k = 0; k < data.getClipData().getItemCount(); k++) uris.add(data.getClipData().getItemAt(k).getUri());
+                } else if (data.getData() != null) uris.add(data.getData());
+            }
+            if (!uris.isEmpty()) renderPdfs(uris);
             else callJs("window.onPdfError && window.onPdfError('')");
             return;
         }
@@ -219,15 +225,31 @@ public class MainActivity extends Activity {
     }
 
     /* ---------- 망도 PDF → 페이지 이미지 ---------- */
-    private void renderPdf(final Uri uri) {
+    private volatile int curFi = 1, curFn = 1;
+
+    /** 여러 PDF를 차례로 변환 */
+    private void renderPdfs(final ArrayList<Uri> uris) {
         new Thread(() -> {
+            int fn = uris.size();
+            for (int f = 0; f < fn; f++) {
+                curFi = f + 1;
+                curFn = fn;
+                renderPdf(uris.get(f));
+            }
+            curFi = 1;
+            curFn = 1;
+        }).start();
+    }
+
+    private void renderPdf(final Uri uri) {
+        {
+            String name = "망도";
             try {
-                String name = "망도";
                 try (Cursor c = getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
                     if (c != null && c.moveToFirst()) name = c.getString(0);
                 } catch (Exception ignored) {
                 }
-                String id = "d" + System.currentTimeMillis();
+                String id = "d" + System.currentTimeMillis() + "_" + curFi;
                 File dir = new File(getFilesDir(), "drawings/" + id);
                 dir.mkdirs();
                 JSONArray pages = new JSONArray();
@@ -242,7 +264,7 @@ public class MainActivity extends Activity {
                     PdfRenderer r = new PdfRenderer(pfd);
                     int n = r.getPageCount();
                     for (int i = 0; i < n; i++) {
-                        callJs("window.onPdfProgress && window.onPdfProgress(" + (i + 1) + "," + n + ")");
+                        callJs("window.onPdfProgress && window.onPdfProgress(" + (i + 1) + "," + n + ",'img'," + curFi + "," + curFn + ")");
                         PdfRenderer.Page p = r.openPage(i);
                         int w = PAGE_PX;
                         int h = Math.round((float) p.getHeight() * w / p.getWidth());
@@ -272,11 +294,17 @@ public class MainActivity extends Activity {
                 res.put("id", id);
                 res.put("name", name);
                 res.put("pages", pages);
+                res.put("fi", curFi);
+                res.put("fn", curFn);
                 callJs("window.onPdfLoaded && window.onPdfLoaded(" + res.toString() + ")");
             } catch (Throwable e) {
-                callJs("window.onPdfError && window.onPdfError(" + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
+                if (curFn > 1) {
+                    callJs("window.onPdfFileError && window.onPdfFileError(" + JSONObject.quote(name) + "," + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
+                    if (curFi >= curFn) callJs("window.onPdfError && window.onPdfError('')");
+                } else
+                    callJs("window.onPdfError && window.onPdfError(" + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
             }
-        }).start();
+        }
     }
 
     /** PDF 글자와 위치(페이지 대비 0~1 비율, 왼쪽 위 기준) → drawings/<id>/w<n>.json  [[x0,y0,x1,y1,"글자"],...] */
@@ -286,7 +314,7 @@ public class MainActivity extends Activity {
             try (PDDocument doc = PDDocument.load(src, MemoryUsageSetting.setupTempFileOnly())) {
                 int n = Math.min(doc.getNumberOfPages(), pages.length());
                 for (int i = 0; i < n; i++) {
-                    callJs("window.onPdfProgress && window.onPdfProgress(" + (i + 1) + "," + n + ",'text')");
+                    callJs("window.onPdfProgress && window.onPdfProgress(" + (i + 1) + "," + n + ",'text'," + curFi + "," + curFn + ")");
                     try {
                         PDPage pg = doc.getPage(i);
                         PDRectangle cb = pg.getCropBox();
@@ -504,6 +532,7 @@ public class MainActivity extends Activity {
                     Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                     i.addCategory(Intent.CATEGORY_OPENABLE);
                     i.setType("application/pdf");
+                    i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
                     startActivityForResult(i, REQ_PDF);
                 } catch (Exception e) {
                     callJs("window.onPdfError && window.onPdfError(" + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
