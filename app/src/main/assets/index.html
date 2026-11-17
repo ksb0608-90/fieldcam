@@ -132,7 +132,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 .mtitle{max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-left:4px}
 .updbar{position:fixed;top:var(--hh);left:0;right:0;z-index:12;background:#027a48;color:#fff;padding:10px 14px;display:none;align-items:center;gap:10px;font-size:16px}
 .updbar.on{display:flex}.updbar .t{flex:1}
-.qmenu{position:fixed;z-index:30;background:#fff;border:2px solid var(--pri);border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:10px;max-width:min(560px,92vw);display:none}
+.qmenu{position:fixed;z-index:30;background:#fff;border:2px solid var(--pri);border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:10px;max-width:min(560px,92vw);max-height:calc(100vh - 140px);overflow-y:auto;overscroll-behavior:contain;display:none}
 .qmenu.on{display:block}
 .qmenu .qh{font-weight:700;font-size:15px;color:var(--pri);margin-bottom:6px}
 .qmenu .qrow{display:flex;flex-wrap:wrap;gap:6px;padding:6px 0;border-top:1px solid #eef0f3}
@@ -161,6 +161,27 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 .side .li span{font-size:12px;color:var(--sub)}
 .side .li.done{background:#ecfdf3}
 .qpad{border-top:1px solid #eef0f3;padding-top:8px;margin-top:4px}
+.crumb{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:17px}
+.crumb a{color:var(--pri);font-weight:700;padding:6px 8px;border-radius:8px;background:#eef4ff;cursor:pointer}
+.crumb a.cur{background:none;color:var(--txt)}
+.crumb i{color:var(--mut);font-style:normal}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.fcard{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;display:flex;flex-direction:column;gap:6px;min-height:70px}
+.fcard:active{background:#f2f4f7}
+.fcard b{font-size:18px}
+.fcard .n{color:var(--acc);font-weight:800;font-size:16px}
+.fcard img{width:100%;aspect-ratio:1.414;object-fit:contain;background:#f9fafb;border-radius:6px;border:1px solid #eef0f3}
+.fcard.all{background:#f9fafb;border-style:dashed}
+.qthumbs{display:flex;gap:6px;overflow-x:auto;padding:6px 0;border-top:1px solid #eef0f3}
+.qthumbs .th{flex:0 0 auto;width:86px;text-align:center;font-size:12px;color:var(--mut);cursor:pointer}
+.qthumbs img{width:86px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line);display:block}
+.pv{position:fixed;inset:0;background:#000;z-index:50;display:none;flex-direction:column}
+.pv.on{display:flex}
+.pv .pv-top{display:flex;align-items:center;gap:10px;padding:10px 12px;color:#fff;background:rgba(0,0,0,.6)}
+.pv .pv-top b{flex:1;font-size:16px}
+.pv .pv-img{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;touch-action:none;overflow:hidden}
+.pv .pv-img img{max-width:100%;max-height:100%;object-fit:contain;transform-origin:center}
+.pv .pv-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.18);color:#fff;border:0;font-size:34px;width:56px;height:80px;border-radius:10px}
 .qpad-h{font-weight:700;font-size:14px;margin-bottom:4px}
 .qpad canvas{display:block;background:#f8fafc;border:2px dashed #98a2b3;border-radius:10px;touch-action:none}
 .qpad-r{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:15px}
@@ -282,9 +303,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
     <div class="muted" style="margin-top:8px">손상 사진은 [망도]에서 표시를 길게 누르거나 기존 손상 글자를 탭해 촬영하세요. 여기 촬영 버튼은 전경·일반 사진용입니다.</div>
   </div>
   <div class="row" style="margin-bottom:10px">
-    <select id="listSite" title="현장(용역)"></select>
-    <select id="listFac" title="시설물"></select>
-    <select id="listDwg" title="망도"></select>
+    <div class="crumb" id="listCrumb"></div>
     <select id="listFilter"><option value="">전체 구분</option></select>
     <span class="muted" id="listCount"></span>
     <span style="flex:1"></span>
@@ -486,11 +505,14 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
   <div class="acts"><button class="btn pri" id="ins-ok">확인</button></div>
 </div></div>
 
+<div class="pv" id="pv"><div class="pv-top"><b id="pv-cap"></b><button class="btn" id="pv-edit">기록 수정</button><button class="btn" id="pv-x">✕ 닫기</button></div>
+  <div class="pv-img" id="pv-box"><img id="pv-img" alt=""></div>
+  <button class="pv-nav" id="pv-prev" style="left:8px">‹</button><button class="pv-nav" id="pv-next" style="right:8px">›</button></div>
 <div class="toast" id="toast"></div>
 
 <script>
 'use strict';
-const VERSION = '1.16.0';
+const VERSION = '1.17.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -697,7 +719,7 @@ async function writeCsv(s){if(!NATIVE||!s)return;const recs=(await recsOf(s.id))
 async function nativeSavePhoto(s,r,blob){if(!NATIVE)return;
   try{await nativeWrite(sessDir(s)+'/사진',r.file,blob,'image/jpeg');await writeCsv(s);}
   catch(e){console.error(e);toast('⚠ 폴더 저장 실패: '+e.message+'\n(앱 안에는 저장됨 · 내보내기로 받으세요)',6000);}}
-window.onAndroidBack=()=>{if(kpT){kpClose();return true;}if($('#mk-sheet').classList.contains('on')){closeMarkSheet();return true;}const m=document.querySelector('.modal.on');if(m){if(m.id!=='m-prog')m.classList.remove('on');return true;}
+window.onAndroidBack=()=>{if($('#pv').classList.contains('on')){pvClose();return true;}if(kpT){kpClose();return true;}if($('#mk-sheet').classList.contains('on')){closeMarkSheet();return true;}const m=document.querySelector('.modal.on');if(m){if(m.id!=='m-prog')m.classList.remove('on');return true;}
   if(view!=='shot'){show('shot');return true;}return false;};
 
 async function saveCapture(file,ctx,quiet){ctx=ctx||form;const s=curSess();
@@ -723,40 +745,70 @@ function nextDamage(){const s=curSess();const t=form.type;form=blankForm();form.
 
 /* ---------- 기록 ---------- */
 /* 사진 탭: 현장 › 시설물 › 망도 선택 */
-let listSel={sid:null,did:''};
+let listSel={sid:null,did:null};
 function drawingKey(d){const path=fPath(d.folderId);return {site:path.length?path[0].name:'미분류',fac:path.length>=2?path[path.length-1].name:d.name};}
+/* 사진 탭: 폴더 단계 보기 – 전체 › 현장 › 시설물 › 망도 › 페이지 */
 async function renderList(){await loadFolders();const sel=$('#listFilter');if(sel.options.length===1) TYPES.forEach(t=>sel.add(new Option(t,t)));
   const ko=(a,b)=>String(a).localeCompare(String(b),'ko',{numeric:true});
-  if(!sessions.length){$('#listSite').innerHTML='';$('#listFac').innerHTML='';$('#listDwg').innerHTML='';$('#pNext').textContent='-';$('#pCtx').textContent='망도를 먼저 여세요';
+  if(!sessions.length){$('#listCrumb').innerHTML='';$('#pNext').textContent='-';$('#pCtx').textContent='망도를 먼저 여세요';
     $('#listBody').innerHTML='<div class="empty">아직 사진이 없습니다. [망도] 탭에서 구조물 망도를 여세요.</div>';$('#listCount').textContent='';$('#shutter').style.display='none';return;}
-  if(!sessions.find(x=>x.id===listSel.sid))listSel={sid:curId||sessions[0].id,did:curD&&curSess()&&curD?curD.id:''};
-  let s=sessions.find(x=>x.id===listSel.sid);
-  const sites=[...new Set(sessions.map(x=>x.site))].sort(ko);
-  $('#listSite').innerHTML=sites.map(x=>`<option>${esc(x)}</option>`).join('');$('#listSite').value=s.site;
-  const facs=sessions.filter(x=>x.site===s.site).sort((a,b)=>ko(a.facility,b.facility));const many=new Set(facs.map(x=>x.facility)).size<facs.length;
-  $('#listFac').innerHTML=facs.map(x=>`<option value="${x.id}">${esc(x.facility)}${many||x.inspector!==settings.inspector?' · '+esc(x.inspector):''}</option>`).join('');$('#listFac').value=s.id;
-  const dws=(await dbAll('drawings')).filter(d=>{const k=drawingKey(d);return k.site===s.site&&k.fac===s.facility;}).sort(byName);
-  $('#listDwg').innerHTML=`<option value="">전체 망도</option>`+dws.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('')+`<option value="-">망도 없이 촬영</option>`;
-  if(listSel.did&&listSel.did!=='-'&&!dws.find(d=>d.id===listSel.did))listSel.did='';$('#listDwg').value=listSel.did;
-  /* 촬영 대상: 선택한 시설물 (열린 망도가 같은 시설물이면 그 페이지 위치까지) */
-  if(curId!==s.id){curId=s.id;LS.set('cur',curId);loadDraft();renderHeader();}
+  if(listSel.sid===null&&listSel.site===undefined){const c=sessions.find(x=>x.id===curId);listSel=c?{site:c.site,sid:c.id,did:curD&&recIn({did:curD.id},curD)&&drawingKey(curD).fac===c.facility?curD.id:null,page:null}:{site:null,sid:null,did:null,page:null};}
+  if(listSel.sid&&!sessions.find(x=>x.id===listSel.sid))listSel={site:null,sid:null,did:null,page:null};
+  const L=listSel;const s=L.sid?sessions.find(x=>x.id===L.sid):null;
+  /* 촬영 대상: 시설물을 고르면 그 시설물, 아니면 현재 조사 */
+  if(s&&curId!==s.id){curId=s.id;LS.set('cur',curId);loadDraft();renderHeader();}
+  const cs=s||curSess();
+  const dws=cs?(await dbAll('drawings')).filter(d=>{const k=drawingKey(d);return k.site===cs.site&&k.fac===cs.facility;}).sort(byName):[];
   const here=curD&&dws.find(d=>d.id===curD.id);
-  $('#pNext').textContent=pad(s.nextPhoto);
-  $('#pCtx').textContent=`${s.site} › ${s.facility} · `+(here?`촬영 위치: ${curD.name} ${curPage+1}페이지${(()=>{const n=dnoOf(wordCache[curDid+':'+curPage]||[]);return n?' (도면 '+n+')':'';})()}`:'촬영 위치: 망도 지정 없음(일반)');
-  $('#shutter').style.display=view==='list'?'':'none';$('#shutter2').classList.toggle('hide',!(NATIVE&&view==='list'));
-  let rs=(await recsOf(s.id)).sort((a,b)=>b.no-a.no);const f=sel.value;if(f) rs=rs.filter(r=>r.type===f);
-  const dsel=dws.find(d=>d.id===listSel.did);
-  if(dsel)rs=rs.filter(r=>recIn(r,dsel));else if(listSel.did==='-')rs=rs.filter(r=>!r.did&&!r.dname);
+  $('#pNext').textContent=cs?pad(cs.nextPhoto):'-';
+  $('#pCtx').textContent=cs?`${cs.site} › ${cs.facility} · `+(here?`촬영 위치: ${curD.name} ${curPage+1}페이지${(()=>{const n=dnoOf(wordCache[curDid+':'+curPage]||[]);return n?' (도면 '+n+')':'';})()}`:'촬영 위치: 망도 지정 없음(일반)'):'';
+  $('#shutter').style.display=view==='list'&&cs?'':'none';$('#shutter2').classList.toggle('hide',!(NATIVE&&view==='list'&&cs));
+  const f=sel.value;let all=await dbAll('records');if(f)all=all.filter(r=>r.type===f);
+  const bySid=new Map();for(const r of all){if(!bySid.has(r.sid))bySid.set(r.sid,[]);bySid.get(r.sid).push(r);}
+  const cnt=a=>`<span class="n">${a.length}장</span>`;
+  const go=o=>{listSel=Object.assign({site:null,sid:null,did:null,page:null},o);renderList();};
+  /* 경로 표시 */
+  const cr=[['전체',{}]];if(L.site)cr.push([L.site,{site:L.site}]);
+  if(s){const many=sessions.filter(x=>x.site===s.site&&x.facility===s.facility).length>1;cr.push([s.facility+(many||s.inspector!==settings.inspector?' · '+s.inspector:''),{site:L.site,sid:s.id}]);}
+  const dsel=L.did&&L.did!=='-'&&L.did!=='*'?dws.find(d=>d.id===L.did):null;
+  if(L.did){cr.push([dsel?dsel.name:L.did==='-'?'망도 없이 촬영':'전체 사진',{site:L.site,sid:L.sid,did:L.did}]);}
+  if(L.page)cr.push([L.page==='*'?'전체 페이지':L.page==='?'?'페이지 미지정':L.page+'페이지',{site:L.site,sid:L.sid,did:L.did,page:L.page}]);
+  $('#listCrumb').innerHTML=cr.map((c,i)=>`<a class="${i===cr.length-1?'cur':''}" data-i="${i}">${esc(c[0])}</a>`).join('<i>›</i>');
+  $('#listCrumb').querySelectorAll('a').forEach(a=>a.onclick=()=>go(cr[+a.dataset.i][1]));
+  const body=$('#listBody');const cards=list=>`<div class="fgrid">${list.map((c,i)=>`<div class="fcard${c.all?' all':''}" data-i="${i}">${c.img!==undefined?`<img data-th="${i}" src="${c.img||''}" alt="">`:''}<b>${c.all?'':'📁 '}${esc(c.name)}</b>${c.sub?`<span class="muted">${esc(c.sub)}</span>`:''}${cnt(c.rs)}</div>`).join('')}</div>`;
+  const showCards=list=>{body.innerHTML=list.length?cards(list):'<div class="empty">없음</div>';body.querySelectorAll('.fcard').forEach(el=>el.onclick=()=>go(list[+el.dataset.i].to));
+    $('#listCount').textContent=`${list.filter(c=>!c.all).reduce((n,c)=>n+c.rs.length,0)}장`;};
+  /* 단계 1: 현장 */
+  if(!L.site&&!s){const sites=[...new Set(sessions.map(x=>x.site))].sort(ko);
+    return showCards(sites.map(x=>({name:x,sub:`시설물 ${new Set(sessions.filter(z=>z.site===x).map(z=>z.facility)).size}개`,rs:sessions.filter(z=>z.site===x).flatMap(z=>bySid.get(z.id)||[]),to:{site:x}})));}
+  /* 단계 2: 시설물 */
+  if(!s){const facs=sessions.filter(x=>x.site===L.site).sort((a,b)=>ko(a.facility,b.facility));
+    return showCards(facs.map(x=>{const many=facs.filter(z=>z.facility===x.facility).length>1;return {name:x.facility,sub:many||x.inspector!==settings.inspector?'조사자 '+x.inspector:'',rs:bySid.get(x.id)||[],to:{site:L.site,sid:x.id}};}));}
+  const rsS=bySid.get(s.id)||[];
+  /* 단계 3: 망도 */
+  if(!L.did){const list=dws.map(d=>({name:d.name,sub:`${d.pages.length}페이지`,rs:rsS.filter(r=>recIn(r,d)),to:{site:L.site,sid:s.id,did:d.id}}));
+    const none=rsS.filter(r=>!r.did&&!r.dname);if(none.length)list.push({name:'망도 없이 촬영',sub:'전경·일반 사진',rs:none,to:{site:L.site,sid:s.id,did:'-'}});
+    list.push({name:'이 시설물 사진 전체 보기',rs:rsS,all:true,to:{site:L.site,sid:s.id,did:'*'}});return showCards(list);}
+  /* 단계 4: 페이지 */
+  if(dsel&&!L.page){const rsD=rsS.filter(r=>recIn(r,dsel));const list=dsel.pages.map((pg,i)=>({name:`${i+1}페이지`,sub:'',img:'',ix:i,rs:rsD.filter(r=>+r.page===i+1),to:{site:L.site,sid:s.id,did:dsel.id,page:String(i+1)}}));
+    const nop=rsD.filter(r=>!r.page);if(nop.length)list.push({name:'페이지 미지정',rs:nop,to:{site:L.site,sid:s.id,did:dsel.id,page:'?'}});
+    list.push({name:'이 망도 사진 전체 보기',rs:rsD,all:true,to:{site:L.site,sid:s.id,did:dsel.id,page:'*'}});showCards(list);
+    list.forEach((c,i)=>{if(c.ix===undefined)return;thumbOf(dsel,c.ix).then(u=>{const im=body.querySelector(`img[data-th="${i}"]`);if(im&&u)im.src=u;});
+      const n=dnoOf(wordCache[dsel.id+':'+c.ix]||[]);if(n){const el=body.querySelector(`.fcard[data-i="${i}"] .muted`);}});
+    return;}
+  /* 단계 5: 사진 */
+  let rs=rsS.slice();
+  if(dsel){rs=rs.filter(r=>recIn(r,dsel));if(L.page==='?')rs=rs.filter(r=>!r.page);else if(L.page&&L.page!=='*')rs=rs.filter(r=>+r.page===+L.page);}
+  else if(L.did==='-')rs=rs.filter(r=>!r.did&&!r.dname);
+  rs.sort((a,b)=>b.no-a.no);
   $('#listCount').textContent=`${rs.length}장`;
   const groups=new Map();for(const r of rs){const pg=r.page?`${r.page}페이지${r.dno?' (도면 '+r.dno+')':''}`:'';
     const k=dsel?(pg||'페이지 미지정'):(r.dname?`${r.dname}${pg?' · '+pg:''}`:'망도 없이 촬영');if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r);}
-  const keys=[...groups.keys()].sort(ko);
-  $('#listBody').innerHTML=rs.length?keys.map(k=>`<div class="lbl" style="margin-top:14px">${esc(k)} <span class="muted">${groups.get(k).length}장</span></div><table><tbody>${groups.get(k).map(rowHtml).join('')}</tbody></table>`).join(''):'<div class="empty">사진 없음</div>';
-  bindRows($('#listBody'));}
+  const keys=[...groups.keys()].sort(ko);const flat=keys.flatMap(k=>groups.get(k));
+  body.innerHTML=rs.length?keys.map(k=>`<div class="lbl" style="margin-top:14px">${esc(k)} <span class="muted">${groups.get(k).length}장</span></div><table><tbody>${groups.get(k).map(rowHtml).join('')}</tbody></table>`).join(''):'<div class="empty">사진 없음</div>';
+  body.querySelectorAll('tr.click').forEach(tr=>{const i=flat.findIndex(r=>r.id===tr.dataset.id);
+    const im=tr.querySelector('img');if(im)im.onclick=e=>{e.stopPropagation();viewPhotos(flat,i);};tr.onclick=()=>openRec(tr.dataset.id);});}
 function recIn(r,d){return d&&(r.did?r.did===d.id:r.dname===d.name);}
-$('#listSite').onchange=()=>{const x=sessions.find(z=>z.site===$('#listSite').value);if(x)listSel={sid:x.id,did:''};renderList();};
-$('#listFac').onchange=()=>{listSel={sid:$('#listFac').value,did:''};renderList();};
-$('#listDwg').onchange=()=>{listSel.did=$('#listDwg').value;renderList();};
 $('#listFilter').onchange=renderList;
 
 let editRec=null,editType=null;
@@ -1021,7 +1073,7 @@ async function deleteDrawing(d){const ms=await byIndex('marks','did',d.id);
 /* ---------- 망도 보기 ---------- */
 async function openDrawing(id,page){flushInk();const d=await dbGet('drawings',id);if(!d)return;await loadFolders();curDid=id;curD=d;undoStack=[];
   const pref=page!==undefined?page:LS.get('page.'+id,0);curPage=pref<d.pages.length?pref:0;selMark=null;mv.page=null;await sessForDrawing(d);
-  marks=await byIndex('marks','did',id);LS.set('map.open',id);listSel={sid:curId,did:id};renderMap();}
+  marks=await byIndex('marks','did',id);LS.set('map.open',id);{const c=sessions.find(x=>x.id===curId);listSel={site:c?c.site:null,sid:curId,did:id,page:null};}renderMap();}
 function closeDrawing(){flushInk();hideQMenu();closeMarkSheet(true);curDid=null;curD=null;LS.set('map.open',null);renderMap();}
 async function pageSrc(d,i){const p=d.pages[i];if(p.file)return 'https://appassets.androidplatform.net/drawings/'+p.file;
   const k=d.id+':'+i;if(!pageUrls[k]){const b=await dbGet('photos','dpg_'+d.id+'_'+i);pageUrls[k]=b?URL.createObjectURL(b):'';}return pageUrls[k];}
@@ -1421,6 +1473,64 @@ function makePad(m,q){const box=document.createElement('div');box.className='qpa
   box.querySelector('[data-a=kb]').onclick=async e=>{e.stopPropagation();const v=await inputBox('규모 (예: 0.3x0.2, 0.2/1.2, 2ea)',sizeStr(m).replace('×','x'));if(v!==null){await apply(v);openMarkMenu(m,q);}};
   const updHead=()=>{$('#qm-h').textContent=menuHead(m);};
   return box;}
+/* 목록에 없는 손상명: 한글 손글씨로 써서 후보 중 선택 → 손상명 목록에도 추가 */
+let namePadOpen=false,koState='none';const koWait=[];
+window.onInkLangStatus=(lang,st)=>{if(lang!=='ko')return;koState=st.startsWith('error')?'error':st;if(st==='ready')koWait.splice(0).forEach(f=>f());
+  document.querySelectorAll('.npad .res').forEach(el=>{if(koState==='downloading')el.innerHTML='<span class="muted">한글 인식 모델 내려받는 중… (처음 1번, 인터넷 필요)</span>';
+    else if(koState==='error')el.innerHTML='<span style="color:#d92d20">한글 인식 준비 실패 (인터넷 연결 확인) – [키보드]</span>';else if(koState==='ready'&&/내려받는/.test(el.textContent))el.innerHTML='<span class="muted">손상명을 펜으로 쓰세요</span>';});};
+function koPrepare(){if(koState==='ready'||koState==='downloading')return;if(NATIVE&&Android.inkPrepareLang){koState='downloading';Android.inkPrepareLang('ko');}}
+function addCustomDmg(name){const p=preset();if(p.dmg.includes(name))return;p.dmg.push(name);presets.all={mem:p.mem.join(','),dmg:p.dmg.join(','),ws:p.ws.join(',')};LS.set('presets',presets);}
+function makeNamePad(m,q){koPrepare();const box=document.createElement('div');box.className='qpad npad';
+  box.innerHTML=`<div class="qpad-h">손상명 손글씨 <span class="muted">예: 누수흔적, 도장박리</span></div>
+    <canvas></canvas><div class="cands qrow" style="min-height:0"></div><div class="qpad-r"><span class="res"></span><span style="flex:1"></span><button class="btn" data-a="clr">지우기</button><button class="btn" data-a="kb">키보드</button></div>`;
+  const cv=box.querySelector('canvas'),res=box.querySelector('.res'),cands=box.querySelector('.cands');const dpr=window.devicePixelRatio||1;const W=420,H=120;
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';const g=cv.getContext('2d');g.scale(dpr,dpr);g.lineWidth=2.6;g.lineCap='round';g.lineJoin='round';g.strokeStyle='#7a2e0e';
+  let strokes=[],cur=null,timer=null,penOn=false;
+  res.innerHTML=koState==='error'?'<span style="color:#d92d20">한글 인식 준비 실패 (인터넷 연결 확인) – [키보드]</span>':koState==='downloading'?'<span class="muted">한글 인식 모델 내려받는 중… (처음 1번, 인터넷 필요)</span>':'<span class="muted">손상명을 펜으로 쓰세요</span>';
+  const pt=e=>{const r=cv.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top,Date.now()];};
+  cv.addEventListener('pointerdown',e=>{if(e.pointerType!=='pen'&&penOn)return;if(e.pointerType==='pen')penOn=true;e.preventDefault();e.stopPropagation();try{cv.setPointerCapture(e.pointerId)}catch(_){}clearTimeout(timer);cur=[pt(e)];strokes.push(cur);g.beginPath();g.moveTo(cur[0][0],cur[0][1]);});
+  cv.addEventListener('pointermove',e=>{if(!cur)return;const p=pt(e);cur.push(p);g.lineTo(p[0],p[1]);g.stroke();});
+  const up=e=>{if(!cur)return;cur=null;if(e.pointerType==='pen')penOn=false;clearTimeout(timer);timer=setTimeout(recog,1100);};
+  cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+  const pick=async name=>{name=String(name||'').replace(/\s+/g,'').trim();if(!name)return;m.content=name;m.contentManual=true;addCustomDmg(name);await saveMarkObj(m);namePadOpen=false;openMarkMenu(m,q);toast(`손상명 "${name}" – 다음부터 목록에서 선택`,2500);};
+  const showC=list=>{const seen=[...new Set((list||[]).map(c=>String(c).replace(/\s+/g,'')).filter(c=>/[가-힣]/.test(c)))].slice(0,4);cands.innerHTML='';
+    if(!seen.length){res.innerHTML='<span style="color:#d92d20">인식 못 함 – 다시 쓰거나 [키보드]</span>';return;}
+    res.innerHTML='<span class="muted">맞는 것을 누르세요</span>';seen.forEach((c,i)=>cands.appendChild(qbtn(esc(c),'chip'+(i===0?' on':''),()=>pick(c))));};
+  const recog=()=>{if(!strokes.length)return;const id='np'+uid();const t0=strokes[0][0][2];
+    const json=JSON.stringify(strokes.map(st=>st.map(a=>[+a[0].toFixed(1),+a[1].toFixed(1),a[2]-t0])));
+    const run=()=>{res.innerHTML='<span class="muted">인식 중…</span>';padPending[id]=showC;
+      if(NATIVE&&Android.inkRecognizeLang&&koState==='ready')Android.inkRecognizeLang('ko',id,json);else if(window.__mockInkKo)setTimeout(()=>window.onInkResult(id,window.__mockInkKo()),50);else{delete padPending[id];showC([]);}};
+    if(koState==='ready'||!NATIVE||!Android.inkRecognizeLang)run();else{koWait.push(run);koPrepare();}};
+  box.querySelector('[data-a=clr]').onclick=e=>{e.stopPropagation();strokes=[];g.clearRect(0,0,W,H);cands.innerHTML='';};
+  box.querySelector('[data-a=kb]').onclick=async e=>{e.stopPropagation();const v=await inputBox('손상명 직접 입력','');if(v)await pick(v);};
+  return box;}
+/* 손상 표시에 연결된 사진 */
+async function recsOfMark(m){const all=m.sid?await recsOf(m.sid):await dbAll('records');return all.filter(r=>r.markId===m.id).sort((a,b)=>a.no-b.no);}
+async function addThumbRow(b,m){const rs=await recsOfMark(m);if(!rs.length)return;const d=document.createElement('div');d.className='qthumbs';
+  rs.forEach((r,i)=>{const t=document.createElement('div');t.className='th';t.innerHTML=`<img src="${r.thumb||''}" alt=""><div>${esc(pad(r.no))}</div>`;t.onclick=e=>{e.stopPropagation();hideQMenu();viewPhotos(rs,i);};d.appendChild(t);});
+  const h=$('#qm-b').firstChild;$('#qm-b').insertBefore(d,h);if($('#qmenu').classList.contains('on')){const el=$('#qmenu');const r=el.getBoundingClientRect();if(r.bottom>innerHeight-70)el.style.top=Math.max(60,innerHeight-70-el.offsetHeight)+'px';}}
+let pvList=[],pvI=0,pvUrl='';
+async function pvShow(){const r=pvList[pvI];if(!r)return;const im=$('#pv-img');if(pvUrl)URL.revokeObjectURL(pvUrl);pvUrl='';
+  const blob=await dbGet('photos',r.id);if(blob){pvUrl=URL.createObjectURL(blob);im.src=pvUrl;}else im.src=r.thumb||'';im.style.transform='';pvZ={s:1,x:0,y:0};
+  $('#pv-cap').textContent=`${r.file}  ·  ${[r.dmg?'#'+r.dmg:'',r.content,sizeStr(Object.assign({},r,{shape:/면적|area/.test(r.shape||'')?'area':'line'}))].filter(Boolean).join(' ')}  (${pvI+1}/${pvList.length})`;
+  $('#pv-prev').style.visibility=pvI>0?'visible':'hidden';$('#pv-next').style.visibility=pvI<pvList.length-1?'visible':'hidden';}
+function viewPhotos(list,i){pvList=list;pvI=i||0;$('#pv').classList.add('on');pvShow();}
+function pvClose(){$('#pv').classList.remove('on');if(pvUrl){URL.revokeObjectURL(pvUrl);pvUrl='';}$('#pv-img').src='';}
+let pvZ={s:1,x:0,y:0};
+(function(){const box=$('#pv-box');const pts=new Map();let st=null;
+  const apply=()=>{$('#pv-img').style.transform=`translate(${pvZ.x}px,${pvZ.y}px) scale(${pvZ.s})`;};
+  box.addEventListener('pointerdown',e=>{pts.set(e.pointerId,[e.clientX,e.clientY]);try{box.setPointerCapture(e.pointerId)}catch(_){}
+    const v=[...pts.values()];st={z:{...pvZ},v:v.map(a=>a.slice()),t:Date.now()};});
+  box.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId)||!st)return;pts.set(e.pointerId,[e.clientX,e.clientY]);const v=[...pts.values()];
+    if(v.length>=2&&st.v.length>=2){const d0=Math.hypot(st.v[0][0]-st.v[1][0],st.v[0][1]-st.v[1][1]),d1=Math.hypot(v[0][0]-v[1][0],v[0][1]-v[1][1]);pvZ.s=Math.min(6,Math.max(1,st.z.s*d1/d0));apply();}
+    else if(v.length===1&&pvZ.s>1){pvZ.x=st.z.x+v[0][0]-st.v[0][0];pvZ.y=st.z.y+v[0][1]-st.v[0][1];apply();}});
+  const up=e=>{const a=pts.get(e.pointerId);pts.delete(e.pointerId);if(!st||!a)return;
+    if(st.v.length===1&&pts.size===0&&pvZ.s<=1.01){const dx=a[0]-st.v[0][0];if(Math.abs(dx)>60){if(dx<0&&pvI<pvList.length-1){pvI++;pvShow();}else if(dx>0&&pvI>0){pvI--;pvShow();}}
+      else if(Date.now()-st.t<300&&Math.abs(dx)<8){/* 두 번 탭 확대 */const now=Date.now();if(box._lt&&now-box._lt<350){pvZ.s=pvZ.s>1?1:2.5;if(pvZ.s===1){pvZ.x=0;pvZ.y=0;}apply();box._lt=0;}else box._lt=now;}}
+    if(pts.size===0){st=null;if(pvZ.s<=1.01){pvZ={s:1,x:0,y:0};apply();}}else st={z:{...pvZ},v:[...pts.values()].map(x=>x.slice()),t:Date.now()};};
+  box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up);})();
+$('#pv-x').onclick=pvClose;$('#pv-prev').onclick=()=>{if(pvI>0){pvI--;pvShow();}};$('#pv-next').onclick=()=>{if(pvI<pvList.length-1){pvI++;pvShow();}};
+$('#pv-edit').onclick=()=>{const r=pvList[pvI];pvClose();if(r)openRec(r.id);};
 function menuHead(m){return `${m.group?'묶음선':(m.dmg?'#'+m.dmg+' ':'')+(m.content||SHAPE_NAME[m.shape])} ${sizeStr(m)}`.trim()+(m.photoNos&&m.photoNos.length?` · 사진 ${nosLabel(m.photoNos)}`:'');}
 
 /* ---------- 빠른 메뉴 ---------- */
@@ -1437,14 +1547,17 @@ async function openMenuAt(q){const m=hitMark(q);if(m)return openMarkMenu(m,q);co
   r.appendChild(qbtn('● 기존 손상 점','',()=>{hideQMenu();newMark('point',[toPage(q)],q,'기존');}));
   r.appendChild(qbtn('📷 일반 사진','',()=>{hideQMenu();shoot({type:'일반',did:curDid,dname:curD.name,page:curPage+1});}));
   b.appendChild(r);placeQMenu(q);}
-async function openMarkMenu(m,q){selMark=m;drawMarks();const b=$('#qm-b');b.innerHTML='';
+async function openMarkMenu(m,q){if(selMark!==m)namePadOpen=false;selMark=m;drawMarks();const b=$('#qm-b');b.innerHTML='';
   $('#qm-h').textContent=menuHead(m);
   const shootRow=qrow();
   shootRow.appendChild(qbtn('📷 촬영','acc big',()=>{hideQMenu();shootMarkObj(m,false);}));
   if(NATIVE)shootRow.appendChild(qbtn(settings.camMode==='app'?'기본 카메라':'앱 카메라','',()=>{hideQMenu();shootMarkObj(m,true);}));
   let r;
   if(!m.group){r=qrow();const list=m.shape==='line'?LINE_DMG():m.shape==='area'?AREA_DMG():preset().dmg;
-    list.forEach(c=>r.appendChild(qbtn(esc(c),'chip'+(m.content===c?' on':''),async()=>{m.content=c;m.contentManual=true;await saveMarkObj(m);openMarkMenu(m,q);})));b.appendChild(r);}
+    const lst=list.slice();if(m.content&&!lst.includes(m.content))lst.push(m.content);
+    lst.forEach(c=>r.appendChild(qbtn(esc(c),'chip'+(m.content===c?' on':''),async()=>{m.content=c;m.contentManual=true;await saveMarkObj(m);openMarkMenu(m,q);})));
+    r.appendChild(qbtn('＋ 직접','chip'+(namePadOpen?' on':''),()=>{namePadOpen=!namePadOpen;openMarkMenu(m,q);}));b.appendChild(r);
+    if(namePadOpen)b.appendChild(makeNamePad(m,q));}
   b.appendChild(makePad(m,q));b.appendChild(shootRow);
   r=qrow();TYPES.filter(t=>t!=='일반').forEach(t=>r.appendChild(qbtn(t,'chip'+(m.type===t?' on':''),async()=>{m.type=t;if(t==='금회'&&!m.dmg)m.dmg=String(await nextDmgFor(curD,m.page));await saveMarkObj(m);openMarkMenu(m,q);})));b.appendChild(r);
   r=qrow();
@@ -1454,13 +1567,13 @@ async function openMarkMenu(m,q){selMark=m;drawMarks();const b=$('#qm-b');b.inne
     await saveMarkObj(m);openMarkMenu(m,q);}));
   if(m.shape!=='point')r.appendChild(qbtn(m.shape==='line'?'영역으로':'선으로','',async()=>{m.shape=m.shape==='line'?'area':'line';await saveMarkObj(m);openMarkMenu(m,q);}));
   r.appendChild(qbtn('삭제','bad',async()=>{hideQMenu();if(!await confirmBox('이 손상 표시를 삭제할까요?\n(찍은 사진·기록은 남습니다)','삭제'))return;await deleteMark(m);}));
-  b.appendChild(r);placeQMenu(q);}
+  b.appendChild(r);placeQMenu(q);if(m.photoNos&&m.photoNos.length)addThumbRow(b,m);}
 function openInkMenu(k,q){const b=$('#qm-b');b.innerHTML='';selMark=k;drawMarks();
   if(k.kind==='note'){$('#qm-h').textContent='메모'+(k.photoNos&&k.photoNos.length?' · 사진 '+nosLabel(k.photoNos):'');const r=qrow();
     r.appendChild(qbtn('📷 촬영 (일반 사진)','acc big',()=>{hideQMenu();shootNote(k,false);}));
     if(NATIVE)r.appendChild(qbtn(settings.camMode==='app'?'기본 카메라':'앱 카메라','',()=>{hideQMenu();shootNote(k,true);}));
     r.appendChild(qbtn('삭제','bad',async()=>{hideQMenu();pushUndo({op:'del',objs:[clone(k)]});await dbDel('marks',k.id);marks=marks.filter(x=>x.id!==k.id);selMark=null;drawMarks();}));
-    b.appendChild(r);placeQMenu(q);return;}
+    b.appendChild(r);placeQMenu(q);if(k.photoNos&&k.photoNos.length)addThumbRow(b,k);return;}
   const m=marks.find(x=>x.id===k.markId);
   $('#qm-h').textContent=`글씨: ${k.text||'(인식 안 됨)'}${m?' → '+(m.dmg?'#'+m.dmg:SHAPE_NAME[m.shape]):' (연결된 손상 없음)'}`;const r=qrow();
   r.appendChild(qbtn('글자 수정','pri',async()=>{hideQMenu();const v=await inputBox('글씨 내용 (예: 0.2/1.2, 0.3x0.2, 2ea)',k.text);if(v===null)return;

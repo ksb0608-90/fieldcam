@@ -89,6 +89,8 @@ public class MainActivity extends Activity {
     private final Map<String, OutputStream> openFiles = new ConcurrentHashMap<>();
     private DigitalInkRecognitionModel inkModel;
     private DigitalInkRecognizer inkRec;
+    private final Map<String, DigitalInkRecognitionModel> langModels = new ConcurrentHashMap<>();
+    private final Map<String, DigitalInkRecognizer> langRecs = new ConcurrentHashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -625,6 +627,77 @@ public class MainActivity extends Activity {
                     }).addOnFailureListener(e -> inkStatus("error:" + e.getMessage()));
                 } catch (Exception e) {
                     inkStatus("error:" + e.getMessage());
+                }
+            });
+        }
+
+        /** 언어별 손글씨 모델 준비(예: "ko") → window.onInkLangStatus(lang,'ready'|'downloading'|'error:..') */
+        @JavascriptInterface
+        public void inkPrepareLang(final String lang) {
+            runOnUiThread(() -> {
+                final String ql = JSONObject.quote(lang);
+                try {
+                    DigitalInkRecognitionModel md = langModels.get(lang);
+                    if (md == null) {
+                        DigitalInkRecognitionModelIdentifier id = DigitalInkRecognitionModelIdentifier.fromLanguageTag(lang);
+                        if (id == null) {
+                            callJs("window.onInkLangStatus && window.onInkLangStatus(" + ql + ",'error:모델 없음')");
+                            return;
+                        }
+                        md = DigitalInkRecognitionModel.builder(id).build();
+                        langModels.put(lang, md);
+                    }
+                    final DigitalInkRecognitionModel model = md;
+                    final RemoteModelManager mm = RemoteModelManager.getInstance();
+                    Runnable ready = () -> {
+                        if (!langRecs.containsKey(lang))
+                            langRecs.put(lang, DigitalInkRecognition.getClient(DigitalInkRecognizerOptions.builder(model).build()));
+                        callJs("window.onInkLangStatus && window.onInkLangStatus(" + ql + ",'ready')");
+                    };
+                    mm.isModelDownloaded(model).addOnSuccessListener(ok -> {
+                        if (Boolean.TRUE.equals(ok)) ready.run();
+                        else {
+                            callJs("window.onInkLangStatus && window.onInkLangStatus(" + ql + ",'downloading')");
+                            mm.download(model, new DownloadConditions.Builder().build())
+                                    .addOnSuccessListener(v -> ready.run())
+                                    .addOnFailureListener(e -> callJs("window.onInkLangStatus && window.onInkLangStatus(" + ql + "," + JSONObject.quote("error:" + e.getMessage()) + ")"));
+                        }
+                    }).addOnFailureListener(e -> callJs("window.onInkLangStatus && window.onInkLangStatus(" + ql + "," + JSONObject.quote("error:" + e.getMessage()) + ")"));
+                } catch (Exception e) {
+                    callJs("window.onInkLangStatus && window.onInkLangStatus(" + ql + "," + JSONObject.quote("error:" + e.getMessage()) + ")");
+                }
+            });
+        }
+
+        /** 언어별 손글씨 인식 → window.onInkResult(reqId, [후보...]) */
+        @JavascriptInterface
+        public void inkRecognizeLang(final String lang, final String reqId, final String json) {
+            runOnUiThread(() -> {
+                final String q = JSONObject.quote(reqId);
+                try {
+                    DigitalInkRecognizer rec = langRecs.get(lang);
+                    if (rec == null) {
+                        callJs("window.onInkResult && window.onInkResult(" + q + ",null)");
+                        return;
+                    }
+                    JSONArray strokes = new JSONArray(json);
+                    Ink.Builder ib = Ink.builder();
+                    for (int i = 0; i < strokes.length(); i++) {
+                        JSONArray pts = strokes.getJSONArray(i);
+                        Ink.Stroke.Builder sb = Ink.Stroke.builder();
+                        for (int k = 0; k < pts.length(); k++) {
+                            JSONArray pp = pts.getJSONArray(k);
+                            sb.addPoint(Ink.Point.create((float) pp.getDouble(0), (float) pp.getDouble(1), pp.getLong(2)));
+                        }
+                        ib.addStroke(sb.build());
+                    }
+                    rec.recognize(ib.build()).addOnSuccessListener(r -> {
+                        JSONArray out = new JSONArray();
+                        for (RecognitionCandidate c : r.getCandidates()) out.put(c.getText());
+                        callJs("window.onInkResult && window.onInkResult(" + q + "," + out.toString() + ")");
+                    }).addOnFailureListener(e -> callJs("window.onInkResult && window.onInkResult(" + q + ",[])"));
+                } catch (Exception e) {
+                    callJs("window.onInkResult && window.onInkResult(" + q + ",[])");
                 }
             });
         }
