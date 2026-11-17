@@ -42,6 +42,8 @@ import com.google.mlkit.vision.digitalink.DigitalInkRecognizer;
 import com.google.mlkit.vision.digitalink.DigitalInkRecognizerOptions;
 import com.google.mlkit.vision.digitalink.Ink;
 import com.google.mlkit.vision.digitalink.RecognitionCandidate;
+import com.google.mlkit.vision.digitalink.RecognitionContext;
+import com.google.mlkit.vision.digitalink.WritingArea;
 
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.io.MemoryUsageSetting;
@@ -725,6 +727,40 @@ public class MainActivity extends Activity {
                     }).addOnFailureListener(e -> callJs("window.onInkLangStatus && window.onInkLangStatus(" + ql + "," + JSONObject.quote("error:" + e.getMessage()) + ")"));
                 } catch (Exception e) {
                     callJs("window.onInkLangStatus && window.onInkLangStatus(" + ql + "," + JSONObject.quote("error:" + e.getMessage()) + ")");
+                }
+            });
+        }
+
+        /** 언어별 손글씨 인식 + 쓰기 칸 크기(인식 정확도 향상) */
+        @JavascriptInterface
+        public void inkRecognizeLangArea(final String lang, final String reqId, final String json, final double w, final double h) {
+            runOnUiThread(() -> {
+                final String q = JSONObject.quote(reqId);
+                try {
+                    DigitalInkRecognizer rec = langRecs.get(lang);
+                    if (rec == null) {
+                        callJs("window.onInkResult && window.onInkResult(" + q + ",null)");
+                        return;
+                    }
+                    JSONArray strokes = new JSONArray(json);
+                    Ink.Builder ib = Ink.builder();
+                    for (int i = 0; i < strokes.length(); i++) {
+                        JSONArray pts = strokes.getJSONArray(i);
+                        Ink.Stroke.Builder sb = Ink.Stroke.builder();
+                        for (int k = 0; k < pts.length(); k++) {
+                            JSONArray pp = pts.getJSONArray(k);
+                            sb.addPoint(Ink.Point.create((float) pp.getDouble(0), (float) pp.getDouble(1), pp.getLong(2)));
+                        }
+                        ib.addStroke(sb.build());
+                    }
+                    RecognitionContext ctx = RecognitionContext.builder().setPreContext("").setWritingArea(new WritingArea((float) w, (float) h)).build();
+                    rec.recognize(ib.build(), ctx).addOnSuccessListener(r -> {
+                        JSONArray out = new JSONArray();
+                        for (RecognitionCandidate c : r.getCandidates()) out.put(c.getText());
+                        callJs("window.onInkResult && window.onInkResult(" + q + "," + out.toString() + ")");
+                    }).addOnFailureListener(e -> callJs("window.onInkResult && window.onInkResult(" + q + ",[])"));
+                } catch (Exception e) {
+                    callJs("window.onInkResult && window.onInkResult(" + q + ",[])");
                 }
             });
         }

@@ -266,7 +266,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
     <div id="browseList"></div>
   </div>
   <div class="maptop">
-    <div class="grp"><button class="btn" id="sideBtn" onclick="toggleSide()" title="망도 목록 창">☰</button><button class="btn" id="mBack2" title="뒤로">←</button><button class="btn" id="mFwd2" title="앞으로">→</button><button class="btn" onclick="closeDrawing()">◀ 폴더</button><b id="mapTitle" class="mtitle"></b></div>
+    <div class="grp"><button class="btn" id="sideBtn" onclick="toggleSide()" title="망도 목록 창">☰</button><button class="btn" onclick="closeDrawing()">◀ 폴더</button><b id="mapTitle" class="mtitle"></b></div>
     <span class="sep"></span>
     <div class="grp"><button class="btn" onclick="goPage(-1)">◀</button><b id="mapPage" style="min-width:56px;text-align:center">-</b><button class="btn" onclick="goPage(1)">▶</button></div>
     <span class="sep"></span>
@@ -513,7 +513,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.18.0';
+const VERSION = '1.19.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -602,7 +602,7 @@ function mkHist(apply,ids){const h={st:[],i:-1,busy:false,
   ui(){ids.forEach(([b,f])=>{const eb=document.getElementById(b),ef=document.getElementById(f);if(eb)eb.disabled=h.i<=0;if(ef)ef.disabled=h.i>=h.st.length-1;});}};
   ids.forEach(([b,f])=>{const eb=document.getElementById(b),ef=document.getElementById(f);if(eb)eb.onclick=()=>h.go(-1);if(ef)ef.onclick=()=>h.go(1);});h.ui();return h;}
 const histP=mkHist(async x=>{listSel=x;await renderList();},[['pBack','pFwd']]);
-const histM=mkHist(async x=>{if(x.d){if(curDid!==x.d)await openDrawing(x.d);}else{if(curD){flushInk();hideQMenu();closeMarkSheet(true);curDid=null;curD=null;LS.set('map.open',null);}curFolder=x.f;LS.set('map.folder',curFolder);await renderMap();}},[['mBack','mFwd'],['mBack2','mFwd2']]);
+const histM=mkHist(async x=>{if(x.d){if(curDid!==x.d)await openDrawing(x.d);}else{if(curD){flushInk();hideQMenu();closeMarkSheet(true);curDid=null;curD=null;LS.set('map.open',null);}curFolder=x.f;LS.set('map.folder',curFolder);await renderMap();}},[['mBack','mFwd']]);
 function show(v){if(v==='shot')v='list';view=v;renderHeader();document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#shutter').style.display=(v==='list'&&curSess())?'':'none';
@@ -1366,7 +1366,7 @@ const CIRC='①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
 function numOf(t){t=String(t).trim();const c=CIRC.indexOf(t);if(c>=0)return String(c+1);const m=t.match(/^[(（]?(\d{1,3})[)）.]?$/);return m?String(+m[1]):null;}
 const isSize=t=>/(L\s*=|\d\s*[xX×*]\s*\d|\d\/\d|ea$|EA$|개소|T\s*=|㎡)/.test(t);
 const STATUS_W=/^(신규|기존|금회|변경|보수|삭제|진단|\d{2}[상하]|\d{2}진단)$/;
-const MEMBER_W=/^(벽체|헌치|슬래브|상부슬래브|하부슬래브|바닥판|바닥슬래브|거더|주형|가로보|세로보|교대|교각|기초|날개벽|흉벽|받침|교량받침|난간|방호벽|중분대|연석|신축이음|신축이음장치|배수구|배수시설|포장|기둥|코핑|측벽|정판|저판|상판|하판|라이닝|아치|우각부|격벽|벽|보도|차도|주부재|보조부재|부재|부재명)$/;
+const MEMBER_W=/^(벽체|헌치|슬래브|상부슬래브|하부슬래브|바닥판|바닥슬래브|거더|주형|가로보|세로보|교대|교각|기초|날개벽|흉벽|받침|교량받침|난간|방호벽|중분대|연석|신축이음|신축이음장치|배수구|배수시설|포장|기둥|코핑|측벽|정판|저판|상판|하판|라이닝|아치|우각부|격벽|벽|보도|차도|주부재|보조부재|부재|부재명|전면|후면|배면|좌측|우측|측면|정면|평면|단면|상면|하면|저면|입면|일반도)$/;
 const isName=t=>/[가-힣]{2,}/.test(t)&&!STATUS_W.test(t)&&!MEMBER_W.test(t);
 function dnoOf(ws){const k=ws.find(w=>/도면\s*번호/.test(w[4]));if(!k)return '';const Hm=medH(ws);let best=null,bd=1e9;
   for(const w of ws){if(w===k||!/^[A-Za-z\-]*\d{1,4}[A-Za-z\-\d]*$/.test(w[4]))continue;const dx=w[0]-k[2],dy=w[3]-k[3];
@@ -1399,20 +1399,39 @@ async function scanLabels(d,i){const k=d.id+':'+i;if(labelCache[k])return labelC
       if(!nx)break;ch.push(nx);used.add(nx);last=nx;}
     chains.push(ch);}
   const TKEY=it.filter(a=>/^(구조물명|시설물명|교량명|터널명|도면명|용역명|공사명)$/.test(a.w[4]));
-  const out=[];
-  for(const c of chains){let num=null;const names=[],sizes=[];
-    let real=0,mem=false,st=0;c.forEach((a,ix)=>{const t=a.w[4];const n=numOf(t);
-      if(n!==null&&num!==null&&mem&&!real){num=n;names.length=0;sizes.length=0;mem=false;st=ix;return;}   /* "3 슬래브 13 배수관…" → 부재번호 버리고 13 */
-      if(n!==null&&num===null){num=n;return;}if(isName(t)&&!NAME_BL.test(t)){names.push(t);real++;}else if(MEMBER_W.test(t)){names.push(t);mem=true;}else if(isSize(t))sizes.push(t);});
-    if(!real)continue;   /* 부재명(벽체 등)만 있으면 손상 아님 */
-    let cc=c.slice(st);const b0=cc[0].b;
+  /* 한 줄에 라벨이 나란히 있으면("2 균열 1 균열", "재료분리 1 박리 2") 번호 기준으로 나눔 */
+  const groups=[];
+  for(const c of chains){const gs=[];const ng=()=>({toks:[],num:null,names:[],sizes:[],real:0,mem:false});let g=ng();
+    const close=()=>{if(g.toks.length)gs.push(g);g=ng();};
+    const kinds=c.map(a=>numOf(a.w[4])!==null?'n':isSize(a.w[4])?'s':'w');const core=kinds.filter(k=>k!=='s');
+    /* 형식: 번호로 시작 → 번호 앞 / 이름으로 시작하고 번호로 끝남 → 번호 뒤 / 그 외(위치 글자+번호+이름) → 번호 앞 */
+    const after=core.length>1&&core[0]==='w'&&core[core.length-1]==='n';
+    for(const a of c){const t=a.w[4];const n=numOf(t);
+      if(n!==null){
+        if(after){if(g.real&&g.num===null){g.num=n;g.toks.push(a);close();}else if(!g.toks.length&&gs.length&&gs[gs.length-1].num===null){gs[gs.length-1].num=n;}continue;}
+        if(g.num!==null&&g.mem&&!g.real){g=ng();g.num=n;g.toks.push(a);continue;}   /* "3 슬래브 13 배수관…" → 부재번호 버림 */
+        if(g.num!==null&&!g.real)continue;                                          /* "4 25하 …" 표의 다음 칸 숫자 무시 */
+        if(g.num!==null&&g.real){close();g.num=n;g.toks.push(a);continue;}          /* 다음 라벨 시작 */
+        g.num=n;g.toks.push(a);continue;}
+      if(isName(t)&&!NAME_BL.test(t)){g.names.push(t);g.real++;g.toks.push(a);}
+      else if(MEMBER_W.test(t)){g.names.push(t);g.mem=true;g.toks.push(a);}
+      else if(isSize(t)){if(!g.toks.length&&gs.length)gs[gs.length-1].sizes.push(t);else{g.sizes.push(t);g.toks.push(a);}}}
+    close();groups.push(...gs);}
+  const cands=[];
+  for(const g of groups){if(!g.real)continue;   /* 부재명(벽체 등)만 있으면 손상 아님 */
+    let cc=g.toks,num=g.num;const b0=cc[0].b;
     if(TKEY.some(k=>Math.abs(k.b-b0)<Hm*0.8&&cc[0].w[0]>k.w[0]&&cc[0].w[0]-k.w[2]<0.12))continue;   /* 표제란(구조물명 석불제1 등) 제외 */
     if(num===null){let best=null,bd=1e9;for(const a of it){const gap=cc[0].w[0]-a.w[2];if(gap<-Hm*0.3||gap>Hm*8||Math.abs(a.b-b0)>Hm*0.6||numOf(a.w[4])===null)continue;if(gap<bd){bd=gap;best=a;}}
       if(best){num=numOf(best.w[4]);cc=[best,...cc];}}
     if(num===null||+num>999)continue;
-    const x0=Math.min(...cc.map(a=>a.w[0])),x1=Math.max(...cc.map(a=>a.w[2])),bl=Math.max(...cc.map(a=>a.b));let by=bl,bx1=x1;
-    for(const a of it){if(a.b>bl+Hm*0.3&&a.b<=bl+Hm*2.4&&a.w[2]>x0-Hm&&a.w[0]<x1+Hm&&isSize(a.w[4])){sizes.push(a.w[4]);bx1=Math.max(bx1,a.w[2]);by=Math.max(by,a.b);}}
-    out.push({num,name:names.join(' '),size:sizes.join(' '),box:[x0,bl-Hm*1.1,bx1,by+Hm*0.25]});}
+    const x0=Math.min(...cc.map(a=>a.w[0])),x1=Math.max(...cc.map(a=>a.w[2])),bl=Math.max(...cc.map(a=>a.b));
+    cands.push({num,names:g.names,sizes:g.sizes.slice(),x0,x1,bl,by:bl,bx1:x1});}
+  /* 아래 줄 물량: 가로로 가장 많이 겹치는 라벨 하나에만 붙임 */
+  for(const a of it){if(!isSize(a.w[4]))continue;let best=null,bo=-1;
+    for(const c of cands){if(!(a.b>c.bl+Hm*0.3&&a.b<=c.bl+Hm*2.4&&a.w[2]>c.x0-Hm&&a.w[0]<c.x1+Hm))continue;
+      const ov=Math.min(a.w[2],c.x1)-Math.max(a.w[0],c.x0);if(ov>bo){bo=ov;best=c;}}
+    if(best){best.sizes.push(a.w[4]);best.bx1=Math.max(best.bx1,a.w[2]);best.by=Math.max(best.by,a.b);}}
+  const out=cands.map(c=>({num:c.num,name:c.names.join(' '),size:c.sizes.join(' '),box:[c.x0,c.bl-Hm*1.1,c.bx1,c.by+Hm*0.25]}));
   out.sort((a,b)=>a.box[1]-b.box[1]||a.box[0]-b.box[0]);
   return labelCache[k]=out;}
 /* 펜으로 초록 상자(기존 손상)를 동그라미 쳤는지: 상자 중심이 동그라미 안에 있고 동그라미가 상자보다 너무 크지 않을 때 */
@@ -1456,7 +1475,7 @@ const exMaxCache={};
 async function existingMax(d,i){const k=d.id+':'+i;if(exMaxCache[k]!==undefined)return exMaxCache[k];const ls=await scanLabels(d,i);
   return exMaxCache[k]=ls.reduce((m,l)=>Math.max(m,+l.num),0);}
 /* 신규 손상번호: 그 페이지의 기존 손상 마지막 번호와 이미 표시한 번호 다음 */
-async function nextDmgFor(d,i){const ex=await existingMax(d,i);let mx=ex;for(const m of marks)if(m.did===d.id&&m.page===i&&m.shape!=='ink'&&/^\d+$/.test(m.dmg||''))mx=Math.max(mx,+m.dmg);return mx+1;}
+async function nextDmgFor(d,i){const ex=await existingMax(d,i);let mx=ex;for(const m of marks)if(m.did===d.id&&m.page===i&&m.shape!=='ink'&&m.type!=='기존'&&/^\d+$/.test(m.dmg||''))mx=Math.max(mx,+m.dmg);return mx+1;}
 function openPdfLabelMenu(l,q){const ex=labelDone(l);if(ex)return openMarkMenu(ex,q);
   const b=$('#qm-b');b.innerHTML='';$('#qm-h').textContent=`기존 손상 #${l.num} ${l.name}${l.size?' · '+l.size:''}${l.dno?'  (도면 '+l.dno+')':''}`;
   const mk=async type=>{const p=curD.pages[curPage];const sz=parseSize(l.size);
@@ -1501,29 +1520,40 @@ window.onInkLangStatus=(lang,st)=>{if(lang!=='ko')return;koState=st.startsWith('
   document.querySelectorAll('.npad .res').forEach(el=>{if(koState==='downloading')el.innerHTML='<span class="muted">한글 인식 모델 내려받는 중… (처음 1번, 인터넷 필요)</span>';
     else if(koState==='error')el.innerHTML='<span style="color:#d92d20">한글 인식 준비 실패 (인터넷 연결 확인) – [키보드]</span>';else if(koState==='ready'&&/내려받는/.test(el.textContent))el.innerHTML='<span class="muted">손상명을 펜으로 쓰세요</span>';});};
 function koPrepare(){if(koState==='ready'||koState==='downloading')return;if(NATIVE&&Android.inkPrepareLang){koState='downloading';Android.inkPrepareLang('ko');}}
+/* 손상명 사전: 손글씨 인식 결과를 가장 비슷한 손상명으로 바로잡을 때 사용 (자모 단위 비교) */
+const DMG_DICT='균열,망상균열,종방향균열,횡방향균열,사인장균열,균열부백태,균열부누수,백태,백화,누수,누수흔적,박리,박락,층분리,들뜸,재료분리,철근노출,철근부식,파손,모서리파손,단부파손,공동,탈락,부식,도장박리,도장손상,도장열화,녹,볼트탈락,볼트이완,볼트부식,용접부균열,변형,처짐,침하,세굴,마모,동해,염해,오염,이물질퇴적,토사퇴적,식생,배수구막힘,배수관파손,배수관탈락,배수관길이부족,배수관접합부누수,실링재파손,실런트파손,실런트열화,신축이음손상,신축이음파손,유간부족,단차,포장균열,포장파손,포트홀,소성변형,난간불량,난간고정불량,난간부식,방호벽파손,받침부식,받침변형,받침편기,받침몰탈균열,받침콘크리트균열,받침플레이트부식,표면보수재박리,보수부재균열,보수부손상,시공이음부손상,시공이음부누수,이음부누수,라이닝균열,라이닝박리,배면공동,흙막이손상,낙석방지망손상,잡철물노출,외부마감재파손,마감몰탈탈락,타일파손,기타'.split(',');
+function jamo(t){let o='';for(const ch of String(t)){const c=ch.charCodeAt(0)-0xAC00;if(c>=0&&c<11172){o+=String.fromCharCode(0x1100+Math.floor(c/588),0x1161+Math.floor(c%588/28));if(c%28)o+=String.fromCharCode(0x11A7+c%28);}else if(/\S/.test(ch))o+=ch;}return o;}
+function lev(a,b){const m=a.length,n=b.length;if(!m)return n;if(!n)return m;let pr=Array.from({length:n+1},(_,j)=>j);
+  for(let i=1;i<=m;i++){const cu=[i];for(let j=1;j<=n;j++)cu[j]=Math.min(pr[j]+1,cu[j-1]+1,pr[j-1]+(a[i-1]===b[j-1]?0:1));pr=cu;}return pr[n];}
+function dictSuggest(cands){const dict=[...new Set([...preset().dmg,...DMG_DICT].map(x=>x.replace(/\s+/g,'')))];const sc=new Map();
+  (cands||[]).slice(0,10).forEach((c,ci)=>{const jc=jamo(String(c).replace(/\s+/g,''));if(!jc)return;
+    for(const w of dict){const jw=jamo(w);const d=lev(jc,jw)/Math.max(jc.length,jw.length)+ci*0.01;if(d<=0.34&&(!sc.has(w)||d<sc.get(w)))sc.set(w,d);}});
+  return [...sc.entries()].sort((a,b)=>a[1]-b[1]).map(e=>e[0]).slice(0,3);}
 function addCustomDmg(name){const p=preset();if(p.dmg.includes(name))return;p.dmg.push(name);presets.all={mem:p.mem.join(','),dmg:p.dmg.join(','),ws:p.ws.join(',')};LS.set('presets',presets);}
 function makeNamePad(m,q){koPrepare();const box=document.createElement('div');box.className='qpad npad';
   box.innerHTML=`<div class="qpad-h">손상명 손글씨 <span class="muted">예: 누수흔적, 도장박리</span></div>
     <canvas></canvas><div class="cands qrow" style="min-height:0"></div><div class="qpad-r"><span class="res"></span><span style="flex:1"></span><button class="btn" data-a="clr">지우기</button><button class="btn" data-a="kb">키보드</button></div>`;
-  const cv=box.querySelector('canvas'),res=box.querySelector('.res'),cands=box.querySelector('.cands');const dpr=window.devicePixelRatio||1;const W=420,H=120;
+  const cv=box.querySelector('canvas'),res=box.querySelector('.res'),cands=box.querySelector('.cands');const dpr=window.devicePixelRatio||1;const W=Math.min(500,innerWidth-80),H=140;
   cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';const g=cv.getContext('2d');g.scale(dpr,dpr);g.lineWidth=2.6;g.lineCap='round';g.lineJoin='round';g.strokeStyle='#7a2e0e';
   let strokes=[],cur=null,timer=null,penOn=false;
   res.innerHTML=koState==='error'?'<span style="color:#d92d20">한글 인식 준비 실패 (인터넷 연결 확인) – [키보드]</span>':koState==='downloading'?'<span class="muted">한글 인식 모델 내려받는 중… (처음 1번, 인터넷 필요)</span>':'<span class="muted">손상명을 펜으로 쓰세요</span>';
   const pt=e=>{const r=cv.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top,Date.now()];};
   cv.addEventListener('pointerdown',e=>{if(e.pointerType!=='pen'&&penOn)return;if(e.pointerType==='pen')penOn=true;e.preventDefault();e.stopPropagation();try{cv.setPointerCapture(e.pointerId)}catch(_){}clearTimeout(timer);cur=[pt(e)];strokes.push(cur);g.beginPath();g.moveTo(cur[0][0],cur[0][1]);});
   cv.addEventListener('pointermove',e=>{if(!cur)return;const p=pt(e);cur.push(p);g.lineTo(p[0],p[1]);g.stroke();});
-  const up=e=>{if(!cur)return;cur=null;if(e.pointerType==='pen')penOn=false;clearTimeout(timer);timer=setTimeout(recog,1100);};
+  const up=e=>{if(!cur)return;cur=null;if(e.pointerType==='pen')penOn=false;clearTimeout(timer);timer=setTimeout(recog,1500);};
   cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+  g.save();g.strokeStyle='#d0d5dd';g.setLineDash([6,6]);g.lineWidth=1;g.beginPath();g.moveTo(10,H*0.78);g.lineTo(W-10,H*0.78);g.stroke();g.restore();g.lineWidth=3;
   const pick=async name=>{name=String(name||'').replace(/\s+/g,'').trim();if(!name)return;m.content=name;m.contentManual=true;addCustomDmg(name);await saveMarkObj(m);namePadOpen=false;openMarkMenu(m,q);toast(`손상명 "${name}" – 다음부터 목록에서 선택`,2500);};
-  const showC=list=>{const seen=[...new Set((list||[]).map(c=>String(c).replace(/\s+/g,'')).filter(c=>/[가-힣]/.test(c)))].slice(0,4);cands.innerHTML='';
-    if(!seen.length){res.innerHTML='<span style="color:#d92d20">인식 못 함 – 다시 쓰거나 [키보드]</span>';return;}
-    res.innerHTML='<span class="muted">맞는 것을 누르세요</span>';seen.forEach((c,i)=>cands.appendChild(qbtn(esc(c),'chip'+(i===0?' on':''),()=>pick(c))));};
+  const showC=list=>{const raw=[...new Set((list||[]).map(c=>String(c).replace(/\s+/g,'')).filter(c=>/[가-힣]/.test(c)))];const sug=dictSuggest(raw);
+    const all=[...sug.map(c=>[c,1]),...raw.filter(c=>!sug.includes(c)).slice(0,Math.max(2,4-sug.length)).map(c=>[c,0])];cands.innerHTML='';
+    if(!all.length){res.innerHTML='<span style="color:#d92d20">인식 못 함 – 다시 쓰거나 [키보드]</span>';return;}
+    res.innerHTML='<span class="muted">맞는 것을 누르세요'+(sug.length?' (📘 = 손상명 목록에서 찾은 것)':'')+'</span>';all.forEach(([c,d],i)=>cands.appendChild(qbtn((d?'📘 ':'')+esc(c),'chip'+(i===0?' on':''),()=>pick(c))));};
   const recog=()=>{if(!strokes.length)return;const id='np'+uid();const t0=strokes[0][0][2];
     const json=JSON.stringify(strokes.map(st=>st.map(a=>[+a[0].toFixed(1),+a[1].toFixed(1),a[2]-t0])));
     const run=()=>{res.innerHTML='<span class="muted">인식 중…</span>';padPending[id]=showC;
-      if(NATIVE&&Android.inkRecognizeLang&&koState==='ready')Android.inkRecognizeLang('ko',id,json);else if(window.__mockInkKo)setTimeout(()=>window.onInkResult(id,window.__mockInkKo()),50);else{delete padPending[id];showC([]);}};
+      if(NATIVE&&Android.inkRecognizeLangArea&&koState==='ready')Android.inkRecognizeLangArea('ko',id,json,W,H);else if(NATIVE&&Android.inkRecognizeLang&&koState==='ready')Android.inkRecognizeLang('ko',id,json);else if(window.__mockInkKo)setTimeout(()=>window.onInkResult(id,window.__mockInkKo()),50);else{delete padPending[id];showC([]);}};
     if(koState==='ready'||!NATIVE||!Android.inkRecognizeLang)run();else{koWait.push(run);koPrepare();}};
-  box.querySelector('[data-a=clr]').onclick=e=>{e.stopPropagation();strokes=[];g.clearRect(0,0,W,H);cands.innerHTML='';};
+  box.querySelector('[data-a=clr]').onclick=e=>{e.stopPropagation();strokes=[];g.clearRect(0,0,W,H);cands.innerHTML='';g.save();g.strokeStyle='#d0d5dd';g.setLineDash([6,6]);g.lineWidth=1;g.beginPath();g.moveTo(10,H*0.78);g.lineTo(W-10,H*0.78);g.stroke();g.restore();res.innerHTML='<span class="muted">손상명을 펜으로 쓰세요 (한 줄로, 다 쓰면 잠깐 멈추기)</span>';};
   box.querySelector('[data-a=kb]').onclick=async e=>{e.stopPropagation();const v=await inputBox('손상명 직접 입력','');if(v)await pick(v);};
   return box;}
 /* 손상 표시에 연결된 사진 */
@@ -1581,11 +1611,12 @@ async function openMarkMenu(m,q){if(selMark!==m)namePadOpen=false;selMark=m;draw
     r.appendChild(qbtn('＋ 직접','chip'+(namePadOpen?' on':''),()=>{namePadOpen=!namePadOpen;openMarkMenu(m,q);}));b.appendChild(r);
     if(namePadOpen)b.appendChild(makeNamePad(m,q));}
   b.appendChild(makePad(m,q));b.appendChild(shootRow);
-  r=qrow();TYPES.filter(t=>t!=='일반').forEach(t=>r.appendChild(qbtn(t,'chip'+(m.type===t?' on':''),async()=>{m.type=t;if(t==='금회'&&!m.dmg)m.dmg=String(await nextDmgFor(curD,m.page));await saveMarkObj(m);openMarkMenu(m,q);})));b.appendChild(r);
+  r=qrow();TYPES.filter(t=>t!=='일반').forEach(t=>r.appendChild(qbtn(t,'chip'+(m.type===t?' on':''),async()=>{const prev=m.type;m.type=t;if(t==='기존'&&prev!=='기존'&&m.src!=='pdf'&&m.autoDmg!==false){m.dmg='';m.autoDmg=false;}   /* 기존 손상엔 신규 #연번 안 붙임 */
+    if(t==='금회'&&!m.dmg){m.dmg=String(await nextDmgFor(curD,m.page));m.autoDmg=true;}await saveMarkObj(m);openMarkMenu(m,q);})));b.appendChild(r);
   r=qrow();
   r.appendChild(qbtn('상세 입력','',()=>{hideQMenu();openMarkSheet(m);}));
   if(m.shape==='line')r.appendChild(qbtn(m.group?'균열로 바꾸기':'묶음선으로','',async()=>{const ss=curSess();m.group=!m.group;
-    if(m.group)m.dmg='';else if(m.type==='금회'&&!m.dmg){m.dmg='';m.dmg=String(await nextDmgFor(curD,m.page));}
+    if(m.group)m.dmg='';else if(m.type==='금회'&&!m.dmg){m.dmg=String(await nextDmgFor(curD,m.page));m.autoDmg=true;}
     await saveMarkObj(m);openMarkMenu(m,q);}));
   if(m.shape!=='point')r.appendChild(qbtn(m.shape==='line'?'영역으로':'선으로','',async()=>{m.shape=m.shape==='line'?'area':'line';await saveMarkObj(m);openMarkMenu(m,q);}));
   r.appendChild(qbtn('삭제','bad',async()=>{hideQMenu();if(!await confirmBox('이 손상 표시를 삭제할까요?\n(찍은 사진·기록은 남습니다)','삭제'))return;await deleteMark(m);}));
@@ -1610,7 +1641,7 @@ async function newMark(shape,pts,q,type,opt){const s=curSess(),d=curD,p=d.pages[
   const m={id:uid(),sid:s.id,did:d.id,page:curPage,shape,pts:pts.map(t=>[+(clamp(t[0],0,p.w)/p.w).toFixed(5),+(clamp(t[1],0,p.h)/p.h).toFixed(5)]),
     type:type||'금회',dmg:'',mem:last.mem||'',loc:last.loc||'',content:shape==='line'?'균열':'',w:'',l:'',b:'',n:'',note:'',photoNos:[],created:nowStr(),ts:Date.now(),pw:opt.pw||penSt.w,hl:!!opt.hl};
   if(opt.extra)Object.assign(m,opt.extra);
-  if(m.type==='금회'&&!m.dmg)m.dmg=String(await nextDmgFor(d,curPage));
+  if(m.type==='금회'&&!m.dmg){m.dmg=String(await nextDmgFor(d,curPage));m.autoDmg=true;}
   if(!m.dno){const ws=await pageWords(d,curPage);m.dno=dnoOf(ws);}
   await saveMarkObj(m);pushUndo({op:'add',objs:[clone(m)]});return m;
   if(q)openMarkMenu(m,q);else{selMark=null;drawMarks();}return m;}
@@ -1640,7 +1671,8 @@ function openMarkSheet(m){kpClose();mkEdit=JSON.parse(JSON.stringify(m));selMark
   mkChips();mkPhotos();$('#mk-sheet').classList.add('on');$('#v-map').classList.add('sheeton');$('#mk-sheet').scrollTop=0;}
 function mkChips(){const s=curSess(),p=preset(s.ftype),e=mkEdit;
   chips($('#mk-typ'),TYPES.filter(t=>t!=='일반'),e.type,async t=>{const prev=e.type;e.type=t;
-    if(t==='금회'&&prev!=='금회'&&!e.dmg)e.dmg=String(await nextDmgFor(curD,e.page));$('#mk-dmg').value=e.dmg||'';mkChips();});
+    if(t==='기존'&&prev!=='기존'&&e.src!=='pdf'&&e.autoDmg!==false&&$('#mk-dmg').value===e.dmg){e.dmg='';e.autoDmg=false;}
+    if(t==='금회'&&prev!=='금회'&&!e.dmg){e.dmg=String(await nextDmgFor(curD,e.page));e.autoDmg=true;}$('#mk-dmg').value=e.dmg||'';mkChips();});
   chips($('#mk-mem'),[...p.mem,...recent('mem').filter(x=>!p.mem.includes(x))],e.mem,v=>{e.mem=e.mem===v?'':v;mkChips();});
   chips($('#mk-content'),[...p.dmg,...recent('content').filter(x=>!p.dmg.includes(x))],e.content,v=>{e.content=e.content===v?'':v;mkChips();});
   chips($('#mk-locChips'),recent('loc'),e.loc,v=>{e.loc=v;$('#mk-loc').value=v;mkChips();},'rec');
@@ -1652,7 +1684,7 @@ async function mkPhotos(){const m=mkEdit;const rs=m.isNew?[]:(await recsOf(curSe
   $('#mk-photos').querySelectorAll('div[data-id]').forEach(el=>el.onclick=()=>openRec(el.dataset.id));}
 function closeMarkSheet(silent){kpClose();$('#mk-sheet').classList.remove('on');$('#v-map').classList.remove('sheeton');mkEdit=null;selMark=null;if(!silent&&view==='map')drawMarks();}
 async function saveMark(){const s=curSess(),e=mkEdit;if(!e)return null;
-  ['dmg','loc','w','l','b','n','note'].forEach(k=>e[k]=$('#mk-'+k).value.trim());
+  {const was=e.dmg;['dmg','loc','w','l','b','n','note'].forEach(k=>e[k]=$('#mk-'+k).value.trim());if(e.dmg!==was)e.autoDmg=false;}   /* 손으로 고친 번호는 유지 */
   if(e.type==='금회'){const n=parseInt(e.dmg,10);if(!isNaN(n)&&n>=s.nextDmg){s.nextDmg=n+1;await dbPut('sessions',s);}}
   delete e.isNew;e.updated=nowStr();
   e.contentManual=true;await dbPut('marks',e);const i=marks.findIndex(x=>x.id===e.id);if(i<0)marks.push(e);else marks[i]=e;await syncRecs(e);
