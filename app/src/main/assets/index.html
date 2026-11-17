@@ -122,7 +122,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 .kpad .kg button{border:0;border-radius:10px;padding:14px 0;font-size:22px;font-weight:700;background:#344054;color:#fff}
 .kpad .kg button.f{background:#475467;font-size:17px}
 .kpad .kg button.ok{background:var(--acc);font-size:18px}
-#v-map:not(.viewing) .maptop,#v-map:not(.viewing) .mapwrap{display:none}
+#v-map:not(.viewing) .maptop,#v-map:not(.viewing) .mapbody{display:none}
 #v-map.viewing .browse{display:none}
 .browse{flex:1;overflow:auto;padding:12px;max-width:1100px;width:100%;margin:0 auto}
 .crumbs{font-size:18px;font-weight:700;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
@@ -140,6 +140,23 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 .qmenu .btn{padding:10px 14px;font-size:16px}
 .qmenu .btn.big{padding:14px 24px;font-size:19px}
 .qmenu .chip{padding:9px 13px}
+.mapbody{flex:1;display:flex;min-height:0}
+.side{width:230px;flex:none;overflow:auto;background:#f8fafc;border-right:1px solid var(--line);display:none;padding:6px}
+#v-map.sideon .side{display:block}
+.side .sh{font-weight:700;font-size:14px;color:var(--pri);padding:10px 4px 4px;position:sticky;top:-6px;background:#f8fafc;z-index:1}
+.side .sp{border:2px solid transparent;border-radius:8px;padding:3px;margin-bottom:6px;cursor:pointer;background:#fff}
+.side .sp.on{border-color:var(--acc)}
+.side .sp img{width:100%;display:block;border-radius:4px;min-height:60px;background:#e4e7ec}
+.side .sp span{display:block;font-size:13px;color:var(--sub);padding:2px 2px 0}
+.side .sp span b{color:#e11d48}
+.pcol{border:2px solid transparent;background:#f2f4f7;border-radius:10px;padding:5px 10px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px}
+.pcol i{display:inline-block;width:20px;height:20px;border-radius:50%}
+.pcol.on{border-color:var(--pri);background:#fff;box-shadow:0 0 0 2px #c7d2fe}
+.pw{border:2px solid transparent;background:#f2f4f7;border-radius:10px;width:40px;height:40px;display:flex;align-items:center;justify-content:center}
+.pw i{display:block;border-radius:50%;background:#111827}
+.pw.on{border-color:var(--pri);background:#fff}
+#eraseBtn.on{background:#d92d20;color:#fff}
+#hlBtn.on{background:#facc15;color:#111}
 </style>
 </head>
 <body>
@@ -152,8 +169,8 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 <!-- 촬영 -->
 <section class="view" id="v-shot">
   <div id="noSess" class="card empty hide">
-    선택된 조사가 없습니다.<br><br>
-    <button class="btn pri" onclick="openSessModal()">+ 새 조사 시작</button>
+    아직 연 망도가 없습니다.<br>[망도] 탭에서 구조물 망도를 열면 그 구조물로 촬영됩니다.<br><br>
+    <button class="btn pri" onclick="show('map')">망도 열기</button>
   </div>
   <div id="shotBody">
     <div class="photono">
@@ -219,22 +236,31 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
     <div id="browseList"></div>
   </div>
   <div class="maptop">
-    <div class="grp"><button class="btn" onclick="closeDrawing()">◀ 목록</button><b id="mapTitle" class="mtitle"></b></div>
+    <div class="grp"><button class="btn" id="sideBtn" onclick="toggleSide()" title="망도 목록 창">☰</button><button class="btn" onclick="closeDrawing()">◀ 폴더</button><b id="mapTitle" class="mtitle"></b></div>
     <span class="sep"></span>
     <div class="grp"><button class="btn" onclick="goPage(-1)">◀</button><b id="mapPage" style="min-width:56px;text-align:center">-</b><button class="btn" onclick="goPage(1)">▶</button></div>
     <span class="sep"></span>
-    <div class="grp" id="toolGrp">
-      <button class="btn tbtn" data-t="pan">✋ 이동</button>
-      <button class="btn tbtn" data-t="line">〰 균열선</button>
-      <button class="btn tbtn" data-t="area">▧ 면적</button>
-      <button class="btn tbtn" data-t="point">● 점</button>
+    <div class="grp" id="penGrp">
+      <button class="pcol" data-c="red"><i style="background:#e11d48"></i>신규</button>
+      <button class="pcol" data-c="blue"><i style="background:#1d4ed8"></i>보수</button>
+      <button class="pcol" data-c="black"><i style="background:#111827"></i>메모</button>
+      <span class="sep"></span>
+      <button class="pw" data-w="1" title="가늘게"><i style="width:4px;height:4px"></i></button>
+      <button class="pw" data-w="2" title="보통"><i style="width:8px;height:8px"></i></button>
+      <button class="pw" data-w="3" title="굵게"><i style="width:13px;height:13px"></i></button>
+      <button class="btn tbtn" id="hlBtn">형광펜</button>
+      <button class="btn tbtn" id="eraseBtn">지우개</button>
+      <button class="btn" onclick="undo()" title="되돌리기">↶</button>
     </div>
     <span class="sep"></span>
-    <button class="btn" onclick="fitView()">⤢ 전체</button>
+    <button class="btn" onclick="fitView()" title="전체 보기">⤢</button>
   </div>
-  <div class="mapwrap" id="mapWrap">
-    <div id="mapStage" class="hide"><img id="mapImg" alt=""><svg id="mapSvg" xmlns="http://www.w3.org/2000/svg"></svg></div>
-    <div class="mapempty" id="mapEmpty"></div>
+  <div class="mapbody">
+    <aside class="side" id="mapSide"></aside>
+    <div class="mapwrap" id="mapWrap">
+      <div id="mapStage" class="hide"><img id="mapImg" alt=""><svg id="mapSvg" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <div class="mapempty hide" id="mapEmpty"></div>
+    </div>
   </div>
   <input type="file" id="mapFile" accept="image/*" multiple class="hide">
 </section>
@@ -263,20 +289,32 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 <!-- 설정 -->
 <section class="view" id="v-set">
   <div class="card">
-    <div class="sw"><div>조사자<div class="muted">사진번호(파일명)에 들어가는 이름</div></div><div class="row"><b id="s-insp"></b><button class="btn" onclick="askInspector(true)">변경</button></div></div>
-    <div class="sw"><div>앱 버전 <span id="ver2"></span><div class="muted" id="updInfo"></div></div><div class="row"><button class="btn" onclick="checkUpd(true)">업데이트 확인</button><button class="btn acc hide" id="updBtn2" onclick="startUpd()">업데이트</button></div></div>
+    <div class="lbl" style="margin-top:0">조사자</div>
+    <div class="sw"><div>조사자 이름<div class="muted">사진번호(파일명)에 들어갑니다</div></div><div class="row"><b id="s-insp"></b><button class="btn" onclick="askInspector(true)">변경</button></div></div>
   </div>
   <div class="card">
-    <div class="sw"><div>사진에 정보판 넣기<div class="muted">사진번호·손상번호·규모·날짜를 사진 하단에 표기</div></div><input type="checkbox" id="s-overlay"></div>
-    <div class="sw" id="row-dl"><div>촬영 즉시 기기에도 저장<div class="muted">사진을 다운로드 폴더에 파일명 그대로 저장(백업용)</div></div><input type="checkbox" id="s-dl"></div>
-    <div class="sw"><div>손글씨 인식<div class="muted">펜으로 쓴 0.2/1.2, 0.3x0.2, 2ea 를 자동 입력 (처음 1번 인터넷 필요)</div></div><div class="row"><span id="inkInfo" class="muted">-</span><button class="btn" onclick="if(NATIVE&&Android.inkPrepare)Android.inkPrepare();else toast('앱에서만 사용')">다시 시도</button></div></div>
+    <div class="lbl" style="margin-top:0">망도 · 펜</div>
     <div class="sw"><div>펜으로만 그리기<div class="muted">켜면 펜=그리기, 손가락=이동·확대·페이지 넘김 (자동: 펜을 한 번 쓰면 켜짐)</div></div><select id="s-pen"><option value="auto">자동</option><option value="on">켜기</option><option value="off">끄기</option></select></div>
-    <div class="sw" id="row-cam"><div>기본 촬영 방식<div class="muted">앱 카메라: 셔터 한 번에 저장·연속 촬영 / 기본 카메라: 삼성 카메라 기능 사용</div></div><select id="s-cam"><option value="app">앱 카메라</option><option value="sys">기본 카메라</option></select></div>
-    <div class="sw"><div>세부 입력란 표시<div class="muted">끄면 구분·손상번호만 보고 바로 촬영</div></div><input type="checkbox" id="s-detail"></div>
-    <div class="sw"><div>사진번호 자릿수</div><select id="s-digits"><option>3</option><option>4</option><option>5</option></select></div>
+    <div class="sw"><div>손글씨 인식<div class="muted">빨강·파랑 펜으로 쓴 0.2/1.2, 0.3x0.2, 2ea, 손상번호 자동 입력 (처음 1번 인터넷 필요)</div></div><div class="row"><span id="inkInfo" class="muted">-</span><button class="btn" onclick="if(NATIVE&&Android.inkPrepare)Android.inkPrepare();else toast('앱에서만 사용')">다시 시도</button></div></div>
+    <div class="muted" style="padding-top:6px">펜 색: 빨강=신규 손상, 파랑=보수, 검정=메모(전경·특이사항) · S펜 버튼을 누른 채 그으면 지우개</div>
   </div>
   <div class="card">
-    <div class="lbl" style="margin-top:0">목록 편집 (쉼표로 구분)</div>
+    <div class="lbl" style="margin-top:0">촬영</div>
+    <div class="sw" id="row-cam"><div>기본 촬영 방식<div class="muted">앱 카메라: 셔터 한 번에 저장·연속 촬영 / 기본 카메라: 삼성 카메라 기능 사용</div></div><select id="s-cam"><option value="app">앱 카메라</option><option value="sys">기본 카메라</option></select></div>
+    <div class="sw"><div>사진에 정보판 넣기<div class="muted">사진번호·손상번호·규모·날짜를 사진 하단에 표기</div></div><input type="checkbox" id="s-overlay"></div>
+    <div class="sw"><div>사진번호 자릿수</div><select id="s-digits"><option>3</option><option>4</option><option>5</option></select></div>
+    <div class="sw"><div>[촬영] 탭 세부 입력란 표시</div><input type="checkbox" id="s-detail"></div>
+    <div class="sw" id="row-dl"><div>촬영 즉시 기기에도 저장 (웹)</div><input type="checkbox" id="s-dl"></div>
+  </div>
+  <div class="card">
+    <div class="lbl" style="margin-top:0">구조물별 사진 번호 · 내보내기</div>
+    <div class="sw"><div>구조물</div><select id="s-sess" style="max-width:60%"></select></div>
+    <div class="sw"><div>다음 사진번호 <b id="s-np">-</b> · 다음 손상번호 <b id="s-nd">-</b><div class="muted">태블릿 2대로 같은 구조물을 찍을 때는 한 대의 사진번호를 5001부터 시작</div></div><button class="btn" onclick="editNums()">번호 변경</button></div>
+    <div class="sw"><div>사진 ZIP 내보내기<div class="muted">카톡·메일 전송용 (사진은 이미 태블릿 폴더에 저장되어 있음)</div></div><div class="row"><button class="btn" onclick="exportSel()">이 구조물</button><button class="btn" onclick="exportAll()">전체</button></div></div>
+    <div class="sw"><div>앱 안의 사진 기록 삭제<div class="muted">[기록] 목록에서만 지움 · 태블릿 폴더 사진과 망도 표시는 남음</div></div><button class="btn bad" onclick="delSel()">삭제</button></div>
+  </div>
+  <div class="card">
+    <div class="lbl" style="margin-top:0">부재 · 손상 목록 (쉼표로 구분)</div>
     <div class="lbl">부재명</div><textarea id="s-mem"></textarea>
     <div class="lbl">손상내용</div><textarea id="s-dmgs"></textarea>
     <div class="lbl">폭 빠른 입력</div><input id="s-ws" style="width:100%">
@@ -286,11 +324,12 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
     </div>
   </div>
   <div class="card">
-    <div class="lbl" style="margin-top:0">저장공간</div>
-    <div id="storeInfo" class="muted">-</div>
-    <div class="muted" style="margin-top:8px" id="nativeInfo"></div>
-    <div class="muted" style="margin-top:8px" id="webInfo">사진은 이 브라우저 안에 저장됩니다. 하루 조사가 끝나면 꼭 [내보내기]로 ZIP을 받아 두세요. 브라우저 데이터 삭제·앱 삭제 시 사진도 지워집니다.</div>
-    <div class="muted" style="margin-top:8px">버전 <span id="ver"></span></div>
+    <div class="lbl" style="margin-top:0">저장 위치 · 앱 정보</div>
+    <div class="muted" id="nativeInfo"></div>
+    <div class="muted" id="webInfo">사진은 이 브라우저 안에 저장됩니다. 하루 조사가 끝나면 ZIP으로 내보내 두세요.</div>
+    <div class="muted" style="margin-top:6px">저장공간: <span id="storeInfo">-</span></div>
+    <div class="sw" style="margin-top:6px"><div>앱 버전 <span id="ver2"></span><div class="muted" id="updInfo"></div></div><div class="row"><button class="btn" onclick="checkUpd(true)">업데이트 확인</button><button class="btn acc hide" id="updBtn2" onclick="startUpd()">업데이트</button></div></div>
+    <span id="ver" class="hide"></span>
   </div>
 </section>
 </main>
@@ -309,7 +348,6 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
   <button data-v="map" class="on">망도</button>
   <button data-v="shot">촬영</button>
   <button data-v="list">기록</button>
-  <button data-v="sess">조사</button>
   <button data-v="set">설정</button>
 </nav>
 
@@ -433,7 +471,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.5.0';
+const VERSION = '1.6.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -727,7 +765,7 @@ $('#ms-ok').onclick=async()=>{const site=$('#ms-site').value.trim(),fac=$('#ms-f
   }
   closeModal('m-sess');loadDraft();renderHeader();show(msEdit?'sess':'shot');};
 
-function renderSess(){const g={};sessions.forEach(s=>(g[s.site]=g[s.site]||[]).push(s));
+function renderSess(){if(!$('#sessBody'))return;const g={};sessions.forEach(s=>(g[s.site]=g[s.site]||[]).push(s));
   const sites=Object.keys(g).sort();
   $('#sessBody').innerHTML=sites.length?sites.map(site=>`<div class="lbl">${esc(site)}</div>`+
     g[site].sort((a,b)=>(b.updated||'').localeCompare(a.updated||'')).map(s=>`
@@ -805,7 +843,21 @@ function renderSet(){$('#s-pen').value=settings.penMode||'auto';$('#s-insp').tex
   $('#row-dl').classList.toggle('hide',NATIVE);$('#webInfo').classList.toggle('hide',NATIVE);
   $('#nativeInfo').innerHTML=NATIVE?'사진과 촬영기록은 촬영할 때마다 <b>내 파일 &gt; 다운로드 &gt; 인스펙맵 &gt; 현장 &gt; 시설물 &gt; 조사자</b> 폴더에 바로 저장됩니다. PC에 USB로 연결해 이 폴더를 복사하면 됩니다.<br>앱을 삭제해도 이 폴더의 사진은 남지만, 앱 안의 기록 목록은 지워집니다.':'';
   if(navigator.storage&&navigator.storage.estimate)navigator.storage.estimate().then(e=>{
-    $('#storeInfo').textContent=`사용 ${(e.usage/1048576).toFixed(0)}MB / 가능 ${(e.quota/1073741824).toFixed(1)}GB`;});}
+    $('#storeInfo').textContent=`사용 ${(e.usage/1048576).toFixed(0)}MB / 가능 ${(e.quota/1073741824).toFixed(1)}GB`;});
+  const ss=[...sessions].sort((a,b)=>(b.updated||'').localeCompare(a.updated||''));const sel=$('#s-sess');
+  sel.innerHTML=ss.length?ss.map(x=>`<option value="${x.id}">${esc(x.site)} › ${esc(x.facility)} · ${esc(x.inspector)} (${x.count||0}장)</option>`).join(''):'<option value="">(아직 없음)</option>';
+  if(curSess())sel.value=curId;showNums();}
+const selSess=()=>sessions.find(x=>x.id===$('#s-sess').value)||null;
+function showNums(){const x=selSess();$('#s-np').textContent=x?pad(x.nextPhoto):'-';$('#s-nd').textContent=x?'#'+x.nextDmg:'-';}
+$('#s-sess').onchange=showNums;
+async function editNums(){const x=selSess();if(!x)return;
+  const a=await inputBox(`다음 사진번호 (${x.facility} · ${x.inspector})`,String(x.nextPhoto));if(a===null)return;const np=parseInt(a,10);if(!(np>=1)){toast('숫자를 입력하세요');return;}
+  const b=await inputBox('다음 손상번호(신규)',String(x.nextDmg));if(b===null)return;const nd=parseInt(b,10);if(!(nd>=1)){toast('숫자를 입력하세요');return;}
+  const recs=await recsOf(x.id);const mx=recs.reduce((m,r)=>Math.max(m,r.no),0);
+  if(np<=mx&&!await confirmBox(`이미 ${pad(mx)}번까지 찍었습니다. ${pad(np)}부터 쓰면 번호가 겹칠 수 있습니다. 계속할까요?`))return;
+  x.nextPhoto=np;x.nextDmg=nd;await dbPut('sessions',x);showNums();toast('번호 변경됨');if(view==='shot')renderShot();}
+function exportSel(){const x=selSess();if(!x){toast('구조물이 없습니다');return;}exportSess(x);}
+async function delSel(){const x=selSess();if(!x)return;await delSess(x);renderSet();}
 function loadPresetFields(){const p=preset();$('#s-mem').value=p.mem.join(', ');$('#s-dmgs').value=p.dmg.join(', ');$('#s-ws').value=p.ws.join(', ');}
 function savePreset(){presets.all={mem:$('#s-mem').value,dmg:$('#s-dmgs').value,ws:$('#s-ws').value};LS.set('presets',presets);toast('목록 저장됨');}
 function resetPreset(){delete presets.all;LS.set('presets',presets);loadPresetFields();toast('기본값으로 되돌림');}
@@ -827,10 +879,25 @@ document.addEventListener('click',e=>{const el=e.target.closest&&e.target.closes
 document.addEventListener('pointerdown',e=>{if(kpT&&!(e.target.closest&&e.target.closest('#kpad,input.kp')))kpClose();},true);
 
 /* ---------- 망도 ---------- */
-const MK_COLOR={금회:'#e11d48',기존:'#2563eb',변경:'#ea580c',보수:'#16a34a',삭제:'#6b7280',일반:'#7c3aed'};
+const MK_COLOR={금회:'#e11d48',기존:'#15803d',변경:'#ea580c',보수:'#1d4ed8',삭제:'#6b7280',일반:'#7c3aed'};
+const PEN_HEX={red:'#e11d48',blue:'#1d4ed8',black:'#111827'},PEN_TYPE={red:'금회',blue:'보수'},PEN_W={1:2,2:3.5,3:6};
+let penSt=Object.assign({c:'red',w:2,hl:false},LS.get('pen',{})),eraser=false,undoStack=[];
+function renderPenBar(){document.querySelectorAll('#penGrp .pcol').forEach(b=>b.classList.toggle('on',!eraser&&b.dataset.c===penSt.c));
+  document.querySelectorAll('#penGrp .pw').forEach(b=>{b.classList.toggle('on',+b.dataset.w===penSt.w);b.querySelector('i').style.background=PEN_HEX[penSt.c];});
+  $('#hlBtn').classList.toggle('on',penSt.hl);$('#eraseBtn').classList.toggle('on',eraser);}
+document.querySelectorAll('#penGrp .pcol').forEach(b=>b.onclick=()=>{flushInk();penSt.c=b.dataset.c;eraser=false;LS.set('pen',penSt);renderPenBar();});
+document.querySelectorAll('#penGrp .pw').forEach(b=>b.onclick=()=>{penSt.w=+b.dataset.w;eraser=false;LS.set('pen',penSt);renderPenBar();});
+$('#hlBtn').onclick=()=>{penSt.hl=!penSt.hl;eraser=false;LS.set('pen',penSt);renderPenBar();};
+$('#eraseBtn').onclick=()=>{flushInk();eraser=!eraser;renderPenBar();};
+const clone=o=>JSON.parse(JSON.stringify(o));
+function pushUndo(e){undoStack.push(e);if(undoStack.length>40)undoStack.shift();}
+async function undo(){flushInk();const e=undoStack.pop();if(!e){toast('되돌릴 작업이 없습니다',1200);return;}
+  if(e.op==='add'){await tx(['marks'],'readwrite',t=>e.objs.forEach(o=>t.objectStore('marks').delete(o.id)));const ids=new Set(e.objs.map(o=>o.id));marks=marks.filter(m=>!ids.has(m.id));}
+  else{await tx(['marks'],'readwrite',t=>e.objs.forEach(o=>t.objectStore('marks').put(o)));e.objs.forEach(o=>{if(!marks.find(m=>m.id===o.id))marks.push(o);});}
+  selMark=null;hideQMenu();drawMarks();toast('되돌림',900);}
 const MK_KEY={금회:'n',기존:'e',변경:'c',보수:'r',삭제:'d',일반:'g'};
 const SHAPE_NAME={line:'균열선',area:'면적',point:'점'};
-let marks=[],curDid=null,curD=null,curPage=0,tool='pan',mv={s:1,tx:0,ty:0,fit:1},pageUrls={},selMark=null,tmpPts=null;
+let marks=[],curDid=null,curD=null,curPage=0,tool='line',mv={s:1,tx:0,ty:0,fit:1},pageUrls={},selMark=null,tmpPts=null;
 let folders=[],curFolder=LS.get('map.folder',null);
 const curDrawing=()=>curD;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -888,19 +955,19 @@ async function drawingMenu(id){const d=await dbGet('drawings',id);const a=await 
   if(a==='del'){const ms=await byIndex('marks','did',d.id);if(!await confirmBox(`[${d.name}] 망도를 삭제할까요?\n손상 표시 ${ms.length}개도 함께 지워집니다.\n(사진·기록은 남습니다)`,'삭제'))return;
     await deleteDrawing(d);renderBrowse();toast('삭제됨');}}
 async function deleteDrawing(d){const ms=await byIndex('marks','did',d.id);
-  await tx(['drawings','marks','photos'],'readwrite',t=>{t.objectStore('drawings').delete(d.id);ms.forEach(m=>t.objectStore('marks').delete(m.id));(d.pages||[]).forEach((p,i)=>t.objectStore('photos').delete('dpg_'+d.id+'_'+i));});
+  await tx(['drawings','marks','photos'],'readwrite',t=>{t.objectStore('drawings').delete(d.id);ms.forEach(m=>t.objectStore('marks').delete(m.id));(d.pages||[]).forEach((p,i)=>{t.objectStore('photos').delete('dpg_'+d.id+'_'+i);t.objectStore('photos').delete('th_'+d.id+'_'+i);});});
   if(NATIVE){try{Android.deleteDrawing(d.id)}catch(e){}}if(curDid===d.id){curDid=null;curD=null;}}
 
 /* ---------- 망도 보기 ---------- */
-async function openDrawing(id){const d=await dbGet('drawings',id);if(!d)return;await loadFolders();curDid=id;curD=d;
-  const pref=LS.get('page.'+id,0);curPage=pref<d.pages.length?pref:0;selMark=null;mv.page=null;await sessForDrawing(d);
+async function openDrawing(id,page){flushInk();const d=await dbGet('drawings',id);if(!d)return;await loadFolders();curDid=id;curD=d;undoStack=[];
+  const pref=page!==undefined?page:LS.get('page.'+id,0);curPage=pref<d.pages.length?pref:0;selMark=null;mv.page=null;await sessForDrawing(d);
   marks=await byIndex('marks','did',id);LS.set('map.open',id);renderMap();}
 function closeDrawing(){flushInk();hideQMenu();closeMarkSheet(true);curDid=null;curD=null;LS.set('map.open',null);renderMap();}
 async function pageSrc(d,i){const p=d.pages[i];if(p.file)return 'https://appassets.androidplatform.net/drawings/'+p.file;
   const k=d.id+':'+i;if(!pageUrls[k]){const b=await dbGet('photos','dpg_'+d.id+'_'+i);pageUrls[k]=b?URL.createObjectURL(b):'';}return pageUrls[k];}
 async function renderMap(keepView){const d=curD;$('#v-map').classList.toggle('viewing',!!d);$('#mapStage').classList.toggle('hide',!d);$('#mapEmpty').classList.add('hide');
   if(!d){renderBrowse();return;}
-  document.querySelectorAll('#toolGrp .tbtn').forEach(b=>b.classList.toggle('on',b.dataset.t===tool));
+  renderPenBar();
   if(curPage>=d.pages.length)curPage=0;
   $('#mapTitle').textContent=d.name;$('#mapPage').textContent=`${curPage+1} / ${d.pages.length}`;LS.set('page.'+d.id,curPage);
   const p=d.pages[curPage];const st=$('#mapStage');st.style.width=p.w+'px';st.style.height=p.h+'px';
@@ -908,13 +975,31 @@ async function renderMap(keepView){const d=curD;$('#v-map').classList.toggle('vi
   const img=$('#mapImg'),key=d.id+':'+curPage;
   if(img.dataset.key!==key){img.dataset.key=key;img.src=await pageSrc(d,curPage);keepView=false;}
   if(!keepView||mv.page!==key){mv.page=key;requestAnimationFrame(fitView);}else applyView();
-  drawMarks();}
+  drawMarks();renderSide();}
+let sideOn=LS.get('side',true),sideKey='',thumbUrls={};
+function toggleSide(){sideOn=!sideOn;LS.set('side',sideOn);$('#v-map').classList.toggle('sideon',sideOn);sideKey='';renderSide();setTimeout(fitView,30);}
+async function thumbOf(d,i){const k='th_'+d.id+'_'+i;if(thumbUrls[k])return thumbUrls[k];let b=await dbGet('photos',k);
+  if(!b){const src=await pageSrc(d,i);if(!src)return '';const im=await new Promise((res,rej)=>{const x=new Image();x.onload=()=>res(x);x.onerror=rej;x.src=src;});
+    const c=document.createElement('canvas');c.width=260;c.height=Math.round(260*im.naturalHeight/im.naturalWidth);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+    b=await new Promise(r=>c.toBlob(r,'image/jpeg',0.75));if(b)await dbPut('photos',b,k);}
+  return thumbUrls[k]=b?URL.createObjectURL(b):'';}
+let sideObs=null;
+async function renderSide(){$('#v-map').classList.toggle('sideon',sideOn);if(!sideOn||!curD)return;const el=$('#mapSide');
+  const key=curD.folderId+'|'+curDid+'|'+curPage+'|'+marks.length;if(key===sideKey)return;const sameFolder=sideKey.split('|')[0]===curD.folderId&&el.children.length;sideKey=key;
+  if(sameFolder){el.querySelectorAll('.sp').forEach(x=>x.classList.toggle('on',x.dataset.d===curDid&&+x.dataset.i===curPage));
+    el.querySelectorAll(`.sp[data-d="${curDid}"]`).forEach(x=>{const n=marks.filter(m=>m.page===+x.dataset.i&&m.shape!=='ink').length;x.querySelector('span').innerHTML=`${+x.dataset.i+1}p${n?` · <b>손상 ${n}</b>`:''}`;});}
+  else{const ds=(await dbAll('drawings')).filter(d=>d.folderId===curD.folderId).sort(byName);let h='';
+    for(const d of ds){const ms=d.id===curDid?marks:await byIndex('marks','did',d.id);h+=`<div class="sh">${esc(d.name)}</div>`;
+      d.pages.forEach((p,i)=>{const n=ms.filter(m=>m.page===i&&m.shape!=='ink').length;h+=`<div class="sp${d.id===curDid&&i===curPage?' on':''}" data-d="${d.id}" data-i="${i}"><img alt=""><span>${i+1}p${n?` · <b>손상 ${n}</b>`:''}</span></div>`;});}
+    el.innerHTML=h;if(sideObs)sideObs.disconnect();
+    sideObs=new IntersectionObserver(es=>es.forEach(en=>{if(!en.isIntersecting)return;const x=en.target;sideObs.unobserve(x);const d=ds.find(z=>z.id===x.dataset.d);thumbOf(d,+x.dataset.i).then(u=>{if(u)x.querySelector('img').src=u;}).catch(()=>{});}),{root:el,rootMargin:'300px'});
+    el.querySelectorAll('.sp').forEach(x=>{sideObs.observe(x);x.onclick=()=>{const d=x.dataset.d,i=+x.dataset.i;if(d===curDid){if(i!==curPage){flushInk();curPage=i;selMark=null;hideQMenu();renderMap();}}else openDrawing(d,i);};});}
+  const on=el.querySelector('.sp.on');if(on){const r=on.getBoundingClientRect(),R=el.getBoundingClientRect();if(r.top<R.top||r.bottom>R.bottom)on.scrollIntoView({block:'center'});}}
 function fitView(){const d=curDrawing();if(!d)return;const p=d.pages[curPage];const W=$('#mapWrap').clientWidth,H=$('#mapWrap').clientHeight;if(!W||!H)return;
   const s=Math.min(W/p.w,H/p.h)*0.98;Object.assign(mv,{s,fit:s,tx:(W-p.w*s)/2,ty:(H-p.h*s)/2});applyView();}
 function applyView(){$('#mapStage').style.transform=`translate(${mv.tx}px,${mv.ty}px) scale(${mv.s})`;$('#mapSvg').style.setProperty('--fs',(16/mv.s).toFixed(3));}
 function goPage(d){const dr=curDrawing();if(!dr)return;flushInk();hideQMenu();const n=clamp(curPage+d,0,dr.pages.length-1);if(n===curPage){toast(d>0?'마지막 페이지입니다':'첫 페이지입니다',1200);return;}
   curPage=n;selMark=null;closeMarkSheet(true);const st=$('#mapStage');st.style.opacity='0.2';renderMap().then(()=>setTimeout(()=>st.style.opacity='',60));toast(`${n+1} / ${dr.pages.length} 페이지`,900);}
-document.querySelectorAll('#toolGrp .tbtn').forEach(b=>b.onclick=()=>{tool=b.dataset.t;document.querySelectorAll('#toolGrp .tbtn').forEach(x=>x.classList.toggle('on',x===b));});
 window.addEventListener('resize',()=>{if(view==='map'&&curDrawing())fitView();});
 
 function nosLabel(nos){nos=[...new Set(nos||[])].sort((a,b)=>a-b);const out=[];for(let i=0;i<nos.length;){let j=i;while(j+1<nos.length&&nos[j+1]===nos[j]+1)j++;
@@ -924,23 +1009,27 @@ function markLabel(m){if(m.group)return `묶음${m.n?' '+m.n+'ea':''}`;const t=(
 function drawMarks(){const d=curDrawing();if(!d)return;const p=d.pages[curPage];const W=p.w,H=p.h,sz=Math.max(10,W/220);
   let h='<defs>'+Object.entries(MK_COLOR).map(([t,c])=>`<pattern id="ht-${MK_KEY[t]}" patternUnits="userSpaceOnUse" width="${sz}" height="${sz}" patternTransform="rotate(45)"><rect width="${sz}" height="${sz}" fill="${c}" fill-opacity="0.10"/><line x1="0" y1="0" x2="0" y2="${sz}" stroke="${c}" stroke-width="${sz/5}" stroke-opacity="0.75"/></pattern>`).join('')+'</defs>';
   const one=(m,temp)=>{const c=MK_COLOR[m.type]||MK_COLOR.금회;const pts=m.pts.map(q=>[q[0]*W,q[1]*H]);const ps=pts.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ');
-    const sel=selMark&&selMark.id===m.id;const sw=sel?6:3.5;const dash=m.type==='삭제'?' stroke-dasharray="7 5"':'';let x='';
+    const sel=selMark&&selMark.id===m.id;const sw=(PEN_W[m.pw]||3.5)*(m.hl?3:1)+(sel?2:0);const op=m.hl?' stroke-opacity=".38"':'';const dash=m.type==='삭제'?' stroke-dasharray="7 5"':'';let x='';
     if(sel&&m.shape!=='point')x+=`<polyline points="${ps}${m.shape==='area'?' '+pts[0].join(','):''}" fill="none" stroke="#facc15" stroke-width="12" stroke-opacity=".6" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`;
     if(m.shape==='line'&&m.group)x+=`<polyline points="${ps}" fill="none" stroke="#475467" stroke-width="${sel?4:2}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-dasharray="2 4"/>`;
-    else if(m.shape==='line')x+=`<polyline points="${ps}" fill="none" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"${dash}/>`;
+    else if(m.shape==='line')x+=`<polyline points="${ps}" fill="none" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"${dash}${op}/>`;
     else if(m.shape==='area')x+=`<polygon points="${ps}" fill="url(#ht-${MK_KEY[m.type]||'n'})" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linejoin="round"${dash}/>`;
     else x+=`<circle class="pt" cx="${pts[0][0]}" cy="${pts[0][1]}" fill="${c}" stroke="${sel?'#facc15':'#fff'}" stroke-width="${sel?5:2}" vector-effect="non-scaling-stroke"/>`;
     if(!temp){const lab=markLabel(m);if(lab){let lx,ly;if(m.shape==='area'){lx=Math.max(...pts.map(q=>q[0]));ly=Math.min(...pts.map(q=>q[1]));}else{[lx,ly]=pts[pts.length-1];}
       x+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" dx="0.5em" dy="-0.35em" fill="${c}">${esc(lab)}</text>`;}}
     return x;};
-  const ink=(strokes,col,op)=>strokes.map(st=>`<polyline points="${st.map(q=>(q[0]*W).toFixed(1)+','+(q[1]*H).toFixed(1)).join(' ')}" fill="none" stroke="${col}" stroke-opacity="${op||1}" stroke-width="2.4" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
+  const ink=(strokes,col,op,w)=>strokes.map(st=>`<polyline points="${st.map(q=>(q[0]*W).toFixed(1)+','+(q[1]*H).toFixed(1)).join(' ')}" fill="none" stroke="${col}" stroke-opacity="${op||1}" stroke-width="${w||2.4}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
   for(const m of marks){if(m.did!==curDid||m.page!==curPage)continue;
-    if(m.shape==='ink'){h+=ink(m.strokes,'#1e3a8a');const tm=marks.find(x=>x.id===m.markId);const ok=m.ok&&tm;
+    if(m.shape==='ink'){const sel=selMark&&selMark.id===m.id;const kw=(PEN_W[m.pw]||2.4)*(m.hl?3:1);
+      if(sel)h+=ink(m.strokes,'#facc15',.6,kw+8);h+=ink(m.strokes,PEN_HEX[m.color]||'#1e3a8a',m.hl?.35:1,kw);
+      if(m.kind==='note'){const nl=nosLabel(m.photoNos);if(nl)h+=`<text x="${(m.bb[2]*W).toFixed(1)}" y="${(m.bb[1]*H).toFixed(1)}" dx="0.3em" dy="0.8em" fill="#7c3aed">📷${esc(nl)}</text>`;continue;}
+      const tm=marks.find(x=>x.id===m.markId);const ok=m.ok&&tm;
       h+=`<text x="${(m.bb[2]*W).toFixed(1)}" y="${(m.bb[3]*H).toFixed(1)}" dx="0.3em" style="font-size:calc(var(--fs) * .8px)" fill="${ok?'#027a48':'#d92d20'}">${ok?'✓':'? '+esc(m.text||'')}</text>`;continue;}
     h+=one(m);}
-  if(inkGroup&&inkGroup.did===curDid&&inkGroup.page===curPage)h+=ink(inkGroup.strokes.map(st=>st.map(q=>[q[0]/W,q[1]/H])),'#2563eb',.8);
+  if(inkGroup&&inkGroup.did===curDid&&inkGroup.page===curPage)h+=ink(inkGroup.strokes.map(st=>st.map(q=>[q[0]/W,q[1]/H])),PEN_HEX[inkGroup.col]||'#2563eb',inkGroup.hl?.35:.85,(PEN_W[inkGroup.pw]||2.4)*(inkGroup.hl?3:1));
   if(selMark&&selMark.isNew&&selMark.did===curDid&&selMark.page===curPage)h+=one(selMark);
-  if(tmpPts&&tmpPts.length>1)h+=one({type:'금회',shape:tool==='area'?'area':'line',pts:tmpPts.map(q=>[q[0]/W,q[1]/H])},true);
+  if(tmpPts&&tmpPts.length>1)h+=eraser?`<polyline points="${tmpPts.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')}" fill="none" stroke="#98a2b3" stroke-opacity=".6" stroke-width="22" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`
+    :ink([tmpPts.map(q=>[q[0]/W,q[1]/H])],PEN_HEX[penSt.c],penSt.hl?.35:1,(PEN_W[penSt.w]||3.5)*(penSt.hl?3:1));
   $('#mapSvg').innerHTML=h;}
 
 /* 포인터: 한 손가락=그리기/이동, 두 손가락=확대·이동 */
@@ -955,19 +1044,23 @@ function cancelLP(){clearTimeout(lpTimer);lpTimer=null;}
 function startLP(q){cancelLP();lpTimer=setTimeout(()=>{lpTimer=null;if(!G||G.k==='pinch')return;if(G.k==='draw'&&G.maxd>8)return;if(G.k==='pan'&&G.moved)return;
   G=null;tmpPts=null;drawMarks();openMenuAt(q);},550);}
 wrap.addEventListener('pointerdown',e=>{if(!curD)return;const isPen=e.pointerType==='pen';
-  if(isPen&&!settings.penSeen){settings.penSeen=true;LS.set('settings',settings);if(settings.penMode!=='off'){tool='line';renderMap(true);toast('펜 감지: 펜=그리기·글씨, 손가락=이동·확대·페이지 넘김',3500);}}
+  if(isPen&&!settings.penSeen){settings.penSeen=true;LS.set('settings',settings);if(settings.penMode!=='off')toast('펜 감지: 펜=그리기·글씨, 손가락=이동·확대·페이지 넘김',3500);}
   if(!isPen&&penDown)return; /* 펜 사용 중 손바닥 무시 */
   try{wrap.setPointerCapture(e.pointerId)}catch(_){}ptrs.set(e.pointerId,wp(e));kpClose();hideQMenu();
   if(isPen){penDown=true;ptrs.clear();ptrs.set(e.pointerId,wp(e));}
   if(ptrs.size===2){cancelLP();const [a,b]=[...ptrs.values()];G={k:'pinch',d0:Math.max(dist(a,b),1),s0:mv.s,m0:mid(a,b),t0:{x:mv.tx,y:mv.ty}};tmpPts=null;drawMarks();return;}
   if(ptrs.size>2)return;const q=wp(e);const canDraw=isPen||!penMode();
-  if(canDraw&&tool!=='pan'&&tool!=='point'&&e.button!==1)G={k:'draw',pts:[toPage(q)],spts:[[q.x,q.y,Date.now()]],last:q,start:q,maxd:0,pen:isPen};
+  const penErase=isPen&&((e.buttons&32)||(e.buttons&2)||e.button===5);
+  if(canDraw&&(eraser||penErase)){G={k:'erase',pts:[toPage(q)],last:q,start:q,maxd:0,hit:new Set()};eraseAt(q,G);cancelLP();return;}
+  if(canDraw&&e.button!==1)G={k:'draw',pts:[toPage(q)],spts:[[q.x,q.y,Date.now()]],last:q,start:q,maxd:0,pen:isPen,col:penSt.c,pw:penSt.w,hl:penSt.hl};
   else G={k:'pan',start:q,t0:{x:mv.tx,y:mv.ty},moved:false,t:Date.now(),pen:isPen,canPoint:canDraw};
   startLP(q);});
 wrap.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,wp(e));if(!G)return;
   if(G.k==='pinch'&&ptrs.size>=2){const [a,b]=[...ptrs.values()];const ns=clamp(G.s0*dist(a,b)/G.d0,mv.fit*0.5,mv.fit*25);const m=mid(a,b);
     const px=(G.m0.x-G.t0.x)/G.s0,py=(G.m0.y-G.t0.y)/G.s0;mv.s=ns;mv.tx=m.x-px*ns;mv.ty=m.y-py*ns;applyView();}
   else if(G.k==='pan'){const q=wp(e),dx=q.x-G.start.x,dy=q.y-G.start.y;if(Math.hypot(dx,dy)>8){G.moved=true;cancelLP();}if(G.moved){mv.tx=G.t0.x+dx;mv.ty=G.t0.y+dy;applyView();}}
+  else if(G.k==='erase'){const q=wp(e);G.maxd=Math.max(G.maxd,dist(q,G.start));if(dist(q,G.last)>=3){const L=G.last,n=Math.ceil(dist(q,L)/5);
+    for(let i=1;i<=n;i++)eraseAt({x:L.x+(q.x-L.x)*i/n,y:L.y+(q.y-L.y)*i/n},G);G.pts.push(toPage(q));G.last=q;tmpPts=G.pts;drawMarks();}}
   else if(G.k==='draw'){const q=wp(e);G.maxd=Math.max(G.maxd,dist(q,G.start));if(G.maxd>8)cancelLP();
     if(dist(q,G.last)>=2){G.pts.push(toPage(q));G.spts.push([q.x,q.y,Date.now()]);G.last=q;tmpPts=G.pts;drawMarks();}}});
 function sbb(sp){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const p of sp){x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);}return {x0,y0,x1,y1,w:x1-x0,h:y1-y0};}
@@ -984,15 +1077,17 @@ function endPtr(e){if(e.pointerType==='pen')penDown=false;if(!ptrs.has(e.pointer
       if(dx<0&&(atFit||rightVis)&&curPage<d.pages.length-1){goPage(1);return;}
       if(dx>0&&(atFit||leftVis)&&curPage>0){goPage(-1);return;}}
     return;}
+  if(g.k==='erase'){finishErase(g);return;}
+  if(g.k==='draw'&&g.col==='black'){if(g.maxd<6&&!nearInk(sbb(g.spts))){drawMarks();onMapTap(g.start,true,g.pen);return;}addInkStroke(g);return;}
   if(g.k==='draw'){const bb=sbb(g.spts),size=Math.max(bb.w,bb.h);
     if(g.maxd<6){ /* 점 찍기: 글씨 중이면 소수점 */
       if(nearInk(bb)){addInkStroke(g);return;}drawMarks();onMapTap(g.start,true,g.pen);return;}
-    if(tool!=='area'&&(size<SMALL||(nearInk(bb)&&size<SMALL*1.6))){addInkStroke(g);return;}
+    if(size<SMALL||(nearInk(bb)&&size<SMALL*1.6)){addInkStroke(g);return;}
     flushInk();
     let pts=g.pts;if(pts.length>400){const st=Math.ceil(pts.length/400);pts=pts.filter((_,i)=>i%st===0||i===pts.length-1);}
     let len=0;for(let i=1;i<g.spts.length;i++)len+=Math.hypot(g.spts[i][0]-g.spts[i-1][0],g.spts[i][1]-g.spts[i-1][1]);
     const sp0=g.spts[0],sp1=g.spts[g.spts.length-1];const closed=Math.hypot(sp0[0]-sp1[0],sp0[1]-sp1[1])<Math.max(28,size*0.18)&&len>size*2.2;
-    newMark(tool==='area'||closed?'area':'line',pts);}}
+    newMark(closed?'area':'line',pts,null,PEN_TYPE[g.col]||'금회',{pw:g.pw,hl:g.hl});}}
 wrap.addEventListener('pointerup',endPtr);
 wrap.addEventListener('pointercancel',e=>{if(e.pointerType==='pen')penDown=false;cancelLP();ptrs.delete(e.pointerId);if(!ptrs.size){G=null;tmpPts=null;drawMarks();}});
 wrap.addEventListener('wheel',e=>{if(!curDrawing())return;e.preventDefault();const q=wp(e),f=e.deltaY<0?1.15:1/1.15;const ns=clamp(mv.s*f,mv.fit*0.5,mv.fit*25);
@@ -1003,25 +1098,34 @@ function segDist(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy;let t=l?((p.x-
 function inPoly(p,vs){let ins=false;for(let i=0,j=vs.length-1;i<vs.length;j=i++){const a=vs[i],b=vs[j];if(((a.y>p.y)!==(b.y>p.y))&&(p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x))ins=!ins;}return ins;}
 function markDist(m,q){const p=curD.pages[curPage];const sp=m.pts.map(t=>({x:t[0]*p.w*mv.s+mv.tx,y:t[1]*p.h*mv.s+mv.ty}));let dd=Infinity;
   if(sp.length===1)dd=dist(sp[0],q);else{const seg=m.shape==='area'?[...sp,sp[0]]:sp;for(let i=1;i<seg.length;i++)dd=Math.min(dd,segDist(q,seg[i-1],seg[i]));if(m.shape==='area'&&inPoly(q,sp))dd=Math.min(dd,10);}return dd;}
+function inkDist(k,q){const p=curD.pages[curPage];let dd=Infinity;for(const st of k.strokes){const sp=st.map(t=>({x:t[0]*p.w*mv.s+mv.tx,y:t[1]*p.h*mv.s+mv.ty}));
+  if(sp.length===1)dd=Math.min(dd,dist(sp[0],q));for(let i=1;i<sp.length;i++)dd=Math.min(dd,segDist(q,sp[i-1],sp[i]));}return dd;}
+function eraseAt(q,g){for(const m of marks){if(m.did!==curDid||m.page!==curPage||g.hit.has(m.id))continue;const d=m.shape==='ink'?inkDist(m,q):markDist(m,q);if(d<14)g.hit.add(m.id);}}
+async function finishErase(g){tmpPts=null;const ids=g.hit;if(!ids.size){drawMarks();return;}
+  const objs=marks.filter(m=>ids.has(m.id));const extra=marks.filter(k=>k.shape==='ink'&&k.kind!=='note'&&ids.has(k.markId)&&!ids.has(k.id));
+  const all=[...objs,...extra];pushUndo({op:'del',objs:clone(all)});
+  await tx(['marks'],'readwrite',t=>all.forEach(o=>t.objectStore('marks').delete(o.id)));const del=new Set(all.map(o=>o.id));marks=marks.filter(m=>!del.has(m.id));
+  selMark=null;drawMarks();toast(`${all.length}개 지움 (↶ 되돌리기)`,1500);}
 function hitMark(q){let best=null,bd=26;for(const m of marks){if(m.did!==curDid||m.page!==curPage||m.shape==='ink')continue;const dd=markDist(m,q);if(dd<bd){bd=dd;best=m;}}return best;}
 function hitInk(q){const p=curD.pages[curPage];for(const k of marks){if(k.shape!=='ink'||k.did!==curDid||k.page!==curPage)continue;
   const a=pg2s([k.bb[0]*p.w,k.bb[1]*p.h]),b=pg2s([k.bb[2]*p.w,k.bb[3]*p.h]);if(q.x>=a.x-12&&q.x<=b.x+40&&q.y>=a.y-12&&q.y<=b.y+12)return k;}return null;}
 function onMapTap(q,canPoint,pen){const m=hitMark(q);if(m){openMarkMenu(m,q);return;}const k=hitInk(q);if(k){openInkMenu(k,q);return;}
-  if(tool==='point'&&canPoint!==false){newMark('point',[toPage(q)],q);return;}}
+  hideQMenu();if(selMark){selMark=null;drawMarks();}}
 
 /* ---------- 손글씨 ---------- */
 function addInkStroke(g){const p=curD.pages[curPage];
-  if(!inkGroup)inkGroup={did:curDid,page:curPage,strokes:[],spts:[],x0:1e9,y0:1e9,x1:-1e9,y1:-1e9};
+  if(inkGroup&&(inkGroup.col!==g.col||inkGroup.page!==curPage||inkGroup.did!==curDid))flushInk();
+  if(!inkGroup)inkGroup={did:curDid,page:curPage,strokes:[],spts:[],x0:1e9,y0:1e9,x1:-1e9,y1:-1e9,col:g.col||'red',pw:g.pw,hl:g.hl};
   inkGroup.strokes.push(g.pts);inkGroup.spts.push(g.spts);for(const q of g.pts){inkGroup.x0=Math.min(inkGroup.x0,q[0]);inkGroup.y0=Math.min(inkGroup.y0,q[1]);inkGroup.x1=Math.max(inkGroup.x1,q[0]);inkGroup.y1=Math.max(inkGroup.y1,q[1]);}
-  clearTimeout(inkTimer);inkTimer=setTimeout(flushInk,1100);drawMarks();}
+  clearTimeout(inkTimer);inkTimer=setTimeout(flushInk,inkGroup.col==='black'?1800:1100);drawMarks();}
 function inkTarget(gr){const p=curD.pages[curPage];const c=pg2s([(gr.x0+gr.x1)/2,(gr.y0+gr.y1)/2]);const lnk=new Set(marks.filter(k=>k.shape==='ink'&&k.markId).map(k=>k.markId));
   let best=null,bs=230;for(const m of marks){if(m.shape==='ink'||m.did!==gr.did||m.page!==gr.page)continue;
     let sc=markDist(m,c);const age=(Date.now()-(m.ts||0))/1000;if(age<90)sc-=40;if(lnk.has(m.id))sc+=90;if(sc<bs){bs=sc;best=m;}}return best;}
 async function flushInk(){clearTimeout(inkTimer);if(!inkGroup)return;const gr=inkGroup;inkGroup=null;if(!curD||gr.did!==curDid){return;}
-  const p=curD.pages[gr.page],s=curSess();const tgt=inkTarget(gr);
-  const k={id:uid(),sid:s.id,did:gr.did,page:gr.page,shape:'ink',pts:[[0,0]],strokes:gr.strokes.map(st=>st.map(q=>[+(q[0]/p.w).toFixed(5),+(q[1]/p.h).toFixed(5)])),
-    bb:[gr.x0/p.w,gr.y0/p.h,gr.x1/p.w,gr.y1/p.h],text:'',ok:false,markId:tgt?tgt.id:'',created:nowStr(),ts:Date.now()};
-  marks.push(k);await dbPut('marks',k);drawMarks();
+  const p=curD.pages[gr.page],s=curSess();const note=gr.col==='black';const tgt=note?null:inkTarget(gr);
+  const k={id:uid(),sid:s.id,did:gr.did,page:gr.page,shape:'ink',kind:note?'note':'text',color:gr.col,pw:gr.pw,hl:gr.hl,pts:[[0,0]],strokes:gr.strokes.map(st=>st.map(q=>[+(q[0]/p.w).toFixed(5),+(q[1]/p.h).toFixed(5)])),
+    bb:[gr.x0/p.w,gr.y0/p.h,gr.x1/p.w,gr.y1/p.h],text:'',ok:false,markId:tgt?tgt.id:'',photoNos:[],created:nowStr(),ts:Date.now()};
+  marks.push(k);await dbPut('marks',k);pushUndo({op:'add',objs:[clone(k)]});drawMarks();if(note)return;
   const t0=gr.spts[0][0][2],x0=Math.min(...gr.spts.flat().map(a=>a[0])),y0=Math.min(...gr.spts.flat().map(a=>a[1]));
   const json=JSON.stringify(gr.spts.map(st=>st.map(a=>[+(a[0]-x0).toFixed(1),+(a[1]-y0).toFixed(1),a[2]-t0])));
   if(NATIVE&&Android.inkRecognize&&inkState==='ready'){inkPending[k.id]=k;Android.inkRecognize(k.id,json);}
@@ -1034,16 +1138,17 @@ function parseInk(raw,shape){let t=String(raw||'').trim().replace(/\s+/g,'').rep
   if((m=t.match(new RegExp('^'+N+'/'+N+'$'))))return {w:fixW(m[1]),l:m[2],n};
   if((m=t.match(new RegExp('^'+N+'x'+N+'$'))))return {w:m[1],l:m[2],n};
   if(!t&&n)return {n};
-  if(shape==='point'&&/^\d{1,4}$/.test(t))return {dmg:t};
+  if((shape==='point'||shape==='nonnew')&&/^\d{1,4}$/.test(t))return {dmg:t};
   return null;}
 function inkText(p){if(!p)return '';if(p.dmg)return '#'+p.dmg;return [p.w&&p.l?(p.w+(p.l?'/'+p.l:'')):'',p.n?p.n+'ea':''].filter(Boolean).join(' ');}
 window.onInkResult=async(id,cands)=>{const k=inkPending[id];delete inkPending[id];if(!k)return;const m=marks.find(x=>x.id===k.markId);
-  let p=null,raw=(cands&&cands[0])||'';for(const c of (cands||[])){p=parseInk(c,m&&m.shape);if(p){raw=c;break;}}
+  const shp=m?(m.shape==='point'||m.type!=='금회'?'nonnew':m.shape):'';
+  let p=null,raw=(cands&&cands[0])||'';for(const c of (cands||[])){p=parseInk(c,shp);if(p){raw=c;break;}}
   k.text=raw;k.ok=!!p;await dbPut('marks',k);
   if(p&&m){applyParsed(m,p);await saveMarkObj(m);}
   drawMarks();if(!p)toast(`글씨 인식: "${raw||'?'}" – 형식 확인 필요 (글씨를 눌러 수정)`,3000);};
 function applyParsed(m,p){if(p.w!==undefined&&m.shape!=='area'&&!m.group){m.w=p.w;}if(p.w!==undefined&&m.shape==='area'){m.w=p.w;}
-  if(p.l)m.l=p.l;if(p.n)m.n=p.n;if(p.dmg){m.dmg=p.dmg;if(m.type==='금회')m.type='기존';}
+  if(p.l)m.l=p.l;if(p.n)m.n=p.n;if(p.dmg){m.dmg=p.dmg;}
   if(m.shape==='line'&&!m.group&&p.w&&!m.contentManual)m.content=parseFloat(p.w)>=0.3?'균열(0.3㎜이상)':'균열(0.3㎜미만)';}
 window.onInkStatus=st=>{inkState=st.startsWith('error')?'error':st;const el=$('#inkInfo');if(el)el.textContent=st==='ready'?'준비됨':st==='downloading'?'인식 모델 내려받는 중…':'실패 (인터넷 연결 후 다시 시도)';
   if(st==='ready'&&window.__inkWasDl)toast('손글씨 인식 준비 완료',2000);if(st==='downloading')window.__inkWasDl=true;};
@@ -1078,21 +1183,27 @@ async function openMarkMenu(m,q){selMark=m;drawMarks();const b=$('#qm-b');b.inne
   if(m.shape!=='point')r.appendChild(qbtn(m.shape==='line'?'영역으로':'선으로','',async()=>{m.shape=m.shape==='line'?'area':'line';await saveMarkObj(m);openMarkMenu(m,q);}));
   r.appendChild(qbtn('삭제','bad',async()=>{hideQMenu();if(!await confirmBox('이 손상 표시를 삭제할까요?\n(찍은 사진·기록은 남습니다)','삭제'))return;await deleteMark(m);}));
   b.appendChild(r);placeQMenu(q);}
-function openInkMenu(k,q){const b=$('#qm-b');b.innerHTML='';const m=marks.find(x=>x.id===k.markId);
+function openInkMenu(k,q){const b=$('#qm-b');b.innerHTML='';selMark=k;drawMarks();
+  if(k.kind==='note'){$('#qm-h').textContent='메모'+(k.photoNos&&k.photoNos.length?' · 사진 '+nosLabel(k.photoNos):'');const r=qrow();
+    r.appendChild(qbtn('📷 촬영 (일반 사진)','acc big',()=>{hideQMenu();shootNote(k,false);}));
+    if(NATIVE)r.appendChild(qbtn(settings.camMode==='app'?'기본 카메라':'앱 카메라','',()=>{hideQMenu();shootNote(k,true);}));
+    r.appendChild(qbtn('삭제','bad',async()=>{hideQMenu();pushUndo({op:'del',objs:[clone(k)]});await dbDel('marks',k.id);marks=marks.filter(x=>x.id!==k.id);selMark=null;drawMarks();}));
+    b.appendChild(r);placeQMenu(q);return;}
+  const m=marks.find(x=>x.id===k.markId);
   $('#qm-h').textContent=`글씨: ${k.text||'(인식 안 됨)'}${m?' → '+(m.dmg?'#'+m.dmg:SHAPE_NAME[m.shape]):' (연결된 손상 없음)'}`;const r=qrow();
   r.appendChild(qbtn('글자 수정','pri',async()=>{hideQMenu();const v=await inputBox('글씨 내용 (예: 0.2/1.2, 0.3x0.2, 2ea)',k.text);if(v===null)return;
     k.text=v;const p=parseInk(v,m&&m.shape);k.ok=!!p;await dbPut('marks',k);if(p&&m){applyParsed(m,p);await saveMarkObj(m);}else if(!p)toast('형식을 인식하지 못했습니다',2500);drawMarks();}));
   r.appendChild(qbtn('선으로 바꾸기','',async()=>{hideQMenu();const p=curD.pages[k.page];const st=k.strokes.reduce((a,b)=>b.length>a.length?b:a,[]);
     await dbDel('marks',k.id);marks=marks.filter(x=>x.id!==k.id);newMark('line',st.map(q=>[q[0]*p.w,q[1]*p.h]));}));
-  r.appendChild(qbtn('삭제','bad',async()=>{hideQMenu();await dbDel('marks',k.id);marks=marks.filter(x=>x.id!==k.id);drawMarks();}));
+  r.appendChild(qbtn('삭제','bad',async()=>{hideQMenu();pushUndo({op:'del',objs:[clone(k)]});await dbDel('marks',k.id);marks=marks.filter(x=>x.id!==k.id);selMark=null;drawMarks();}));
   b.appendChild(r);placeQMenu(q);}
 document.addEventListener('pointerdown',e=>{if($('#qmenu').classList.contains('on')&&!(e.target.closest&&e.target.closest('#qmenu,#mapWrap'))){hideQMenu();}},true);
 /* 손상 표시 */
-async function newMark(shape,pts,q,type){const s=curSess(),d=curD,p=d.pages[curPage];const last=LS.get('mk.last.'+s.id,{});
+async function newMark(shape,pts,q,type,opt){const s=curSess(),d=curD,p=d.pages[curPage];const last=LS.get('mk.last.'+s.id,{});opt=opt||{};
   const m={id:uid(),sid:s.id,did:d.id,page:curPage,shape,pts:pts.map(t=>[+(clamp(t[0],0,p.w)/p.w).toFixed(5),+(clamp(t[1],0,p.h)/p.h).toFixed(5)]),
-    type:type||last.type||'금회',dmg:'',mem:last.mem||'',loc:last.loc||'',content:shape==='line'?'균열':'',w:'',l:'',b:'',n:'',note:'',photoNos:[],created:nowStr(),ts:Date.now()};
+    type:type||'금회',dmg:'',mem:last.mem||'',loc:last.loc||'',content:shape==='line'?'균열':'',w:'',l:'',b:'',n:'',note:'',photoNos:[],created:nowStr(),ts:Date.now(),pw:opt.pw||penSt.w,hl:!!opt.hl};
   if(m.type==='금회')m.dmg=String(s.nextDmg);
-  await saveMarkObj(m);
+  await saveMarkObj(m);pushUndo({op:'add',objs:[clone(m)]});
   if(q)openMarkMenu(m,q);else{selMark=null;drawMarks();}}
 async function saveMarkObj(m){const s=curSess();
   if(m.type==='금회'){const n=parseInt(m.dmg,10);if(!isNaN(n)&&n>=s.nextDmg){s.nextDmg=n+1;await dbPut('sessions',s);}}
@@ -1101,9 +1212,12 @@ async function saveMarkObj(m){const s=curSess();
 async function syncRecs(m){const s=curSess();if(!s||m.shape==='ink')return;const rs=(await recsOf(s.id)).filter(r=>r.markId===m.id);if(!rs.length)return;
   for(const r of rs){['dmg','mem','loc','content','w','l','b','n'].forEach(k=>r[k]=m[k]||'');await dbPut('records',r);}
   if(NATIVE){try{await writeCsv(s);}catch(e){}}}
-async function deleteMark(m){const ks=marks.filter(k=>k.shape==='ink'&&k.markId===m.id);
+async function deleteMark(m){const ks=marks.filter(k=>k.shape==='ink'&&k.markId===m.id);pushUndo({op:'del',objs:clone([m,...ks])});
   await tx(['marks'],'readwrite',t=>{t.objectStore('marks').delete(m.id);ks.forEach(k=>t.objectStore('marks').delete(k.id));});
   marks=marks.filter(x=>x.id!==m.id&&!ks.includes(x));selMark=null;drawMarks();toast('표시 삭제됨');}
+function shootNote(k,alt){const d=curD;const mode=alt?(settings.camMode==='app'?'sys':'app'):settings.camMode;
+  shoot({type:'일반',markId:k.id,dname:d?d.name:'',page:k.page+1,shape:'메모',
+    onDone:async recs=>{recs=recs.filter(Boolean);if(!recs.length)return;const cur=marks.find(x=>x.id===k.id)||k;cur.photoNos=[...(cur.photoNos||[]),...recs.map(r=>r.no)];await dbPut('marks',cur);drawMarks();}},mode);}
 function shootMarkObj(m,alt){const d=curD;const mode=alt?(settings.camMode==='app'?'sys':'app'):settings.camMode;
   shoot({type:m.type,dmg:m.dmg,mem:m.mem,loc:m.loc,content:m.content,w:m.w,l:m.l,b:m.b,n:m.n,note:m.note,markId:m.id,dname:d?d.name:'',page:m.page+1,shape:m.group?'묶음선':SHAPE_NAME[m.shape],
     onDone:async recs=>{recs=recs.filter(Boolean);if(!recs.length)return;const cur=marks.find(x=>x.id===m.id)||m;cur.photoNos=[...(cur.photoNos||[]),...recs.map(r=>r.no)];
