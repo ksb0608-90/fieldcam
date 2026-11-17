@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.application'
+}
+
+def runNo = (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+
+android {
+    namespace 'com.fieldcam.inspection'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.fieldcam.inspection'
+        minSdk 29          // 안드로이드 10 이상
+        targetSdk 34
+        versionCode runNo
+        versionName "1.1.${runNo}"
+    }
+
+    // 고정 서명키: 업데이트 설치 시 기존 앱(기록)을 지우지 않고 덮어쓰기 위해 항상 같은 키 사용
+    signingConfigs {
+        fixed {
+            storeFile file('fieldcam.keystore')
+            storePassword 'fieldcam'
+            keyAlias 'fieldcam'
+            keyPassword 'fieldcam'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.fixed
+        }
+        debug {
+            signingConfig signingConfigs.fixed
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
+    implementation 'androidx.core:core:1.13.1'
+}

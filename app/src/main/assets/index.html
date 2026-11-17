@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#1f3a5f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="현장카메라">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>현장 카메라</title>
+<style>
+:root{--pri:#1f3a5f;--acc:#e8590c;--bg:#f2f4f7;--card:#fff;--line:#d0d5dd;--txt:#1d2939;--sub:#667085;--ok:#12a150;--bad:#d92d20}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-family:-apple-system,"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif;font-size:17px}
+header{position:sticky;top:0;z-index:5;background:var(--pri);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px}
+header .ttl{flex:1;font-weight:700;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .ttl small{font-weight:400;opacity:.8;margin-left:6px}
+main{padding:12px 12px 96px;max-width:1100px;margin:0 auto}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#fff;border-top:1px solid var(--line);z-index:6;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;border:0;background:none;padding:12px 0 14px;font-size:16px;color:var(--sub)}
+nav button.on{color:var(--pri);font-weight:700;box-shadow:inset 0 3px 0 var(--pri)}
+.view{display:none}.view.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lbl{font-size:14px;color:var(--sub);margin:8px 0 6px;font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:9px 14px;font-size:16px;color:var(--txt)}
+.chip.on{background:var(--pri);border-color:var(--pri);color:#fff}
+.chip.rec{border-style:dashed}
+.typ .chip{padding:12px 18px;font-size:17px;font-weight:600}
+input,select,textarea{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--txt);min-width:0}
+textarea{width:100%;min-height:80px}
+input.num{width:110px}
+.btn{border:0;border-radius:10px;padding:12px 18px;font-size:17px;font-weight:600;background:#e4e7ec;color:var(--txt)}
+.btn.pri{background:var(--pri);color:#fff}.btn.acc{background:var(--acc);color:#fff}.btn.bad{background:var(--bad);color:#fff}
+.btn:disabled{opacity:.4}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:720px){.grid2{grid-template-columns:1fr}}
+.photono{display:flex;align-items:center;gap:14px;background:#fff7ed;border:2px solid var(--acc);border-radius:12px;padding:10px 14px;margin-bottom:12px}
+.photono .big{font-size:46px;font-weight:800;color:var(--acc);letter-spacing:1px;line-height:1}
+.photono .meta{font-size:14px;color:var(--sub)}
+.photono .dm{margin-left:auto;text-align:right}
+.photono .dm .big{color:var(--pri);font-size:36px}
+.shutter{position:fixed;right:18px;bottom:84px;z-index:7;width:96px;height:96px;border-radius:50%;border:6px solid #fff;background:var(--acc);color:#fff;font-size:15px;font-weight:800;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.shutter span{display:block;font-size:22px}
+.after{display:none;position:fixed;left:12px;right:126px;bottom:84px;z-index:7;background:#101828;color:#fff;border-radius:12px;padding:10px 12px;align-items:center;gap:10px}
+.after.on{display:flex}
+.after img{width:64px;height:48px;object-fit:cover;border-radius:6px}
+.after .t{flex:1;font-size:15px}
+.dmnum{display:flex;align-items:center;gap:6px}
+.dmnum input{width:110px;text-align:center;font-size:20px;font-weight:700}
+.dmnum .btn{padding:10px 14px}
+table{width:100%;border-collapse:collapse;background:#fff;font-size:15px}
+th,td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:middle}
+th{background:#f9fafb;color:var(--sub);font-weight:600;position:sticky;top:52px}
+td img{width:72px;height:54px;object-fit:cover;border-radius:4px;display:block}
+tr.click{cursor:pointer}
+.tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:13px;font-weight:700;background:#eef4ff;color:#1849a9}
+.tag.금회{background:#fef3f2;color:#b42318}.tag.보수{background:#ecfdf3;color:#027a48}.tag.삭제{background:#f2f4f7;color:#475467}.tag.변경{background:#fffaeb;color:#b54708}
+.sess{display:flex;align-items:center;gap:12px}
+.sess .info{flex:1}.sess .info b{font-size:18px}
+.sess .info div{color:var(--sub);font-size:14px;margin-top:2px}
+.sess.cur{border-color:var(--pri);box-shadow:0 0 0 2px var(--pri) inset}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px}
+.modal.on{display:flex}
+.modal .box{background:#fff;border-radius:14px;padding:16px;width:100%;max-width:640px}
+.modal h3{margin:0 0 10px}
+.modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.toast{white-space:pre-line;text-align:center;position:fixed;left:50%;top:70px;transform:translateX(-50%);background:#101828;color:#fff;padding:10px 18px;border-radius:10px;z-index:30;display:none;font-size:16px}
+.muted{color:var(--sub);font-size:14px}
+.empty{padding:40px 10px;text-align:center;color:var(--sub)}
+.sw{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #eee;gap:10px}
+.sw:last-child{border-bottom:0}
+.sw input[type=checkbox]{width:26px;height:26px}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld span{font-size:13px;color:var(--sub)}
+.sizes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.sizes input{width:100%}
+.hide{display:none!important}
+.bar{height:10px;background:#e4e7ec;border-radius:6px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--pri);width:0}
+</style>
+</head>
+<body>
+<header>
+  <div class="ttl" id="hdr">현장 카메라</div>
+  <button class="btn" id="hdrSess" style="padding:8px 12px;font-size:15px">조사 변경</button>
+</header>
+
+<main>
+<!-- 촬영 -->
+<section class="view" id="v-shot">
+  <div id="noSess" class="card empty hide">
+    선택된 조사가 없습니다.<br><br>
+    <button class="btn pri" onclick="openSessModal()">+ 새 조사 시작</button>
+  </div>
+  <div id="shotBody">
+    <div class="photono">
+      <div>
+        <div class="meta">다음 사진번호</div>
+        <div class="big" id="nextNo">0001</div>
+        <div class="meta" id="nextFile"></div>
+      </div>
+      <div class="dm" id="dmBox">
+        <div class="meta">손상번호</div>
+        <div class="big" id="dmShow">-</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="lbl" style="margin-top:0">구분</div>
+      <div class="chips typ" id="typChips"></div>
+
+      <div class="row" style="margin-top:12px">
+        <div class="lbl" style="margin:0">손상번호</div>
+        <div class="dmnum">
+          <button class="btn" onclick="bumpDmg(-1)">−</button>
+          <input id="f-dmg" inputmode="numeric" placeholder="-">
+          <button class="btn" onclick="bumpDmg(1)">+</button>
+        </div>
+        <span class="muted" id="dmHint"></span>
+      </div>
+    </div>
+
+    <div class="card" id="detailCard">
+      <div class="muted">아래 항목은 모두 선택 입력입니다. 비워두고 촬영해도 됩니다.</div>
+      <div class="lbl">부재명</div>
+      <div class="chips" id="memChips"></div>
+      <div class="lbl">세부위치 <span class="muted">(예: S1, A1, P2)</span></div>
+      <div class="row"><input id="f-loc" style="width:160px" autocomplete="off"><div class="chips" id="locChips"></div></div>
+      <div class="lbl">손상내용</div>
+      <div class="chips" id="dmgChips"></div>
+      <div class="row" style="margin-top:8px"><input id="f-content" placeholder="직접 입력" style="flex:1" autocomplete="off"></div>
+      <div class="lbl">규모</div>
+      <div class="chips" id="wChips" style="margin-bottom:8px"></div>
+      <div class="sizes">
+        <label class="fld"><span>폭</span><input id="f-w" inputmode="decimal"></label>
+        <label class="fld"><span>길이(m)</span><input id="f-l" inputmode="decimal"></label>
+        <label class="fld"><span>너비(m)</span><input id="f-b" inputmode="decimal"></label>
+        <label class="fld"><span>개소</span><input id="f-n" inputmode="numeric"></label>
+      </div>
+      <div class="lbl">비고</div>
+      <input id="f-note" style="width:100%" autocomplete="off">
+      <div class="row" style="margin-top:12px;justify-content:flex-end">
+        <button class="btn" onclick="clearDetail()">입력 지우기</button>
+      </div>
+    </div>
+    <div class="lbl">최근 촬영</div>
+    <div id="recentList"></div>
+  </div>
+</section>
+
+<!-- 기록 -->
+<section class="view" id="v-list">
+  <div class="row" style="margin-bottom:10px">
+    <select id="listFilter"><option value="">전체 구분</option></select>
+    <span class="muted" id="listCount"></span>
+    <span style="flex:1"></span>
+    <button class="btn pri" onclick="exportSess(curSess())">내보내기(ZIP)</button>
+  </div>
+  <div id="listBody"></div>
+</section>
+
+<!-- 조사 목록 -->
+<section class="view" id="v-sess">
+  <div class="row" style="margin-bottom:10px">
+    <button class="btn pri" onclick="openSessModal()">+ 새 조사</button>
+    <span style="flex:1"></span>
+    <button class="btn" onclick="exportAll()">전체 내보내기</button>
+  </div>
+  <div id="sessBody"></div>
+</section>
+
+<!-- 설정 -->
+<section class="view" id="v-set">
+  <div class="card">
+    <div class="sw"><div>사진에 정보판 넣기<div class="muted">사진번호·손상번호·규모·날짜를 사진 하단에 표기</div></div><input type="checkbox" id="s-overlay"></div>
+    <div class="sw" id="row-dl"><div>촬영 즉시 기기에도 저장<div class="muted">사진을 다운로드 폴더에 파일명 그대로 저장(백업용)</div></div><input type="checkbox" id="s-dl"></div>
+    <div class="sw"><div>세부 입력란 표시<div class="muted">끄면 구분·손상번호만 보고 바로 촬영</div></div><input type="checkbox" id="s-detail"></div>
+    <div class="sw"><div>사진번호 자릿수</div><select id="s-digits"><option>3</option><option>4</option><option>5</option></select></div>
+  </div>
+  <div class="card">
+    <div class="lbl" style="margin-top:0">목록 편집 (쉼표로 구분)</div>
+    <div class="row"><select id="s-ptype"></select><span class="muted">시설물 종류별로 따로 저장됩니다</span></div>
+    <div class="lbl">부재명</div><textarea id="s-mem"></textarea>
+    <div class="lbl">손상내용</div><textarea id="s-dmgs"></textarea>
+    <div class="lbl">폭 빠른 입력</div><input id="s-ws" style="width:100%">
+    <div class="row" style="margin-top:10px;justify-content:flex-end">
+      <button class="btn" onclick="resetPreset()">기본값으로</button>
+      <button class="btn pri" onclick="savePreset()">목록 저장</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="lbl" style="margin-top:0">저장공간</div>
+    <div id="storeInfo" class="muted">-</div>
+    <div class="muted" style="margin-top:8px" id="nativeInfo"></div>
+    <div class="muted" style="margin-top:8px" id="webInfo">사진은 이 브라우저 안에 저장됩니다. 하루 조사가 끝나면 꼭 [내보내기]로 ZIP을 받아 두세요. 브라우저 데이터 삭제·앱 삭제 시 사진도 지워집니다.</div>
+    <div class="muted" style="margin-top:8px">버전 <span id="ver"></span></div>
+  </div>
+</section>
+</main>
+
+<button class="shutter" id="shutter"><span>📷</span>촬영</button>
+<div class="after" id="after">
+  <img id="afterImg" alt="">
+  <div class="t" id="afterTxt"></div>
+  <button class="btn acc" onclick="nextDamage()">다음 손상 ▶</button>
+</div>
+<input type="file" id="cam" accept="image/*" capture="environment" class="hide">
+<input type="file" id="cam2" accept="image/*" capture="environment" class="hide">
+
+<nav>
+  <button data-v="shot" class="on">촬영</button>
+  <button data-v="list">기록</button>
+  <button data-v="sess">조사 목록</button>
+  <button data-v="set">설정</button>
+</nav>
+
+<!-- 새 조사 -->
+<div class="modal" id="m-sess"><div class="box">
+  <h3 id="ms-title">새 조사</h3>
+  <div class="lbl">현장(용역)명</div><input id="ms-site" list="dl-site" style="width:100%" placeholder="예: PQ6 강원">
+  <div class="lbl">시설물명 <span class="muted">(파일명에 들어가므로 짧게)</span></div><input id="ms-fac" style="width:100%" placeholder="예: 금곡교">
+  <div class="lbl">시설물 종류</div><div class="chips" id="ms-type"></div>
+  <div class="lbl">조사자 <span class="muted">(파일명에 들어가므로 짧게)</span></div><input id="ms-insp" list="dl-insp" style="width:100%" placeholder="예: 권">
+  <div class="grid2" style="margin-top:4px">
+    <label class="fld"><span>사진 시작번호</span><input id="ms-p0" inputmode="numeric" value="1"></label>
+    <label class="fld"><span>손상 시작번호(금회)</span><input id="ms-d0" inputmode="numeric" value="1"></label>
+  </div>
+  <div class="muted" style="margin-top:6px">같은 시설물을 태블릿 2대로 찍는 경우 시작번호를 다르게(예: 5001) 하면 번호가 겹치지 않습니다.</div>
+  <datalist id="dl-site"></datalist><datalist id="dl-insp"></datalist>
+  <div class="acts"><button class="btn" onclick="closeModal('m-sess')">취소</button><button class="btn pri" id="ms-ok">확인</button></div>
+</div></div>
+
+<!-- 기록 수정 -->
+<div class="modal" id="m-rec"><div class="box">
+  <h3 id="mr-title">기록 수정</h3>
+  <img id="mr-img" style="width:100%;max-height:50vh;object-fit:contain;background:#000;border-radius:8px">
+  <div class="lbl">구분</div><div class="chips" id="mr-typ"></div>
+  <div class="grid2">
+    <label class="fld"><span>손상번호</span><input id="mr-dmg" inputmode="numeric"></label>
+    <label class="fld"><span>부재명</span><input id="mr-mem"></label>
+    <label class="fld"><span>세부위치</span><input id="mr-loc"></label>
+    <label class="fld"><span>손상내용</span><input id="mr-content"></label>
+  </div>
+  <div class="sizes" style="margin-top:8px">
+    <label class="fld"><span>폭</span><input id="mr-w" inputmode="decimal"></label>
+    <label class="fld"><span>길이(m)</span><input id="mr-l" inputmode="decimal"></label>
+    <label class="fld"><span>너비(m)</span><input id="mr-b" inputmode="decimal"></label>
+    <label class="fld"><span>개소</span><input id="mr-n" inputmode="numeric"></label>
+  </div>
+  <label class="fld" style="margin-top:8px"><span>비고</span><input id="mr-note"></label>
+  <div class="acts">
+    <button class="btn bad" id="mr-del">삭제</button>
+    <button class="btn" id="mr-reshoot">재촬영</button>
+    <span style="flex:1"></span>
+    <button class="btn" onclick="closeModal('m-rec')">닫기</button>
+    <button class="btn pri" id="mr-save">저장</button>
+  </div>
+</div></div>
+
+<!-- 확인창 -->
+<div class="modal" id="m-cf"><div class="box" style="max-width:420px">
+  <div id="cf-msg" style="white-space:pre-line;font-size:17px"></div>
+  <div class="acts"><button class="btn" id="cf-no">취소</button><button class="btn pri" id="cf-yes">확인</button></div>
+</div></div>
+
+<!-- 진행 -->
+<div class="modal" id="m-prog"><div class="box" style="max-width:420px">
+  <div id="pg-msg">내보내는 중…</div>
+  <div class="bar" style="margin-top:12px"><i id="pg-bar"></i></div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const VERSION = '1.1.0';
+const NATIVE = !!(window.Android && window.Android.begin);
+const $ = s => document.querySelector(s);
+const TYPES = ['금회','기존','변경','보수','삭제','일반'];
+const TYPE_HINT = {금회:'신규 손상 · 번호 자동',기존:'기존 손상 재촬영 · 번호 입력',변경:'규모 변경 · 번호 입력',보수:'보수 완료 · 번호 입력',삭제:'손상 없어짐 · 번호 입력',일반:'전경·부재 사진 등'};
+const FTYPES = ['도로교량','철도교량','도로터널','철도터널'];
+const DEF_PRESET = {
+  '도로교량':{mem:'교면포장,신축이음,배수시설,난간/연석,바닥판상면,바닥판하면,거더,가로보,교대,교각,받침,기초,접속포장,기타시설',
+    dmg:'균열(0.3㎜미만),균열(0.3㎜이상),망상균열,박리,박락,재료분리,철근노출,백태,누수,파손,부식,도장박리,공동,층분리,단차,배수구막힘,탈락,표면보수재박리'},
+  '철도교량':{mem:'상판,슬래브상면,슬래브하면,거더,가로보,교대,교각,받침,신축이음,배수시설,난간/방호벽,궤도부,기초,기타시설',
+    dmg:'균열(0.3㎜미만),균열(0.3㎜이상),망상균열,박리,박락,재료분리,철근노출,백태,누수,파손,부식,도장박리,공동,층분리,배수구막힘,탈락,표면보수재박리'},
+  '도로터널':{mem:'라이닝(천단),라이닝(측벽),갱문,배수시설,포장,공동구,부대시설',
+    dmg:'균열(0.3㎜미만),균열(0.3㎜이상),망상균열,누수,백태,박리,박락,재료분리,철근노출,층분리,공동,파손,들뜸,시공이음부손상'},
+  '철도터널':{mem:'라이닝(천단),라이닝(측벽),갱문,배수시설,궤도부,대피소,부대시설',
+    dmg:'균열(0.3㎜미만),균열(0.3㎜이상),망상균열,누수,백태,박리,박락,재료분리,철근노출,층분리,공동,파손,들뜸,시공이음부손상'}
+};
+const DEF_WS = '0.1,0.2,0.3,0.4,0.5,1.0';
+
+/* ---------- 저장소 ---------- */
+let db;
+function openDB(){return new Promise((res,rej)=>{
+  const r=indexedDB.open('fieldcam',1);
+  r.onupgradeneeded=()=>{const d=r.result;
+    d.createObjectStore('sessions',{keyPath:'id'});
+    const rs=d.createObjectStore('records',{keyPath:'id'}); rs.createIndex('sid','sid');
+    d.createObjectStore('photos');};
+  r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);});}
+function tx(stores,mode,fn){return new Promise((res,rej)=>{
+  const t=db.transaction(stores,mode); let out;
+  const r=fn(t); if(r&&'onsuccess' in r) r.onsuccess=()=>{out=r.result};
+  t.oncomplete=()=>res(out); t.onerror=()=>rej(t.error); t.onabort=()=>rej(t.error||new Error('abort'));});}
+const dbGet=(s,k)=>tx([s],'readonly',t=>t.objectStore(s).get(k));
+const dbAll=s=>tx([s],'readonly',t=>t.objectStore(s).getAll());
+const dbPut=(s,v,k)=>tx([s],'readwrite',t=>t.objectStore(s).put(v,k));
+const recsOf=sid=>tx(['records'],'readonly',t=>t.objectStore('records').index('sid').getAll(sid));
+
+const LS={get(k,d){try{const v=localStorage.getItem('fc.'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+          set(k,v){try{localStorage.setItem('fc.'+k,JSON.stringify(v))}catch(e){}}};
+const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+let settings=Object.assign({overlay:false,autoDl:!isIOS,detail:true,digits:4},LS.get('settings',{}));
+let presets=LS.get('presets',{});
+function preset(ft){const p=presets[ft]||{};const d=DEF_PRESET[ft]||DEF_PRESET['도로교량'];
+  return {mem:(p.mem??d.mem).split(',').map(s=>s.trim()).filter(Boolean),
+          dmg:(p.dmg??d.dmg).split(',').map(s=>s.trim()).filter(Boolean),
+          ws:(p.ws??DEF_WS).split(',').map(s=>s.trim()).filter(Boolean)};}
+
+let sessions=[], curId=LS.get('cur',null);
+let form=blankForm(), lastSaved=null;
+function blankForm(){return {type:'금회',dmg:'',mem:'',loc:'',content:'',w:'',l:'',b:'',n:'',note:''};}
+const curSess=()=>sessions.find(s=>s.id===curId)||null;
+const pad=(n,d)=>String(n).padStart(d||settings.digits,'0');
+const safe=s=>String(s||'').trim().replace(/[\\/:*?"<>|\s]+/g,'_')||'미지정';
+const fileName=(s,no)=>`${safe(s.facility)}_${safe(s.inspector)}_${pad(no)}.jpg`;
+function nowStr(d){d=d||new Date();const z=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`;}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
+
+/* ---------- UI 공통 ---------- */
+function toast(m,ms){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast._t);toast._t=setTimeout(()=>t.style.display='none',ms||1800);}
+function openModal(id){$('#'+id).classList.add('on');}
+function closeModal(id){$('#'+id).classList.remove('on');}
+function confirmBox(msg,yes){return new Promise(r=>{$('#cf-msg').textContent=msg;$('#cf-yes').textContent=yes||'확인';openModal('m-cf');
+  $('#cf-yes').onclick=()=>{closeModal('m-cf');r(true)};$('#cf-no').onclick=()=>{closeModal('m-cf');r(false)};});}
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function chips(el,items,val,onPick,cls){el.innerHTML='';items.forEach(it=>{const b=document.createElement('button');
+  b.className='chip'+(cls?' '+cls:'')+(it===val?' on':'');b.textContent=it;b.onclick=()=>onPick(it);el.appendChild(b);});}
+
+let view='shot';
+function show(v){view=v;document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  $('#shutter').style.display=(v==='shot'&&curSess())?'':'none';
+  if(v!=='shot') $('#after').classList.remove('on');
+  if(v==='list') renderList(); if(v==='sess') renderSess(); if(v==='set') renderSet(); if(v==='shot') renderShot();}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.v));
+$('#hdrSess').onclick=()=>show('sess');
+
+function renderHeader(){const s=curSess();
+  $('#hdr').innerHTML=s?`${esc(s.facility)}<small>${esc(s.site)} · ${esc(s.inspector)} · ${esc(s.ftype)}</small>`:'현장 카메라';}
+
+/* ---------- 촬영 화면 ---------- */
+function saveDraft(){const s=curSess();if(s) LS.set('draft.'+s.id,form);}
+function loadDraft(){const s=curSess();form=Object.assign(blankForm(),s?LS.get('draft.'+s.id,{}):{});}
+function bindInput(id,key){const el=$('#'+id);el.oninput=()=>{form[key]=el.value.trim();saveDraft();refreshTop();if(key==='content')renderChipsOnly();};}
+bindInput('f-dmg','dmg');bindInput('f-loc','loc');bindInput('f-content','content');
+bindInput('f-w','w');bindInput('f-l','l');bindInput('f-b','b');bindInput('f-n','n');bindInput('f-note','note');
+
+function recent(key){const s=curSess();return s?(LS.get('recent.'+s.id+'.'+key,[])):[];}
+function pushRecent(key,v){const s=curSess();if(!s||!v)return;let a=recent(key).filter(x=>x!==v);a.unshift(v);LS.set('recent.'+s.id+'.'+key,a.slice(0,8));}
+
+function refreshTop(){const s=curSess();if(!s)return;
+  $('#nextNo').textContent=pad(s.nextPhoto);
+  $('#nextFile').textContent=fileName(s,s.nextPhoto);
+  $('#dmShow').textContent=form.type==='일반'?'-':(form.dmg||'-');
+  $('#dmBox').style.visibility=form.type==='일반'?'hidden':'visible';
+  $('#shutter').innerHTML=`<span>📷</span>${pad(s.nextPhoto)}`;}
+
+function renderChipsOnly(){const s=curSess();if(!s)return;const p=preset(s.ftype);
+  chips($('#typChips'),TYPES,form.type,t=>setType(t));
+  const rm=recent('mem').filter(x=>!p.mem.includes(x));
+  chips($('#memChips'),[...p.mem,...rm],form.mem,v=>{form.mem=form.mem===v?'':v;saveDraft();renderChipsOnly();});
+  chips($('#locChips'),recent('loc'),form.loc,v=>{form.loc=v;$('#f-loc').value=v;saveDraft();renderChipsOnly();},'rec');
+  const rd=recent('content').filter(x=>!p.dmg.includes(x));
+  chips($('#dmgChips'),[...p.dmg,...rd],form.content,v=>{form.content=form.content===v?'':v;$('#f-content').value=form.content;saveDraft();renderChipsOnly();});
+  chips($('#wChips'),p.ws,form.w,v=>{form.w=form.w===v?'':v;$('#f-w').value=form.w;saveDraft();renderChipsOnly();});
+  $('#dmHint').textContent=TYPE_HINT[form.type]||'';}
+
+function setType(t){const s=curSess();const prev=form.type;form.type=t;
+  if(t==='금회'&&prev!=='금회') form.dmg=String(s.nextDmg);
+  else if(t!=='금회'&&prev==='금회') form.dmg='';
+  if(t==='일반') form.dmg='';
+  $('#f-dmg').value=form.dmg;saveDraft();renderChipsOnly();refreshTop();}
+function bumpDmg(d){let n=parseInt(form.dmg,10);if(isNaN(n))n=form.type==='금회'?curSess().nextDmg:0;n=Math.max(1,n+d);
+  form.dmg=String(n);$('#f-dmg').value=form.dmg;saveDraft();refreshTop();}
+function clearDetail(){Object.assign(form,{mem:'',loc:'',content:'',w:'',l:'',b:'',n:'',note:''});fillForm();saveDraft();}
+function fillForm(){['dmg','loc','content','w','l','b','n','note'].forEach(k=>$('#f-'+k).value=form[k]||'');renderChipsOnly();refreshTop();}
+
+async function renderShot(){const s=curSess();
+  $('#noSess').classList.toggle('hide',!!s);$('#shotBody').classList.toggle('hide',!s);
+  $('#shutter').style.display=(view==='shot'&&s)?'':'none';
+  if(!s)return;
+  if(form.type==='금회'&&!form.dmg) form.dmg=String(s.nextDmg);
+  $('#detailCard').classList.toggle('hide',!settings.detail);
+  fillForm();
+  const rs=(await recsOf(s.id)).sort((a,b)=>b.no-a.no).slice(0,5);
+  $('#recentList').innerHTML=rs.length?`<table>${rs.map(rowHtml).join('')}</table>`:'<div class="muted">아직 촬영한 사진이 없습니다.</div>';
+  bindRows($('#recentList'));}
+
+function rowHtml(r){const size=[r.w&&('폭 '+r.w),r.l&&('L '+r.l),r.b&&('B '+r.b),r.n&&(r.n+'개소')].filter(Boolean).join(' · ');
+  return `<tr class="click" data-id="${r.id}"><td style="width:80px"><img src="${r.thumb||''}"></td>
+  <td><b style="font-size:18px">${pad(r.no)}</b><br><span class="tag ${esc(r.type)}">${esc(r.type)}</span> ${r.dmg?'#'+esc(r.dmg):''}</td>
+  <td>${esc([r.mem,r.loc].filter(Boolean).join(' '))}<br><span class="muted">${esc(r.content)} ${esc(size)}</span></td>
+  <td class="muted" style="width:90px">${esc((r.time||'').slice(5,16))}</td></tr>`;}
+function bindRows(el){el.querySelectorAll('tr.click').forEach(tr=>tr.onclick=()=>openRec(tr.dataset.id));}
+
+/* ---------- 촬영 처리 ---------- */
+$('#shutter').onclick=()=>{if(!curSess())return;$('#cam').value='';$('#cam').click();};
+$('#cam').onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;
+  try{await saveCapture(f);}catch(err){console.error(err);toast('저장 실패: '+err.message,4000);}};
+
+async function loadImg(file){
+  try{return await createImageBitmap(file,{imageOrientation:'from-image'});}catch(e){}
+  return await new Promise((res,rej)=>{const u=URL.createObjectURL(file);const i=new Image();i.onload=()=>{res(i)};i.onerror=rej;i.src=u;});}
+function imgW(i){return i.naturalWidth||i.width}function imgH(i){return i.naturalHeight||i.height}
+async function makeThumb(img){const w=240,h=Math.round(240*imgH(img)/imgW(img));const c=document.createElement('canvas');c.width=w;c.height=h;
+  c.getContext('2d').drawImage(img,0,0,w,h);return c.toDataURL('image/jpeg',0.7);}
+function stampLines(s,r){const size=[r.w&&('폭 '+r.w),r.l&&('L='+r.l+'m'),r.b&&('B='+r.b+'m'),r.n&&(r.n+'개소')].filter(Boolean).join(', ');
+  return [`${s.facility}  No.${pad(r.no)}`,
+    r.type==='일반'?'':`${r.type}${r.dmg?'  손상 #'+r.dmg:''}`,
+    [r.mem,r.loc,r.content].filter(Boolean).join(' '),size,`${r.time}  ${s.inspector}`].filter(Boolean);}
+async function stamp(img,lines){const c=document.createElement('canvas');c.width=imgW(img);c.height=imgH(img);const g=c.getContext('2d');
+  g.drawImage(img,0,0);const fs=Math.round(Math.max(c.width,c.height)/45);g.font=`bold ${fs}px sans-serif`;
+  const p=Math.round(fs*.5),lh=Math.round(fs*1.35);const w=Math.max(...lines.map(t=>g.measureText(t).width))+p*2,h=lh*lines.length+p*2;
+  const x=p,y=c.height-h-p;g.fillStyle='rgba(255,255,255,.9)';g.fillRect(x,y,w,h);g.lineWidth=Math.max(2,fs/10);g.strokeStyle='#000';g.strokeRect(x,y,w,h);
+  g.fillStyle='#000';g.textBaseline='middle';lines.forEach((t,i)=>g.fillText(t,x+p,y+p+lh*i+lh/2));
+  return await new Promise(r=>c.toBlob(r,'image/jpeg',0.92));}
+function downloadBlob(blob,name){const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=name;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),30000);}
+
+/* ---------- 앱(안드로이드) 폴더 저장 ---------- */
+const sessDir=s=>`${safe(s.site)}/${safe(s.facility)}/${safe(s.inspector)}`;
+function b64of(blob){return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(',')[1]||'');fr.onerror=()=>rej(fr.error);fr.readAsDataURL(blob);});}
+async function nativeWrite(dir,name,blob,mime){
+  const id=Android.begin(dir,name,mime);if(!id||id.startsWith('ERR'))throw new Error(id||'저장 실패');
+  const CH=786432; /* 3의 배수 */
+  try{for(let o=0;o<blob.size;o+=CH){const r=Android.append(id,await b64of(blob.slice(o,o+CH)));if(r!=='OK')throw new Error(r);}}
+  finally{const r=Android.end(id);if(r!=='OK')throw new Error(r);}}
+async function writeCsv(s){if(!NATIVE||!s)return;const recs=(await recsOf(s.id)).sort((a,b)=>a.no-b.no);
+  await nativeWrite(sessDir(s),`촬영기록_${safe(s.facility)}_${safe(s.inspector)}.csv`,new Blob([csvOf(s,recs)],{type:'text/csv'}),'text/csv');}
+async function nativeSavePhoto(s,r,blob){if(!NATIVE)return;
+  try{await nativeWrite(sessDir(s)+'/사진',r.file,blob,'image/jpeg');await writeCsv(s);}
+  catch(e){console.error(e);toast('⚠ 폴더 저장 실패: '+e.message+'\n(앱 안에는 저장됨 · 내보내기로 받으세요)',6000);}}
+window.onAndroidBack=()=>{const m=document.querySelector('.modal.on');if(m){if(m.id!=='m-prog')m.classList.remove('on');return true;}
+  if(view!=='shot'){show('shot');return true;}return false;};
+
+async function saveCapture(file){const s=curSess();
+  const r={id:uid(),sid:s.id,no:s.nextPhoto,file:fileName(s,s.nextPhoto),type:form.type,dmg:form.type==='일반'?'':form.dmg,
+    mem:form.mem,loc:form.loc,content:form.content,w:form.w,l:form.l,b:form.b,n:form.n,note:form.note,time:nowStr()};
+  const img=await loadImg(file);r.thumb=await makeThumb(img);
+  let blob=file;if(settings.overlay){blob=await stamp(img,stampLines(s,r));r.stamped=true;}
+  if(img.close)img.close();
+  const s2=Object.assign({},s,{nextPhoto:s.nextPhoto+1,count:(s.count||0)+1,updated:r.time});
+  if(r.type==='금회'){const d=parseInt(r.dmg,10);if(!isNaN(d)&&d>=s.nextDmg)s2.nextDmg=d+1;}
+  await tx(['records','photos','sessions'],'readwrite',t=>{t.objectStore('photos').put(blob,r.id);t.objectStore('records').put(r);t.objectStore('sessions').put(s2);});
+  Object.assign(s,s2);
+  ['mem','loc','content'].forEach(k=>pushRecent(k,r[k]));
+  if(NATIVE) await nativeSavePhoto(s,r,blob); else if(settings.autoDl) downloadBlob(blob,r.file);
+  lastSaved=r;
+  $('#afterImg').src=r.thumb;$('#afterTxt').innerHTML=`<b>${pad(r.no)}</b> 저장됨 ${r.dmg?'· 손상 #'+esc(r.dmg):''}<br><span style="opacity:.75">같은 손상은 바로 [촬영]</span>`;
+  $('#after').classList.add('on');clearTimeout(saveCapture._t);saveCapture._t=setTimeout(()=>$('#after').classList.remove('on'),12000);
+  toast(`${r.file} 저장`);renderShot();}
+
+function nextDamage(){const s=curSess();const t=form.type;form=blankForm();form.type=t;
+  if(t==='금회') form.dmg=String(s.nextDmg);
+  saveDraft();$('#after').classList.remove('on');fillForm();window.scrollTo(0,0);}
+
+/* ---------- 기록 ---------- */
+async function renderList(){const s=curSess();const sel=$('#listFilter');
+  if(sel.options.length===1) TYPES.forEach(t=>sel.add(new Option(t,t)));
+  if(!s){$('#listBody').innerHTML='<div class="empty">선택된 조사가 없습니다.</div>';$('#listCount').textContent='';return;}
+  let rs=(await recsOf(s.id)).sort((a,b)=>b.no-a.no);const f=sel.value;if(f) rs=rs.filter(r=>r.type===f);
+  $('#listCount').textContent=`${rs.length}장`;
+  $('#listBody').innerHTML=rs.length?`<table><thead><tr><th></th><th>사진번호</th><th>부재·위치 / 손상·규모</th><th>시각</th></tr></thead><tbody>${rs.map(rowHtml).join('')}</tbody></table>`:'<div class="empty">기록 없음</div>';
+  bindRows($('#listBody'));}
+$('#listFilter').onchange=renderList;
+
+let editRec=null,editType=null;
+async function openRec(id){const r=await dbGet('records',id);if(!r)return;editRec=r;editType=r.type;
+  const blob=await dbGet('photos',id);const im=$('#mr-img');if(im._u)URL.revokeObjectURL(im._u);im._u=blob?URL.createObjectURL(blob):'';im.src=im._u||r.thumb;
+  $('#mr-title').textContent=`${r.file}`;
+  const pt=()=>chips($('#mr-typ'),TYPES,editType,t=>{editType=t;pt();});pt();
+  ['dmg','mem','loc','content','w','l','b','n','note'].forEach(k=>$('#mr-'+k).value=r[k]||'');
+  openModal('m-rec');}
+$('#mr-save').onclick=async()=>{const r=editRec;r.type=editType;['dmg','mem','loc','content','w','l','b','n','note'].forEach(k=>r[k]=$('#mr-'+k).value.trim());
+  if(r.type==='일반')r.dmg='';
+  await dbPut('records',r);closeModal('m-rec');toast('수정됨');
+  if(NATIVE){try{await writeCsv(sessions.find(x=>x.id===r.sid));}catch(e){toast('⚠ 촬영기록 저장 실패: '+e.message,5000);}}
+  show(view);};
+$('#mr-del').onclick=async()=>{const r=editRec;if(!await confirmBox(`${r.file}\n이 사진과 기록을 삭제할까요?\n(사진번호는 다시 쓰지 않고 비워둡니다)`,'삭제'))return;
+  const s=sessions.find(x=>x.id===r.sid);
+  await tx(['records','photos','sessions'],'readwrite',t=>{t.objectStore('records').delete(r.id);t.objectStore('photos').delete(r.id);
+    if(s){s.count=Math.max(0,(s.count||1)-1);t.objectStore('sessions').put(s);}});
+  closeModal('m-rec');toast('삭제됨');
+  if(NATIVE&&s){try{Android.remove(sessDir(s)+'/사진',r.file);await writeCsv(s);}catch(e){toast('⚠ 폴더 반영 실패: '+e.message,5000);}}
+  show(view);};
+$('#mr-reshoot').onclick=()=>{$('#cam2').value='';$('#cam2').click();};
+$('#cam2').onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f||!editRec)return;const r=editRec;const s=sessions.find(x=>x.id===r.sid);
+  try{const img=await loadImg(f);r.thumb=await makeThumb(img);let blob=f;if(settings.overlay){blob=await stamp(img,stampLines(s,r));r.stamped=true;}
+    if(img.close)img.close();r.time=nowStr();
+    await tx(['records','photos'],'readwrite',t=>{t.objectStore('photos').put(blob,r.id);t.objectStore('records').put(r);});
+    if(NATIVE) await nativeSavePhoto(s,r,blob); else if(settings.autoDl) downloadBlob(blob,r.file);
+    toast(`${r.file} 다시 찍음`);openRec(r.id);show(view);}catch(err){toast('실패: '+err.message,4000);}};
+
+/* ---------- 조사(세션) ---------- */
+let msType='도로교량',msEdit=null;
+function openSessModal(edit){msEdit=edit||null;const s=edit||{};
+  $('#ms-title').textContent=edit?'조사 정보 수정':'새 조사';
+  const last=curSess()||{};
+  $('#ms-site').value=s.site??last.site??'';$('#ms-fac').value=s.facility??'';$('#ms-insp').value=s.inspector??last.inspector??'';
+  $('#ms-p0').value=edit?s.nextPhoto:1;$('#ms-d0').value=edit?s.nextDmg:1;
+  $('#ms-p0').previousElementSibling.textContent=edit?'다음 사진번호':'사진 시작번호';
+  $('#ms-d0').previousElementSibling.textContent=edit?'다음 손상번호(금회)':'손상 시작번호(금회)';
+  msType=s.ftype||last.ftype||'도로교량';
+  const pt=()=>chips($('#ms-type'),FTYPES,msType,t=>{msType=t;pt();});pt();
+  $('#dl-site').innerHTML=[...new Set(sessions.map(x=>x.site))].map(v=>`<option value="${esc(v)}">`).join('');
+  $('#dl-insp').innerHTML=[...new Set(sessions.map(x=>x.inspector))].map(v=>`<option value="${esc(v)}">`).join('');
+  openModal('m-sess');}
+$('#ms-ok').onclick=async()=>{const site=$('#ms-site').value.trim(),fac=$('#ms-fac').value.trim(),insp=$('#ms-insp').value.trim();
+  if(!site||!fac||!insp){toast('현장·시설물·조사자를 입력하세요');return;}
+  const p0=Math.max(1,parseInt($('#ms-p0').value,10)||1),d0=Math.max(1,parseInt($('#ms-d0').value,10)||1);
+  if(msEdit){
+    const recs=await recsOf(msEdit.id);const maxNo=recs.reduce((m,r)=>Math.max(m,r.no),0);
+    if(p0<=maxNo&&!await confirmBox(`다음 사진번호(${p0})가 이미 찍은 번호(${maxNo})보다 작습니다.\n번호가 겹칠 수 있습니다. 계속할까요?`))return;
+    const nameChanged=msEdit.facility!==fac||msEdit.inspector!==insp;
+    if(NATIVE&&recs.length&&(nameChanged||msEdit.site!==site)){toast('사진이 있는 조사는 현장·시설물·조사자명을 바꿀 수 없습니다 (폴더·파일명이 이미 만들어짐)',4500);return;}
+    Object.assign(msEdit,{site,facility:fac,inspector:insp,ftype:msType,nextPhoto:p0,nextDmg:d0});
+    await tx(['sessions','records'],'readwrite',t=>{t.objectStore('sessions').put(msEdit);
+      if(nameChanged) recs.forEach(r=>{r.file=fileName(msEdit,r.no);t.objectStore('records').put(r);});});
+  }else{
+    const dup=sessions.find(x=>x.site===site&&x.facility===fac&&x.inspector===insp);
+    if(dup){if(await confirmBox(`같은 조사(${fac} · ${insp})가 이미 있습니다.\n기존 조사를 이어서 할까요?`,'이어서 하기')){curId=dup.id;LS.set('cur',curId);closeModal('m-sess');loadDraft();renderHeader();show('shot');}return;}
+    const s={id:uid(),site,facility:fac,inspector:insp,ftype:msType,nextPhoto:p0,nextDmg:d0,count:0,created:nowStr(),updated:nowStr()};
+    await dbPut('sessions',s);sessions.push(s);curId=s.id;LS.set('cur',curId);
+  }
+  closeModal('m-sess');loadDraft();renderHeader();show(msEdit?'sess':'shot');};
+
+function renderSess(){const g={};sessions.forEach(s=>(g[s.site]=g[s.site]||[]).push(s));
+  const sites=Object.keys(g).sort();
+  $('#sessBody').innerHTML=sites.length?sites.map(site=>`<div class="lbl">${esc(site)}</div>`+
+    g[site].sort((a,b)=>(b.updated||'').localeCompare(a.updated||'')).map(s=>`
+    <div class="card sess ${s.id===curId?'cur':''}" data-id="${s.id}">
+      <div class="info"><b>${esc(s.facility)}</b> <span class="tag">${esc(s.ftype)}</span>
+        <div>조사자 ${esc(s.inspector)} · ${s.count||0}장 · 다음 사진 ${pad(s.nextPhoto)} · 다음 손상 #${s.nextDmg}</div>
+        <div>최근 ${esc((s.updated||'').slice(0,16))}</div></div>
+      <button class="btn pri" data-a="use">${s.id===curId?'사용 중':'선택'}</button>
+      <button class="btn" data-a="edit">수정</button>
+      <button class="btn" data-a="exp">내보내기</button>
+      <button class="btn bad" data-a="del">삭제</button>
+    </div>`).join('')).join(''):'<div class="empty">조사가 없습니다. [+ 새 조사]를 누르세요.</div>';
+  $('#sessBody').querySelectorAll('.sess').forEach(el=>{const s=sessions.find(x=>x.id===el.dataset.id);
+    el.querySelectorAll('button').forEach(b=>b.onclick=async()=>{const a=b.dataset.a;
+      if(a==='use'){curId=s.id;LS.set('cur',curId);loadDraft();renderHeader();show('shot');}
+      if(a==='edit')openSessModal(s);
+      if(a==='exp')exportSess(s);
+      if(a==='del')delSess(s);});});}
+
+async function delSess(s){if(!await confirmBox(`[${s.facility} · ${s.inspector}] 조사와 사진 ${s.count||0}장을 모두 삭제할까요?\n내보내기를 먼저 했는지 확인하세요.`,'모두 삭제'))return;
+  if(!await confirmBox('정말 삭제합니다. 되돌릴 수 없습니다.','삭제'))return;
+  const recs=await recsOf(s.id);
+  await tx(['records','photos','sessions'],'readwrite',t=>{recs.forEach(r=>{t.objectStore('records').delete(r.id);t.objectStore('photos').delete(r.id);});t.objectStore('sessions').delete(s.id);});
+  sessions=sessions.filter(x=>x.id!==s.id);if(curId===s.id){curId=null;LS.set('cur',null);}
+  renderHeader();renderSess();toast('삭제됨');}
+
+/* ---------- 내보내기 (ZIP + CSV) ---------- */
+const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
+function crc32(u8){let c=0xFFFFFFFF;for(let i=0;i<u8.length;i++)c=CRC_T[(c^u8[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function dos(d){return {time:(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1),date:((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate()};}
+async function makeZip(entries,onProg){const enc=new TextEncoder(),parts=[],cen=[];let off=0,cenSize=0;const {time,date}=dos(new Date());
+  for(let i=0;i<entries.length;i++){const e=entries[i];const data=new Uint8Array(await e.blob.arrayBuffer());const crc=crc32(data),len=data.length;const nm=enc.encode(e.name);
+    const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(8,0,true);
+    h.setUint16(10,time,true);h.setUint16(12,date,true);h.setUint32(14,crc,true);h.setUint32(18,len,true);h.setUint32(22,len,true);h.setUint16(26,nm.length,true);h.setUint16(28,0,true);
+    parts.push(h.buffer,nm,e.blob);
+    const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint16(10,0,true);
+    c.setUint16(12,time,true);c.setUint16(14,date,true);c.setUint32(16,crc,true);c.setUint32(20,len,true);c.setUint32(24,len,true);c.setUint16(28,nm.length,true);
+    c.setUint16(30,0,true);c.setUint16(32,0,true);c.setUint16(34,0,true);c.setUint16(36,0,true);c.setUint32(38,0,true);c.setUint32(42,off,true);
+    cen.push(c.buffer,nm);cenSize+=46+nm.length;off+=30+nm.length+len;
+    if(off>0xFFFFFFF0) throw new Error('ZIP 용량 4GB 초과 — 조사별로 나눠 내보내세요');
+    onProg&&onProg((i+1)/entries.length);}
+  const z=new DataView(new ArrayBuffer(22));z.setUint32(0,0x06054b50,true);z.setUint16(4,0,true);z.setUint16(6,0,true);z.setUint16(8,entries.length,true);z.setUint16(10,entries.length,true);
+  z.setUint32(12,cenSize,true);z.setUint32(16,off,true);z.setUint16(20,0,true);
+  return new Blob([...parts,...cen,z.buffer],{type:'application/zip'});}
+
+const CSV_COLS=[['사진번호',(r,s)=>pad(r.no)],['파일명',r=>r.file],['현장',(r,s)=>s.site],['시설물',(r,s)=>s.facility],['시설물종류',(r,s)=>s.ftype],['조사자',(r,s)=>s.inspector],
+  ['구분',r=>r.type],['손상번호',r=>r.dmg],['부재명',r=>r.mem],['세부위치',r=>r.loc],['손상내용',r=>r.content],['폭',r=>r.w],['길이',r=>r.l],['너비',r=>r.b],['개소',r=>r.n],['비고',r=>r.note],['촬영일시',r=>r.time]];
+function csvOf(s,recs){const q=v=>{v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  return '﻿'+[CSV_COLS.map(c=>c[0]).join(','),...recs.map(r=>CSV_COLS.map(c=>q(c[1](r,s))).join(','))].join('\r\n');}
+function stampName(){const d=new Date(),z=n=>String(n).padStart(2,'0');return `${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`;}
+async function entriesOf(s){const recs=(await recsOf(s.id)).sort((a,b)=>a.no-b.no);const base=`${safe(s.site)}/${safe(s.facility)}/${safe(s.inspector)}`;const out=[];
+  for(const r of recs){const b=await dbGet('photos',r.id);if(b)out.push({name:`${base}/사진/${r.file}`,blob:b});}
+  out.push({name:`${base}/촬영기록_${safe(s.facility)}_${safe(s.inspector)}.csv`,blob:new Blob([csvOf(s,recs)],{type:'text/csv'})});
+  return {out,n:recs.length};}
+async function runExport(list,zipName){if(!list.length){toast('내보낼 조사가 없습니다');return;}
+  $('#pg-msg').textContent='사진 모으는 중…';$('#pg-bar').style.width='0';openModal('m-prog');
+  try{let all=[],n=0;for(const s of list){const e=await entriesOf(s);all=all.concat(e.out);n+=e.n;}
+    $('#pg-msg').textContent=`ZIP 만드는 중… (${n}장)`;
+    const zip=await makeZip(all,p=>$('#pg-bar').style.width=(p*100).toFixed(0)+'%');
+    closeModal('m-prog');
+    const name=zipName+'.zip';
+    if(navigator.canShare&&isIOS){try{const f=new File([zip],name,{type:'application/zip'});if(navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return;}}catch(e){if(e.name==='AbortError')return;}}
+    if(NATIVE){$('#pg-msg').textContent='파일로 저장 중…';openModal('m-prog');
+      try{await nativeWrite('내보내기',name,zip,'application/zip');}finally{closeModal('m-prog');}
+      toast(`다운로드/현장카메라/내보내기/${name} 저장 (${(zip.size/1048576).toFixed(1)}MB)`,5000);return;}
+    downloadBlob(zip,name);toast(`${name} 저장 (${(zip.size/1048576).toFixed(1)}MB)`,3500);
+  }catch(err){closeModal('m-prog');toast('내보내기 실패: '+err.message,5000);console.error(err);}}
+function exportSess(s){if(!s){toast('조사를 먼저 선택하세요');return;}runExport([s],`${safe(s.facility)}_${safe(s.inspector)}_${stampName()}`);}
+function exportAll(){runExport(sessions,`현장카메라_전체_${stampName()}`);}
+
+/* ---------- 설정 ---------- */
+function renderSet(){$('#s-overlay').checked=settings.overlay;$('#s-dl').checked=settings.autoDl;$('#s-detail').checked=settings.detail;$('#s-digits').value=String(settings.digits);
+  const sel=$('#s-ptype');if(!sel.options.length)FTYPES.forEach(t=>sel.add(new Option(t,t)));if(curSess()&&!sel._touched)sel.value=curSess().ftype;loadPresetFields();
+  $('#ver').textContent=VERSION+(NATIVE?' (앱)':' (웹)');
+  $('#row-dl').classList.toggle('hide',NATIVE);$('#webInfo').classList.toggle('hide',NATIVE);
+  $('#nativeInfo').innerHTML=NATIVE?'사진과 촬영기록은 촬영할 때마다 <b>내 파일 &gt; 다운로드 &gt; 현장카메라 &gt; 현장 &gt; 시설물 &gt; 조사자</b> 폴더에 바로 저장됩니다. PC에 USB로 연결해 이 폴더를 복사하면 됩니다.<br>앱을 삭제해도 이 폴더의 사진은 남지만, 앱 안의 기록 목록은 지워집니다.':'';
+  if(navigator.storage&&navigator.storage.estimate)navigator.storage.estimate().then(e=>{
+    $('#storeInfo').textContent=`사용 ${(e.usage/1048576).toFixed(0)}MB / 가능 ${(e.quota/1073741824).toFixed(1)}GB`;});}
+function loadPresetFields(){const p=preset($('#s-ptype').value);$('#s-mem').value=p.mem.join(', ');$('#s-dmgs').value=p.dmg.join(', ');$('#s-ws').value=p.ws.join(', ');}
+$('#s-ptype').onchange=()=>{$('#s-ptype')._touched=true;loadPresetFields();};
+function savePreset(){const ft=$('#s-ptype').value;presets[ft]={mem:$('#s-mem').value,dmg:$('#s-dmgs').value,ws:$('#s-ws').value};LS.set('presets',presets);toast('목록 저장됨');}
+function resetPreset(){delete presets[$('#s-ptype').value];LS.set('presets',presets);loadPresetFields();toast('기본값으로 되돌림');}
+function saveSet(){settings.overlay=$('#s-overlay').checked;settings.autoDl=$('#s-dl').checked;settings.detail=$('#s-detail').checked;settings.digits=parseInt($('#s-digits').value,10);LS.set('settings',settings);}
+['s-overlay','s-dl','s-detail','s-digits'].forEach(id=>$('#'+id).onchange=saveSet);
+
+/* ---------- 시작 ---------- */
+(async()=>{
+  try{db=await openDB();}catch(e){document.body.innerHTML='<div class="empty">이 브라우저에서는 저장소를 쓸 수 없습니다 (시크릿 모드 확인).</div>';return;}
+  if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+  sessions=await dbAll('sessions');if(!curSess())curId=null;
+  loadDraft();renderHeader();show(curSess()?'shot':'sess');
+  if(!NATIVE&&'serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>
