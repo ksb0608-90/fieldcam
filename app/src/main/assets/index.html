@@ -81,6 +81,47 @@ tr.click{cursor:pointer}
 .hide{display:none!important}
 .bar{height:10px;background:#e4e7ec;border-radius:6px;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--pri);width:0}
+/* 망도 */
+:root{--hh:56px;--nh:58px}
+header{height:var(--hh)}
+nav{height:calc(var(--nh) + env(safe-area-inset-bottom))}
+#v-map.on{position:fixed;top:var(--hh);bottom:calc(var(--nh) + env(safe-area-inset-bottom));left:0;right:0;display:flex;flex-direction:column;background:#e4e7ec}
+.maptop{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;background:#fff;border-bottom:1px solid var(--line)}
+.maptop .btn{padding:9px 12px;font-size:15px}
+.maptop select{max-width:220px;padding:8px}
+.maptop .grp{display:flex;gap:4px;align-items:center}
+.maptop .sep{width:1px;height:28px;background:var(--line);margin:0 4px}
+.tbtn.on{background:var(--pri);color:#fff}
+.mapwrap{flex:1;position:relative;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+#mapStage{position:absolute;left:0;top:0;transform-origin:0 0;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+#mapStage img{display:block;width:100%;height:100%;pointer-events:none;-webkit-user-drag:none}
+#mapSvg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+#mapSvg text{font-size:calc(var(--fs,15) * 1px);font-weight:700;paint-order:stroke;stroke:#fff;stroke-width:calc(var(--fs,15) * .25px);stroke-linejoin:round}
+#mapSvg circle.pt{r:calc(var(--fs,15) * .5px)}
+.mapempty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--sub);text-align:center;padding:20px}
+.sheet{position:fixed;left:0;right:0;bottom:calc(var(--nh) + env(safe-area-inset-bottom));z-index:15;background:#fff;border-top:3px solid var(--pri);box-shadow:0 -6px 20px rgba(0,0,0,.2);max-height:58vh;overflow:auto;padding:10px 14px 14px;display:none}
+.sheet.on{display:block}
+@media (min-width:1000px){.sheet{left:auto;width:460px;top:var(--hh);max-height:none;border-top:0;border-left:3px solid var(--pri);box-shadow:-6px 0 20px rgba(0,0,0,.2)}#v-map.on.sheeton{right:460px}}
+.sheet .hd{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.sheet .hd b{font-size:18px;flex:1}
+.hs{display:flex;gap:6px;overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px}
+.hs .chip{white-space:nowrap}
+.thumbs{display:flex;gap:6px;overflow-x:auto}
+.thumbs div{text-align:center;font-size:13px;color:var(--sub)}
+.thumbs img{width:84px;height:63px;object-fit:cover;border-radius:6px;display:block}
+.sheet .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.shutter2{position:fixed;right:30px;bottom:190px;z-index:7;width:72px;height:72px;border-radius:50%;border:3px solid #fff;background:#475467;color:#fff;font-size:13px;font-weight:700;box-shadow:0 3px 10px rgba(0,0,0,.3);line-height:1.2}
+/* 숫자패드 */
+input.kp{caret-color:transparent;cursor:pointer}
+input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
+.kpad{position:fixed;right:10px;bottom:calc(var(--nh) + 10px);z-index:40;width:330px;background:#1d2939;border-radius:14px;padding:10px;display:none;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+.kpad.on{display:block}
+.kpad .kh{display:flex;justify-content:space-between;align-items:center;color:#fff;padding:2px 6px 8px}
+.kpad .kh span{font-size:14px;opacity:.75}.kpad .kh b{font-size:24px;min-height:30px}
+.kpad .kg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.kpad .kg button{border:0;border-radius:10px;padding:14px 0;font-size:22px;font-weight:700;background:#344054;color:#fff}
+.kpad .kg button.f{background:#475467;font-size:17px}
+.kpad .kg button.ok{background:var(--acc);font-size:18px}
 </style>
 </head>
 <body>
@@ -117,7 +158,7 @@ tr.click{cursor:pointer}
         <div class="lbl" style="margin:0">손상번호</div>
         <div class="dmnum">
           <button class="btn" onclick="bumpDmg(-1)">−</button>
-          <input id="f-dmg" inputmode="numeric" placeholder="-">
+          <input id="f-dmg" class="kp" data-int="1" data-lbl="손상번호" readonly placeholder="-">
           <button class="btn" onclick="bumpDmg(1)">+</button>
         </div>
         <span class="muted" id="dmHint"></span>
@@ -136,10 +177,10 @@ tr.click{cursor:pointer}
       <div class="lbl">규모</div>
       <div class="chips" id="wChips" style="margin-bottom:8px"></div>
       <div class="sizes">
-        <label class="fld"><span>폭</span><input id="f-w" inputmode="decimal"></label>
-        <label class="fld"><span>길이(m)</span><input id="f-l" inputmode="decimal"></label>
-        <label class="fld"><span>너비(m)</span><input id="f-b" inputmode="decimal"></label>
-        <label class="fld"><span>개소</span><input id="f-n" inputmode="numeric"></label>
+        <label class="fld"><span>폭</span><input id="f-w" class="kp" data-lbl="폭" readonly></label>
+        <label class="fld"><span>길이(m)</span><input id="f-l" class="kp" data-lbl="길이(m)" readonly></label>
+        <label class="fld"><span>너비(m)</span><input id="f-b" class="kp" data-lbl="너비(m)" readonly></label>
+        <label class="fld"><span>개소</span><input id="f-n" class="kp" data-int="1" data-lbl="개소" readonly></label>
       </div>
       <div class="lbl">비고</div>
       <input id="f-note" style="width:100%" autocomplete="off">
@@ -150,6 +191,29 @@ tr.click{cursor:pointer}
     <div class="lbl">최근 촬영</div>
     <div id="recentList"></div>
   </div>
+</section>
+
+<!-- 망도 -->
+<section class="view" id="v-map">
+  <div class="maptop">
+    <div class="grp"><select id="mapSel"></select><button class="btn" onclick="addDrawing()">＋ 망도</button><button class="btn" id="mapDel" title="망도 삭제">🗑</button></div>
+    <span class="sep"></span>
+    <div class="grp"><button class="btn" onclick="goPage(-1)">◀</button><b id="mapPage" style="min-width:56px;text-align:center">-</b><button class="btn" onclick="goPage(1)">▶</button></div>
+    <span class="sep"></span>
+    <div class="grp" id="toolGrp">
+      <button class="btn tbtn" data-t="pan">✋ 이동</button>
+      <button class="btn tbtn" data-t="line">〰 균열선</button>
+      <button class="btn tbtn" data-t="area">▧ 면적</button>
+      <button class="btn tbtn" data-t="point">● 점</button>
+    </div>
+    <span class="sep"></span>
+    <button class="btn" onclick="fitView()">⤢ 전체</button>
+  </div>
+  <div class="mapwrap" id="mapWrap">
+    <div id="mapStage" class="hide"><img id="mapImg" alt=""><svg id="mapSvg" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    <div class="mapempty" id="mapEmpty"></div>
+  </div>
+  <input type="file" id="mapFile" accept="image/*" multiple class="hide">
 </section>
 
 <!-- 기록 -->
@@ -178,6 +242,7 @@ tr.click{cursor:pointer}
   <div class="card">
     <div class="sw"><div>사진에 정보판 넣기<div class="muted">사진번호·손상번호·규모·날짜를 사진 하단에 표기</div></div><input type="checkbox" id="s-overlay"></div>
     <div class="sw" id="row-dl"><div>촬영 즉시 기기에도 저장<div class="muted">사진을 다운로드 폴더에 파일명 그대로 저장(백업용)</div></div><input type="checkbox" id="s-dl"></div>
+    <div class="sw" id="row-cam"><div>기본 촬영 방식<div class="muted">앱 카메라: 셔터 한 번에 저장·연속 촬영 / 기본 카메라: 삼성 카메라 기능 사용</div></div><select id="s-cam"><option value="app">앱 카메라</option><option value="sys">기본 카메라</option></select></div>
     <div class="sw"><div>세부 입력란 표시<div class="muted">끄면 구분·손상번호만 보고 바로 촬영</div></div><input type="checkbox" id="s-detail"></div>
     <div class="sw"><div>사진번호 자릿수</div><select id="s-digits"><option>3</option><option>4</option><option>5</option></select></div>
   </div>
@@ -203,6 +268,7 @@ tr.click{cursor:pointer}
 </main>
 
 <button class="shutter" id="shutter"><span>📷</span>촬영</button>
+<button class="shutter2 hide" id="shutter2">기본<br>카메라</button>
 <div class="after" id="after">
   <img id="afterImg" alt="">
   <div class="t" id="afterTxt"></div>
@@ -213,6 +279,7 @@ tr.click{cursor:pointer}
 
 <nav>
   <button data-v="shot" class="on">촬영</button>
+  <button data-v="map">망도</button>
   <button data-v="list">기록</button>
   <button data-v="sess">조사 목록</button>
   <button data-v="set">설정</button>
@@ -221,16 +288,15 @@ tr.click{cursor:pointer}
 <!-- 새 조사 -->
 <div class="modal" id="m-sess"><div class="box">
   <h3 id="ms-title">새 조사</h3>
-  <div class="lbl">현장(용역)명</div><input id="ms-site" list="dl-site" style="width:100%" placeholder="예: PQ6 강원">
-  <div class="lbl">시설물명 <span class="muted">(파일명에 들어가므로 짧게)</span></div><input id="ms-fac" style="width:100%" placeholder="예: 금곡교">
+  <div class="lbl">현장(용역)명</div><input id="ms-site" style="width:100%" placeholder="예: PQ6 강원" autocomplete="off"><div class="chips" id="ms-siteChips" style="margin-top:6px"></div>
+  <div class="lbl">시설물명 <span class="muted">(파일명에 들어가므로 짧게)</span></div><input id="ms-fac" style="width:100%" placeholder="예: 금곡교" autocomplete="off">
   <div class="lbl">시설물 종류</div><div class="chips" id="ms-type"></div>
-  <div class="lbl">조사자 <span class="muted">(파일명에 들어가므로 짧게)</span></div><input id="ms-insp" list="dl-insp" style="width:100%" placeholder="예: 권">
+  <div class="lbl">조사자 <span class="muted">(파일명에 들어가므로 짧게)</span></div><input id="ms-insp" style="width:100%" placeholder="예: 권" autocomplete="off"><div class="chips" id="ms-inspChips" style="margin-top:6px"></div>
   <div class="grid2" style="margin-top:4px">
-    <label class="fld"><span>사진 시작번호</span><input id="ms-p0" inputmode="numeric" value="1"></label>
-    <label class="fld"><span>손상 시작번호(금회)</span><input id="ms-d0" inputmode="numeric" value="1"></label>
+    <label class="fld"><span>사진 시작번호</span><input id="ms-p0" class="kp" data-int="1" data-lbl="사진번호" readonly value="1"></label>
+    <label class="fld"><span>손상 시작번호(금회)</span><input id="ms-d0" class="kp" data-int="1" data-lbl="손상번호" readonly value="1"></label>
   </div>
   <div class="muted" style="margin-top:6px">같은 시설물을 태블릿 2대로 찍는 경우 시작번호를 다르게(예: 5001) 하면 번호가 겹치지 않습니다.</div>
-  <datalist id="dl-site"></datalist><datalist id="dl-insp"></datalist>
   <div class="acts"><button class="btn" onclick="closeModal('m-sess')">취소</button><button class="btn pri" id="ms-ok">확인</button></div>
 </div></div>
 
@@ -240,16 +306,16 @@ tr.click{cursor:pointer}
   <img id="mr-img" style="width:100%;max-height:50vh;object-fit:contain;background:#000;border-radius:8px">
   <div class="lbl">구분</div><div class="chips" id="mr-typ"></div>
   <div class="grid2">
-    <label class="fld"><span>손상번호</span><input id="mr-dmg" inputmode="numeric"></label>
+    <label class="fld"><span>손상번호</span><input id="mr-dmg" class="kp" data-int="1" data-lbl="손상번호" readonly></label>
     <label class="fld"><span>부재명</span><input id="mr-mem"></label>
     <label class="fld"><span>세부위치</span><input id="mr-loc"></label>
     <label class="fld"><span>손상내용</span><input id="mr-content"></label>
   </div>
   <div class="sizes" style="margin-top:8px">
-    <label class="fld"><span>폭</span><input id="mr-w" inputmode="decimal"></label>
-    <label class="fld"><span>길이(m)</span><input id="mr-l" inputmode="decimal"></label>
-    <label class="fld"><span>너비(m)</span><input id="mr-b" inputmode="decimal"></label>
-    <label class="fld"><span>개소</span><input id="mr-n" inputmode="numeric"></label>
+    <label class="fld"><span>폭</span><input id="mr-w" class="kp" data-lbl="폭" readonly></label>
+    <label class="fld"><span>길이(m)</span><input id="mr-l" class="kp" data-lbl="길이(m)" readonly></label>
+    <label class="fld"><span>너비(m)</span><input id="mr-b" class="kp" data-lbl="너비(m)" readonly></label>
+    <label class="fld"><span>개소</span><input id="mr-n" class="kp" data-int="1" data-lbl="개소" readonly></label>
   </div>
   <label class="fld" style="margin-top:8px"><span>비고</span><input id="mr-note"></label>
   <div class="acts">
@@ -273,11 +339,52 @@ tr.click{cursor:pointer}
   <div class="bar" style="margin-top:12px"><i id="pg-bar"></i></div>
 </div></div>
 
+<!-- 망도 손상 정보 -->
+<div class="sheet" id="mk-sheet">
+  <div class="hd"><b id="mk-title">손상 표시</b><button class="btn" onclick="closeMarkSheet()">✕</button></div>
+  <div class="chips typ" id="mk-typ"></div>
+  <div class="row" style="margin-top:8px">
+    <span class="lbl" style="margin:0">손상번호</span>
+    <div class="dmnum"><button class="btn" onclick="mkBump(-1)">−</button><input id="mk-dmg" class="kp" data-int="1" data-lbl="손상번호" readonly><button class="btn" onclick="mkBump(1)">+</button></div>
+    <span class="lbl" style="margin:0 0 0 10px">세부위치</span><input id="mk-loc" style="width:120px" autocomplete="off"><div class="hs" id="mk-locChips"></div>
+  </div>
+  <div class="lbl">부재명</div><div class="hs" id="mk-mem"></div>
+  <div class="lbl">손상내용</div><div class="hs" id="mk-content"></div>
+  <div class="lbl">규모</div>
+  <div class="hs" id="mk-wChips" style="margin-bottom:6px"></div>
+  <div class="sizes">
+    <label class="fld"><span>폭</span><input id="mk-w" class="kp" data-lbl="폭" readonly></label>
+    <label class="fld"><span>길이(m)</span><input id="mk-l" class="kp" data-lbl="길이(m)" readonly></label>
+    <label class="fld"><span>너비(m)</span><input id="mk-b" class="kp" data-lbl="너비(m)" readonly></label>
+    <label class="fld"><span>개소</span><input id="mk-n" class="kp" data-int="1" data-lbl="개소" readonly></label>
+  </div>
+  <div class="row" style="margin-top:8px"><span class="lbl" style="margin:0">비고</span><input id="mk-note" style="flex:1" autocomplete="off"></div>
+  <div class="lbl">사진</div><div class="thumbs" id="mk-photos"></div>
+  <div class="acts">
+    <button class="btn bad" id="mk-del">표시 삭제</button>
+    <span style="flex:1"></span>
+    <button class="btn" onclick="saveMarkSheet()">저장</button>
+    <button class="btn hide" id="mk-shoot2">기본 카메라</button>
+    <button class="btn acc" id="mk-shoot" style="padding:14px 26px;font-size:19px">📷 촬영</button>
+  </div>
+</div>
+
+<!-- 숫자패드 -->
+<div class="kpad" id="kpad">
+  <div class="kh"><span id="kp-lbl"></span><b id="kp-val"></b></div>
+  <div class="kg">
+    <button>7</button><button>8</button><button>9</button><button class="f" data-k="BS">⌫</button>
+    <button>4</button><button>5</button><button>6</button><button class="f" data-k="CL">지움</button>
+    <button>1</button><button>2</button><button>3</button><button class="f" data-k="NX">다음</button>
+    <button id="kp-dot">.</button><button>0</button><button class="ok" data-k="OK" style="grid-column:span 2">확인</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 'use strict';
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -298,11 +405,13 @@ const DEF_WS = '0.1,0.2,0.3,0.4,0.5,1.0';
 /* ---------- 저장소 ---------- */
 let db;
 function openDB(){return new Promise((res,rej)=>{
-  const r=indexedDB.open('fieldcam',1);
-  r.onupgradeneeded=()=>{const d=r.result;
-    d.createObjectStore('sessions',{keyPath:'id'});
-    const rs=d.createObjectStore('records',{keyPath:'id'}); rs.createIndex('sid','sid');
-    d.createObjectStore('photos');};
+  const r=indexedDB.open('fieldcam',2);
+  r.onupgradeneeded=e=>{const d=r.result;const old=e.oldVersion||0;
+    if(old<1){d.createObjectStore('sessions',{keyPath:'id'});
+      const rs=d.createObjectStore('records',{keyPath:'id'}); rs.createIndex('sid','sid');
+      d.createObjectStore('photos');}
+    if(old<2){d.createObjectStore('drawings',{keyPath:'id'}).createIndex('sid','sid');
+      d.createObjectStore('marks',{keyPath:'id'}).createIndex('sid','sid');}};
   r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);});}
 function tx(stores,mode,fn){return new Promise((res,rej)=>{
   const t=db.transaction(stores,mode); let out;
@@ -312,11 +421,13 @@ const dbGet=(s,k)=>tx([s],'readonly',t=>t.objectStore(s).get(k));
 const dbAll=s=>tx([s],'readonly',t=>t.objectStore(s).getAll());
 const dbPut=(s,v,k)=>tx([s],'readwrite',t=>t.objectStore(s).put(v,k));
 const recsOf=sid=>tx(['records'],'readonly',t=>t.objectStore('records').index('sid').getAll(sid));
+const byIdx=(st,sid)=>tx([st],'readonly',t=>t.objectStore(st).index('sid').getAll(sid));
+const dbDel=(s,k)=>tx([s],'readwrite',t=>t.objectStore(s).delete(k));
 
 const LS={get(k,d){try{const v=localStorage.getItem('fc.'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},
           set(k,v){try{localStorage.setItem('fc.'+k,JSON.stringify(v))}catch(e){}}};
 const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-let settings=Object.assign({overlay:false,autoDl:!isIOS,detail:true,digits:4},LS.get('settings',{}));
+let settings=Object.assign({overlay:false,autoDl:!isIOS,detail:true,digits:4,camMode:'app'},LS.get('settings',{}));
 let presets=LS.get('presets',{});
 function preset(ft){const p=presets[ft]||{};const d=DEF_PRESET[ft]||DEF_PRESET['도로교량'];
   return {mem:(p.mem??d.mem).split(',').map(s=>s.trim()).filter(Boolean),
@@ -348,7 +459,11 @@ let view='shot';
 function show(v){view=v;document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#shutter').style.display=(v==='shot'&&curSess())?'':'none';
+  $('#shutter2').classList.toggle('hide',!(NATIVE&&v==='shot'&&curSess()));
   if(v!=='shot') $('#after').classList.remove('on');
+  if(v!=='map') closeMarkSheet(true);
+  kpClose();
+  if(v==='map') renderMap();
   if(v==='list') renderList(); if(v==='sess') renderSess(); if(v==='set') renderSet(); if(v==='shot') renderShot();}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.v));
 $('#hdrSess').onclick=()=>show('sess');
@@ -396,6 +511,7 @@ function fillForm(){['dmg','loc','content','w','l','b','n','note'].forEach(k=>$(
 async function renderShot(){const s=curSess();
   $('#noSess').classList.toggle('hide',!!s);$('#shotBody').classList.toggle('hide',!s);
   $('#shutter').style.display=(view==='shot'&&s)?'':'none';
+  $('#shutter2').classList.toggle('hide',!(NATIVE&&view==='shot'&&s));
   if(!s)return;
   if(form.type==='금회'&&!form.dmg) form.dmg=String(s.nextDmg);
   $('#detailCard').classList.toggle('hide',!settings.detail);
@@ -412,9 +528,24 @@ function rowHtml(r){const size=[r.w&&('폭 '+r.w),r.l&&('L '+r.l),r.b&&('B '+r.b
 function bindRows(el){el.querySelectorAll('tr.click').forEach(tr=>tr.onclick=()=>openRec(tr.dataset.id));}
 
 /* ---------- 촬영 처리 ---------- */
-$('#shutter').onclick=()=>{if(!curSess())return;$('#cam').value='';$('#cam').click();};
-$('#cam').onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;
-  try{await saveCapture(f);}catch(err){console.error(err);toast('저장 실패: '+err.message,4000);}};
+/* 촬영 시작: mode 'app'=앱 카메라, 'sys'=기본 카메라 */
+let camCtx=null;
+function camInfo(c){const s=curSess();return [`${s.facility} · ${s.inspector}`,c.type==='일반'?'일반 사진':`${c.type}${c.dmg?'  손상 #'+c.dmg:''}`,[c.mem,c.loc,c.content].filter(Boolean).join(' ')].filter(Boolean).join('\n');}
+function shoot(ctx,mode){if(!curSess())return;kpClose();camCtx=ctx;mode=mode||settings.camMode;
+  if(NATIVE&&mode==='app'&&Android.openCamera){Android.openCamera(JSON.stringify({startNo:curSess().nextPhoto,digits:settings.digits,info:camInfo(ctx)}));}
+  else{$('#cam').value='';$('#cam').click();}}
+const formCtx=()=>Object.assign({},form);
+$('#shutter').onclick=()=>shoot(formCtx());
+$('#shutter2').onclick=()=>shoot(formCtx(),settings.camMode==='app'?'sys':'app');
+$('#cam').onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;const ctx=camCtx||formCtx();
+  try{const r=await saveCapture(f,ctx);ctx.onDone&&ctx.onDone([r]);}catch(err){console.error(err);toast('저장 실패: '+err.message,4000);}};
+window.onCameraResult=async names=>{const ctx=camCtx||formCtx();if(!names||!names.length){ctx.onDone&&ctx.onDone([]);return;}
+  $('#pg-msg').textContent=`사진 저장 중… (${names.length}장)`;$('#pg-bar').style.width='0';openModal('m-prog');const out=[];
+  try{for(let i=0;i<names.length;i++){const res=await fetch('https://appassets.androidplatform.net/cam/'+encodeURIComponent(names[i]));
+      if(!res.ok)throw new Error('사진 읽기 실패');out.push(await saveCapture(await res.blob(),ctx,true));$('#pg-bar').style.width=((i+1)/names.length*100)+'%';}}
+  catch(e){console.error(e);toast('저장 실패: '+e.message,5000);}finally{closeModal('m-prog');}
+  if(out.length){toast(`${out.length}장 저장 (${pad(out[0].no)}${out.length>1?' ~ '+pad(out[out.length-1].no):''})`,3000);}
+  ctx.onDone&&ctx.onDone(out);};
 
 async function loadImg(file){
   try{return await createImageBitmap(file,{imageOrientation:'from-image'});}catch(e){}
@@ -448,12 +579,13 @@ async function writeCsv(s){if(!NATIVE||!s)return;const recs=(await recsOf(s.id))
 async function nativeSavePhoto(s,r,blob){if(!NATIVE)return;
   try{await nativeWrite(sessDir(s)+'/사진',r.file,blob,'image/jpeg');await writeCsv(s);}
   catch(e){console.error(e);toast('⚠ 폴더 저장 실패: '+e.message+'\n(앱 안에는 저장됨 · 내보내기로 받으세요)',6000);}}
-window.onAndroidBack=()=>{const m=document.querySelector('.modal.on');if(m){if(m.id!=='m-prog')m.classList.remove('on');return true;}
+window.onAndroidBack=()=>{if(kpT){kpClose();return true;}if($('#mk-sheet').classList.contains('on')){closeMarkSheet();return true;}const m=document.querySelector('.modal.on');if(m){if(m.id!=='m-prog')m.classList.remove('on');return true;}
   if(view!=='shot'){show('shot');return true;}return false;};
 
-async function saveCapture(file){const s=curSess();
-  const r={id:uid(),sid:s.id,no:s.nextPhoto,file:fileName(s,s.nextPhoto),type:form.type,dmg:form.type==='일반'?'':form.dmg,
-    mem:form.mem,loc:form.loc,content:form.content,w:form.w,l:form.l,b:form.b,n:form.n,note:form.note,time:nowStr()};
+async function saveCapture(file,ctx,quiet){ctx=ctx||form;const s=curSess();
+  const r={id:uid(),sid:s.id,no:s.nextPhoto,file:fileName(s,s.nextPhoto),type:ctx.type,dmg:ctx.type==='일반'?'':(ctx.dmg||''),
+    mem:ctx.mem||'',loc:ctx.loc||'',content:ctx.content||'',w:ctx.w||'',l:ctx.l||'',b:ctx.b||'',n:ctx.n||'',note:ctx.note||'',time:nowStr(),
+    markId:ctx.markId||'',dname:ctx.dname||'',page:ctx.page||'',shape:ctx.shape||''};
   const img=await loadImg(file);r.thumb=await makeThumb(img);
   let blob=file;if(settings.overlay){blob=await stamp(img,stampLines(s,r));r.stamped=true;}
   if(img.close)img.close();
@@ -464,9 +596,10 @@ async function saveCapture(file){const s=curSess();
   ['mem','loc','content'].forEach(k=>pushRecent(k,r[k]));
   if(NATIVE) await nativeSavePhoto(s,r,blob); else if(settings.autoDl) downloadBlob(blob,r.file);
   lastSaved=r;
+  if(ctx.markId){if(!quiet)toast(`${r.file} 저장`);return r;}
   $('#afterImg').src=r.thumb;$('#afterTxt').innerHTML=`<b>${pad(r.no)}</b> 저장됨 ${r.dmg?'· 손상 #'+esc(r.dmg):''}<br><span style="opacity:.75">같은 손상은 바로 [촬영]</span>`;
   $('#after').classList.add('on');clearTimeout(saveCapture._t);saveCapture._t=setTimeout(()=>$('#after').classList.remove('on'),12000);
-  toast(`${r.file} 저장`);renderShot();}
+  if(!quiet)toast(`${r.file} 저장`);renderShot();return r;}
 
 function nextDamage(){const s=curSess();const t=form.type;form=blankForm();form.type=t;
   if(t==='금회') form.dmg=String(s.nextDmg);
@@ -498,6 +631,7 @@ $('#mr-del').onclick=async()=>{const r=editRec;if(!await confirmBox(`${r.file}\n
   const s=sessions.find(x=>x.id===r.sid);
   await tx(['records','photos','sessions'],'readwrite',t=>{t.objectStore('records').delete(r.id);t.objectStore('photos').delete(r.id);
     if(s){s.count=Math.max(0,(s.count||1)-1);t.objectStore('sessions').put(s);}});
+  if(r.markId){const m=await dbGet('marks',r.markId);if(m){m.photoNos=(m.photoNos||[]).filter(n=>n!==r.no);await dbPut('marks',m);}}
   closeModal('m-rec');toast('삭제됨');
   if(NATIVE&&s){try{Android.remove(sessDir(s)+'/사진',r.file);await writeCsv(s);}catch(e){toast('⚠ 폴더 반영 실패: '+e.message,5000);}}
   show(view);};
@@ -520,8 +654,8 @@ function openSessModal(edit){msEdit=edit||null;const s=edit||{};
   $('#ms-d0').previousElementSibling.textContent=edit?'다음 손상번호(금회)':'손상 시작번호(금회)';
   msType=s.ftype||last.ftype||'도로교량';
   const pt=()=>chips($('#ms-type'),FTYPES,msType,t=>{msType=t;pt();});pt();
-  $('#dl-site').innerHTML=[...new Set(sessions.map(x=>x.site))].map(v=>`<option value="${esc(v)}">`).join('');
-  $('#dl-insp').innerHTML=[...new Set(sessions.map(x=>x.inspector))].map(v=>`<option value="${esc(v)}">`).join('');
+  chips($('#ms-siteChips'),[...new Set(sessions.map(x=>x.site))].slice(-8),null,v=>$('#ms-site').value=v,'rec');
+  chips($('#ms-inspChips'),[...new Set(sessions.map(x=>x.inspector))].slice(-8),null,v=>$('#ms-insp').value=v,'rec');
   openModal('m-sess');}
 $('#ms-ok').onclick=async()=>{const site=$('#ms-site').value.trim(),fac=$('#ms-fac').value.trim(),insp=$('#ms-insp').value.trim();
   if(!site||!fac||!insp){toast('현장·시설물·조사자를 입력하세요');return;}
@@ -564,8 +698,11 @@ function renderSess(){const g={};sessions.forEach(s=>(g[s.site]=g[s.site]||[]).p
 
 async function delSess(s){if(!await confirmBox(`[${s.facility} · ${s.inspector}] 조사와 사진 ${s.count||0}장을 모두 삭제할까요?\n내보내기를 먼저 했는지 확인하세요.`,'모두 삭제'))return;
   if(!await confirmBox('정말 삭제합니다. 되돌릴 수 없습니다.','삭제'))return;
-  const recs=await recsOf(s.id);
-  await tx(['records','photos','sessions'],'readwrite',t=>{recs.forEach(r=>{t.objectStore('records').delete(r.id);t.objectStore('photos').delete(r.id);});t.objectStore('sessions').delete(s.id);});
+  const recs=await recsOf(s.id);const dws=await byIdx('drawings',s.id);const mks=await byIdx('marks',s.id);
+  await tx(['records','photos','sessions','drawings','marks'],'readwrite',t=>{recs.forEach(r=>{t.objectStore('records').delete(r.id);t.objectStore('photos').delete(r.id);});
+    dws.forEach(d=>{t.objectStore('drawings').delete(d.id);d.pages.forEach((p,i)=>t.objectStore('photos').delete('dpg_'+d.id+'_'+i));});
+    mks.forEach(m=>t.objectStore('marks').delete(m.id));t.objectStore('sessions').delete(s.id);});
+  if(NATIVE)dws.forEach(d=>{try{Android.deleteDrawing(d.id)}catch(e){}});
   sessions=sessions.filter(x=>x.id!==s.id);if(curId===s.id){curId=null;LS.set('cur',null);}
   renderHeader();renderSess();toast('삭제됨');}
 
@@ -589,7 +726,7 @@ async function makeZip(entries,onProg){const enc=new TextEncoder(),parts=[],cen=
   return new Blob([...parts,...cen,z.buffer],{type:'application/zip'});}
 
 const CSV_COLS=[['사진번호',(r,s)=>pad(r.no)],['파일명',r=>r.file],['현장',(r,s)=>s.site],['시설물',(r,s)=>s.facility],['시설물종류',(r,s)=>s.ftype],['조사자',(r,s)=>s.inspector],
-  ['구분',r=>r.type],['손상번호',r=>r.dmg],['부재명',r=>r.mem],['세부위치',r=>r.loc],['손상내용',r=>r.content],['폭',r=>r.w],['길이',r=>r.l],['너비',r=>r.b],['개소',r=>r.n],['비고',r=>r.note],['촬영일시',r=>r.time]];
+  ['구분',r=>r.type],['손상번호',r=>r.dmg],['부재명',r=>r.mem],['세부위치',r=>r.loc],['손상내용',r=>r.content],['폭',r=>r.w],['길이',r=>r.l],['너비',r=>r.b],['개소',r=>r.n],['비고',r=>r.note],['촬영일시',r=>r.time],['망도',r=>r.dname||''],['페이지',r=>r.page||''],['표시형태',r=>r.shape||'']];
 function csvOf(s,recs){const q=v=>{v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
   return '﻿'+[CSV_COLS.map(c=>c[0]).join(','),...recs.map(r=>CSV_COLS.map(c=>q(c[1](r,s))).join(','))].join('\r\n');}
 function stampName(){const d=new Date(),z=n=>String(n).padStart(2,'0');return `${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`;}
@@ -614,7 +751,7 @@ function exportSess(s){if(!s){toast('조사를 먼저 선택하세요');return;}
 function exportAll(){runExport(sessions,`현장카메라_전체_${stampName()}`);}
 
 /* ---------- 설정 ---------- */
-function renderSet(){$('#s-overlay').checked=settings.overlay;$('#s-dl').checked=settings.autoDl;$('#s-detail').checked=settings.detail;$('#s-digits').value=String(settings.digits);
+function renderSet(){$('#s-cam').value=settings.camMode;$('#row-cam').classList.toggle('hide',!NATIVE);$('#s-overlay').checked=settings.overlay;$('#s-dl').checked=settings.autoDl;$('#s-detail').checked=settings.detail;$('#s-digits').value=String(settings.digits);
   const sel=$('#s-ptype');if(!sel.options.length)FTYPES.forEach(t=>sel.add(new Option(t,t)));if(curSess()&&!sel._touched)sel.value=curSess().ftype;loadPresetFields();
   $('#ver').textContent=VERSION+(NATIVE?' (앱)':' (웹)');
   $('#row-dl').classList.toggle('hide',NATIVE);$('#webInfo').classList.toggle('hide',NATIVE);
@@ -625,8 +762,177 @@ function loadPresetFields(){const p=preset($('#s-ptype').value);$('#s-mem').valu
 $('#s-ptype').onchange=()=>{$('#s-ptype')._touched=true;loadPresetFields();};
 function savePreset(){const ft=$('#s-ptype').value;presets[ft]={mem:$('#s-mem').value,dmg:$('#s-dmgs').value,ws:$('#s-ws').value};LS.set('presets',presets);toast('목록 저장됨');}
 function resetPreset(){delete presets[$('#s-ptype').value];LS.set('presets',presets);loadPresetFields();toast('기본값으로 되돌림');}
-function saveSet(){settings.overlay=$('#s-overlay').checked;settings.autoDl=$('#s-dl').checked;settings.detail=$('#s-detail').checked;settings.digits=parseInt($('#s-digits').value,10);LS.set('settings',settings);}
-['s-overlay','s-dl','s-detail','s-digits'].forEach(id=>$('#'+id).onchange=saveSet);
+function saveSet(){settings.camMode=$('#s-cam').value;settings.overlay=$('#s-overlay').checked;settings.autoDl=$('#s-dl').checked;settings.detail=$('#s-detail').checked;settings.digits=parseInt($('#s-digits').value,10);LS.set('settings',settings);}
+['s-cam','s-overlay','s-dl','s-detail','s-digits'].forEach(id=>$('#'+id).onchange=saveSet);
+
+/* ---------- 숫자패드 ---------- */
+let kpT=null;
+function kpOpen(el){kpT=el;document.querySelectorAll('input.kp.act').forEach(x=>x.classList.remove('act'));el.classList.add('act');
+  $('#kp-lbl').textContent=el.dataset.lbl||'';$('#kp-val').textContent=el.value;$('#kp-dot').style.visibility=el.dataset.int?'hidden':'visible';$('#kpad').classList.add('on');}
+function kpClose(){if(kpT)kpT.classList.remove('act');kpT=null;$('#kpad').classList.remove('on');}
+function kpKey(k){if(!kpT)return;let v=kpT.value;
+  if(k==='OK'){kpClose();return;}
+  if(k==='NX'){const box=kpT.closest('.box,.card,.sheet,section')||document;const all=[...box.querySelectorAll('input.kp')].filter(x=>x.offsetParent);const i=all.indexOf(kpT);kpClose();if(all[i+1])kpOpen(all[i+1]);return;}
+  if(k==='BS')v=v.slice(0,-1);else if(k==='CL')v='';else if(k==='.'){if(!v.includes('.'))v=(v||'0')+'.';}else{if(v.length>=8)return;v=(v==='0'?'':v)+k;}
+  kpT.value=v;$('#kp-val').textContent=v;kpT.dispatchEvent(new Event('input',{bubbles:true}));}
+$('#kpad').querySelectorAll('button').forEach(b=>b.onclick=e=>{e.stopPropagation();kpKey(b.dataset.k||b.textContent.trim());});
+document.addEventListener('click',e=>{const el=e.target.closest&&e.target.closest('input.kp');if(el){e.preventDefault();kpOpen(el);}},true);
+document.addEventListener('pointerdown',e=>{if(kpT&&!(e.target.closest&&e.target.closest('#kpad,input.kp')))kpClose();},true);
+
+/* ---------- 망도 ---------- */
+const MK_COLOR={금회:'#e11d48',기존:'#2563eb',변경:'#ea580c',보수:'#16a34a',삭제:'#6b7280',일반:'#7c3aed'};
+const MK_KEY={금회:'n',기존:'e',변경:'c',보수:'r',삭제:'d',일반:'g'};
+const SHAPE_NAME={line:'균열선',area:'면적',point:'점'};
+let drawings=[],marks=[],curDid=null,curPage=0,tool='pan',mv={s:1,tx:0,ty:0,fit:1},pageUrls={},selMark=null,tmpPts=null;
+const curDrawing=()=>drawings.find(d=>d.id===curDid)||null;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+async function loadMapData(){const s=curSess();if(!s){drawings=[];marks=[];curDid=null;return;}
+  drawings=(await byIdx('drawings',s.id)).sort((a,b)=>(a.created||'').localeCompare(b.created||''));
+  marks=await byIdx('marks',s.id);
+  if(!curDid||!drawings.find(d=>d.id===curDid)){const pref=LS.get('map.'+s.id,{});
+    if(pref.did&&drawings.find(d=>d.id===pref.did)){curDid=pref.did;curPage=pref.page||0;}else{curDid=drawings[0]?drawings[0].id:null;curPage=0;}}}
+async function pageSrc(d,i){const p=d.pages[i];if(p.file)return 'https://appassets.androidplatform.net/drawings/'+p.file;
+  const k=d.id+':'+i;if(!pageUrls[k]){const b=await dbGet('photos','dpg_'+d.id+'_'+i);pageUrls[k]=b?URL.createObjectURL(b):'';}return pageUrls[k];}
+async function renderMap(keepView){const s=curSess();await loadMapData();const d=curDrawing();
+  const sel=$('#mapSel');sel.innerHTML=drawings.length?drawings.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join(''):'<option>망도 없음</option>';if(d)sel.value=d.id;
+  document.querySelectorAll('#toolGrp .tbtn').forEach(b=>b.classList.toggle('on',b.dataset.t===tool));
+  $('#mapEmpty').classList.toggle('hide',!!d);$('#mapStage').classList.toggle('hide',!d);
+  if(!d){$('#mapPage').textContent='-';$('#mapEmpty').innerHTML=s?`<div>이 조사(${esc(s.facility)} · ${esc(s.inspector)})에 불러온 망도가 없습니다.</div><button class="btn pri" onclick="addDrawing()">＋ 망도 불러오기 ${NATIVE?'(PDF)':'(이미지)'}</button>`:'<div>조사를 먼저 선택하세요.</div>';return;}
+  if(curPage>=d.pages.length)curPage=0;
+  $('#mapPage').textContent=`${curPage+1} / ${d.pages.length}`;
+  LS.set('map.'+s.id,{did:curDid,page:curPage});
+  const p=d.pages[curPage];const st=$('#mapStage');st.style.width=p.w+'px';st.style.height=p.h+'px';
+  const svg=$('#mapSvg');svg.setAttribute('viewBox',`0 0 ${p.w} ${p.h}`);
+  const img=$('#mapImg'),key=curDid+':'+curPage;
+  if(img.dataset.key!==key){img.dataset.key=key;img.src=await pageSrc(d,curPage);keepView=false;}
+  if(!keepView||!mv.page||mv.page!==key){mv.page=key;requestAnimationFrame(fitView);}else applyView();
+  drawMarks();}
+function fitView(){const d=curDrawing();if(!d)return;const p=d.pages[curPage];const W=$('#mapWrap').clientWidth,H=$('#mapWrap').clientHeight;if(!W||!H)return;
+  const s=Math.min(W/p.w,H/p.h)*0.98;Object.assign(mv,{s,fit:s,tx:(W-p.w*s)/2,ty:(H-p.h*s)/2});applyView();}
+function applyView(){$('#mapStage').style.transform=`translate(${mv.tx}px,${mv.ty}px) scale(${mv.s})`;$('#mapSvg').style.setProperty('--fs',(16/mv.s).toFixed(3));}
+function goPage(d){const dr=curDrawing();if(!dr)return;const n=clamp(curPage+d,0,dr.pages.length-1);if(n===curPage)return;curPage=n;selMark=null;closeMarkSheet(true);renderMap();}
+$('#mapSel').onchange=e=>{curDid=e.target.value;curPage=0;selMark=null;closeMarkSheet(true);renderMap();};
+document.querySelectorAll('#toolGrp .tbtn').forEach(b=>b.onclick=()=>{tool=b.dataset.t;document.querySelectorAll('#toolGrp .tbtn').forEach(x=>x.classList.toggle('on',x===b));});
+window.addEventListener('resize',()=>{if(view==='map'&&curDrawing())fitView();});
+
+function nosLabel(nos){nos=[...new Set(nos||[])].sort((a,b)=>a-b);const out=[];for(let i=0;i<nos.length;){let j=i;while(j+1<nos.length&&nos[j+1]===nos[j]+1)j++;
+  out.push(j>i+1?`${pad(nos[i])}~${pad(nos[j])}`:(j===i+1?`${pad(nos[i])},${pad(nos[j])}`:pad(nos[i])));i=j+1;}return out.join(',');}
+function markLabel(m){const t=(m.type==='금회'||m.type==='기존')?'':m.type+' ';return `${m.dmg?'#'+m.dmg+' ':''}${t}${nosLabel(m.photoNos)}`.trim();}
+function drawMarks(){const d=curDrawing();if(!d)return;const p=d.pages[curPage];const W=p.w,H=p.h,sz=Math.max(10,W/220);
+  let h='<defs>'+Object.entries(MK_COLOR).map(([t,c])=>`<pattern id="ht-${MK_KEY[t]}" patternUnits="userSpaceOnUse" width="${sz}" height="${sz}" patternTransform="rotate(45)"><rect width="${sz}" height="${sz}" fill="${c}" fill-opacity="0.10"/><line x1="0" y1="0" x2="0" y2="${sz}" stroke="${c}" stroke-width="${sz/5}" stroke-opacity="0.75"/></pattern>`).join('')+'</defs>';
+  const one=(m,temp)=>{const c=MK_COLOR[m.type]||MK_COLOR.금회;const pts=m.pts.map(q=>[q[0]*W,q[1]*H]);const ps=pts.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ');
+    const sel=selMark&&selMark.id===m.id;const sw=sel?6:3.5;const dash=m.type==='삭제'?' stroke-dasharray="7 5"':'';let x='';
+    if(sel&&m.shape!=='point')x+=`<polyline points="${ps}${m.shape==='area'?' '+pts[0].join(','):''}" fill="none" stroke="#facc15" stroke-width="12" stroke-opacity=".6" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`;
+    if(m.shape==='line')x+=`<polyline points="${ps}" fill="none" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"${dash}/>`;
+    else if(m.shape==='area')x+=`<polygon points="${ps}" fill="url(#ht-${MK_KEY[m.type]||'n'})" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linejoin="round"${dash}/>`;
+    else x+=`<circle class="pt" cx="${pts[0][0]}" cy="${pts[0][1]}" fill="${c}" stroke="${sel?'#facc15':'#fff'}" stroke-width="${sel?5:2}" vector-effect="non-scaling-stroke"/>`;
+    if(!temp){const lab=markLabel(m);if(lab){let lx,ly;if(m.shape==='area'){lx=Math.max(...pts.map(q=>q[0]));ly=Math.min(...pts.map(q=>q[1]));}else{[lx,ly]=pts[pts.length-1];}
+      x+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" dx="0.5em" dy="-0.35em" fill="${c}">${esc(lab)}</text>`;}}
+    return x;};
+  for(const m of marks)if(m.did===curDid&&m.page===curPage)h+=one(m);
+  if(selMark&&selMark.isNew&&selMark.did===curDid&&selMark.page===curPage)h+=one(selMark);
+  if(tmpPts&&tmpPts.length>1)h+=one({type:'금회',shape:tool==='area'?'area':'line',pts:tmpPts.map(q=>[q[0]/W,q[1]/H])},true);
+  $('#mapSvg').innerHTML=h;}
+
+/* 포인터: 한 손가락=그리기/이동, 두 손가락=확대·이동 */
+const wrap=$('#mapWrap'),ptrs=new Map();let G=null;
+const wp=e=>{const r=wrap.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};};
+const toPage=q=>[(q.x-mv.tx)/mv.s,(q.y-mv.ty)/mv.s];
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+wrap.addEventListener('pointerdown',e=>{if(!curDrawing())return;try{wrap.setPointerCapture(e.pointerId)}catch(_){}ptrs.set(e.pointerId,wp(e));kpClose();
+  if(ptrs.size===2){const [a,b]=[...ptrs.values()];G={k:'pinch',d0:Math.max(dist(a,b),1),s0:mv.s,m0:mid(a,b),t0:{x:mv.tx,y:mv.ty}};tmpPts=null;drawMarks();return;}
+  if(ptrs.size>2)return;const q=wp(e);
+  if((tool==='line'||tool==='area')&&e.button!==1)G={k:'draw',pts:[toPage(q)],last:q,start:q,maxd:0};
+  else G={k:'pan',start:q,t0:{x:mv.tx,y:mv.ty},moved:false};});
+wrap.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,wp(e));if(!G)return;
+  if(G.k==='pinch'&&ptrs.size>=2){const [a,b]=[...ptrs.values()];const ns=clamp(G.s0*dist(a,b)/G.d0,mv.fit*0.5,mv.fit*25);const m=mid(a,b);
+    const px=(G.m0.x-G.t0.x)/G.s0,py=(G.m0.y-G.t0.y)/G.s0;mv.s=ns;mv.tx=m.x-px*ns;mv.ty=m.y-py*ns;applyView();}
+  else if(G.k==='pan'){const q=wp(e),dx=q.x-G.start.x,dy=q.y-G.start.y;if(Math.hypot(dx,dy)>8)G.moved=true;if(G.moved){mv.tx=G.t0.x+dx;mv.ty=G.t0.y+dy;applyView();}}
+  else if(G.k==='draw'){const q=wp(e);G.maxd=Math.max(G.maxd,dist(q,G.start));if(dist(q,G.last)>=3){G.pts.push(toPage(q));G.last=q;tmpPts=G.pts;drawMarks();}}});
+function endPtr(e){if(!ptrs.has(e.pointerId))return;const q=ptrs.get(e.pointerId);ptrs.delete(e.pointerId);if(!G)return;
+  if(G.k==='pinch'){if(ptrs.size===1){const r=[...ptrs.values()][0];G={k:'pan',start:r,t0:{x:mv.tx,y:mv.ty},moved:true};}else G=null;return;}
+  if(ptrs.size>0)return;const g=G;G=null;tmpPts=null;
+  if(g.k==='pan'){if(!g.moved)onMapTap(g.start);return;}
+  if(g.k==='draw'){if(g.maxd<12||g.pts.length<3){drawMarks();onMapTap(g.start);return;}
+    let pts=g.pts;if(pts.length>400){const st=Math.ceil(pts.length/400);pts=pts.filter((_,i)=>i%st===0||i===pts.length-1);}
+    if(tool==='area'&&pts.length<3){drawMarks();return;}newMark(tool,pts);}}
+wrap.addEventListener('pointerup',endPtr);
+wrap.addEventListener('pointercancel',e=>{ptrs.delete(e.pointerId);if(!ptrs.size){G=null;tmpPts=null;drawMarks();}});
+wrap.addEventListener('wheel',e=>{if(!curDrawing())return;e.preventDefault();const q=wp(e),f=e.deltaY<0?1.15:1/1.15;const ns=clamp(mv.s*f,mv.fit*0.5,mv.fit*25);
+  const px=(q.x-mv.tx)/mv.s,py=(q.y-mv.ty)/mv.s;mv.s=ns;mv.tx=q.x-px*ns;mv.ty=q.y-py*ns;applyView();},{passive:false});
+
+function segDist(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy;let t=l?((p.x-a.x)*dx+(p.y-a.y)*dy)/l:0;t=clamp(t,0,1);return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy);}
+function inPoly(p,vs){let ins=false;for(let i=0,j=vs.length-1;i<vs.length;j=i++){const a=vs[i],b=vs[j];if(((a.y>p.y)!==(b.y>p.y))&&(p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x))ins=!ins;}return ins;}
+function hitMark(q){const d=curDrawing(),p=d.pages[curPage];let best=null,bd=26;
+  for(const m of marks){if(m.did!==curDid||m.page!==curPage)continue;const sp=m.pts.map(t=>({x:t[0]*p.w*mv.s+mv.tx,y:t[1]*p.h*mv.s+mv.ty}));let dd=Infinity;
+    if(sp.length===1)dd=dist(sp[0],q);else{const seg=m.shape==='area'?[...sp,sp[0]]:sp;for(let i=1;i<seg.length;i++)dd=Math.min(dd,segDist(q,seg[i-1],seg[i]));if(m.shape==='area'&&inPoly(q,sp))dd=Math.min(dd,10);}
+    if(dd<bd){bd=dd;best=m;}}return best;}
+function onMapTap(q){const m=hitMark(q);if(m){openMarkSheet(m);return;}
+  if(tool==='point'){newMark('point',[toPage(q)]);return;}
+  if(selMark){closeMarkSheet();}}
+
+/* 손상 표시 */
+function newMark(shape,pts){const s=curSess(),d=curDrawing(),p=d.pages[curPage];const last=LS.get('mk.last.'+s.id,{});
+  const m={id:uid(),sid:s.id,did:d.id,page:curPage,shape,pts:pts.map(q=>[+(clamp(q[0],0,p.w)/p.w).toFixed(5),+(clamp(q[1],0,p.h)/p.h).toFixed(5)]),
+    type:last.type||'금회',dmg:'',mem:last.mem||'',loc:last.loc||'',content:last['c_'+shape]||'',w:'',l:'',b:'',n:'',note:'',photoNos:[],created:nowStr(),isNew:true};
+  if(m.type==='금회')m.dmg=String(s.nextDmg);
+  openMarkSheet(m);}
+let mkEdit=null;
+function openMarkSheet(m){kpClose();mkEdit=JSON.parse(JSON.stringify(m));selMark=m;drawMarks();
+  $('#mk-title').textContent=(m.isNew?'새 손상 · ':'손상 · ')+SHAPE_NAME[m.shape]+(m.dmg?` #${m.dmg}`:'');
+  ['dmg','loc','w','l','b','n','note'].forEach(k=>$('#mk-'+k).value=mkEdit[k]||'');
+  $('#mk-del').textContent=m.isNew?'취소':'표시 삭제';
+  $('#mk-shoot2').classList.toggle('hide',!NATIVE);$('#mk-shoot2').textContent=settings.camMode==='app'?'기본 카메라':'앱 카메라';
+  mkChips();mkPhotos();$('#mk-sheet').classList.add('on');$('#v-map').classList.add('sheeton');$('#mk-sheet').scrollTop=0;}
+function mkChips(){const s=curSess(),p=preset(s.ftype),e=mkEdit;
+  chips($('#mk-typ'),TYPES.filter(t=>t!=='일반'),e.type,t=>{const prev=e.type;e.type=t;
+    if(t==='금회'&&prev!=='금회'&&!e.dmg)e.dmg=String(s.nextDmg);$('#mk-dmg').value=e.dmg||'';mkChips();});
+  chips($('#mk-mem'),[...p.mem,...recent('mem').filter(x=>!p.mem.includes(x))],e.mem,v=>{e.mem=e.mem===v?'':v;mkChips();});
+  chips($('#mk-content'),[...p.dmg,...recent('content').filter(x=>!p.dmg.includes(x))],e.content,v=>{e.content=e.content===v?'':v;mkChips();});
+  chips($('#mk-locChips'),recent('loc'),e.loc,v=>{e.loc=v;$('#mk-loc').value=v;mkChips();},'rec');
+  chips($('#mk-wChips'),p.ws,e.w,v=>{e.w=e.w===v?'':v;$('#mk-w').value=e.w;mkChips();});}
+['dmg','loc','w','l','b','n','note'].forEach(k=>$('#mk-'+k).addEventListener('input',()=>{if(mkEdit)mkEdit[k]=$('#mk-'+k).value.trim();}));
+function mkBump(d){let n=parseInt(mkEdit.dmg,10);if(isNaN(n))n=mkEdit.type==='금회'?curSess().nextDmg:0;mkEdit.dmg=String(Math.max(1,n+d));$('#mk-dmg').value=mkEdit.dmg;}
+async function mkPhotos(){const m=mkEdit;const rs=m.isNew?[]:(await recsOf(curSess().id)).filter(r=>r.markId===m.id).sort((a,b)=>a.no-b.no);
+  $('#mk-photos').innerHTML=rs.length?rs.map(r=>`<div data-id="${r.id}"><img src="${r.thumb||''}">${pad(r.no)} <span class="tag ${esc(r.type)}">${esc(r.type)}</span></div>`).join(''):'<span class="muted">아직 사진이 없습니다.</span>';
+  $('#mk-photos').querySelectorAll('div[data-id]').forEach(el=>el.onclick=()=>openRec(el.dataset.id));}
+function closeMarkSheet(silent){kpClose();$('#mk-sheet').classList.remove('on');$('#v-map').classList.remove('sheeton');mkEdit=null;selMark=null;if(!silent&&view==='map')drawMarks();}
+async function saveMark(){const s=curSess(),e=mkEdit;if(!e)return null;
+  ['dmg','loc','w','l','b','n','note'].forEach(k=>e[k]=$('#mk-'+k).value.trim());
+  if(e.type==='금회'){const n=parseInt(e.dmg,10);if(!isNaN(n)&&n>=s.nextDmg){s.nextDmg=n+1;await dbPut('sessions',s);}}
+  delete e.isNew;e.updated=nowStr();
+  await dbPut('marks',e);const i=marks.findIndex(x=>x.id===e.id);if(i<0)marks.push(e);else marks[i]=e;
+  const last=LS.get('mk.last.'+s.id,{});if(e.type==='금회'||e.type==='기존')last.type=e.type;last.mem=e.mem;last.loc=e.loc;last['c_'+e.shape]=e.content;LS.set('mk.last.'+s.id,last);
+  ['mem','loc','content'].forEach(k=>pushRecent(k,e[k]));
+  selMark=e;mkEdit=JSON.parse(JSON.stringify(e));$('#mk-title').textContent='손상 · '+SHAPE_NAME[e.shape]+(e.dmg?` #${e.dmg}`:'');$('#mk-del').textContent='표시 삭제';
+  drawMarks();return e;}
+async function saveMarkSheet(){const e=await saveMark();if(e){toast('저장됨');closeMarkSheet();}}
+async function shootMark(alt){const m=await saveMark();if(!m)return;const d=curDrawing();
+  const mode=alt?(settings.camMode==='app'?'sys':'app'):settings.camMode;
+  shoot({type:m.type,dmg:m.dmg,mem:m.mem,loc:m.loc,content:m.content,w:m.w,l:m.l,b:m.b,n:m.n,note:m.note,markId:m.id,dname:d?d.name:'',page:m.page+1,shape:SHAPE_NAME[m.shape],
+    onDone:async recs=>{recs=recs.filter(Boolean);if(!recs.length)return;const cur=await dbGet('marks',m.id)||m;cur.photoNos=[...(cur.photoNos||[]),...recs.map(r=>r.no)];
+      await dbPut('marks',cur);const i=marks.findIndex(x=>x.id===cur.id);if(i>=0)marks[i]=cur;
+      if(mkEdit&&mkEdit.id===cur.id){mkEdit.photoNos=cur.photoNos;selMark=cur;mkPhotos();}drawMarks();}},mode);}
+$('#mk-shoot').onclick=()=>shootMark(false);$('#mk-shoot2').onclick=()=>shootMark(true);
+$('#mk-del').onclick=async()=>{const e=mkEdit;if(!e)return;if(!marks.find(x=>x.id===e.id)){closeMarkSheet();return;}
+  if(!await confirmBox(`이 손상 표시를 삭제할까요?\n(이미 찍은 사진·기록은 그대로 남습니다)`,'삭제'))return;
+  await dbDel('marks',e.id);marks=marks.filter(x=>x.id!==e.id);closeMarkSheet();toast('표시 삭제됨');};
+
+/* 망도 불러오기·삭제 */
+function addDrawing(){if(!curSess()){toast('조사를 먼저 선택하세요');return;}
+  if(NATIVE&&Android.pickPdf)Android.pickPdf();else{$('#mapFile').value='';$('#mapFile').click();}}
+window.onPdfProgress=(i,n)=>{openModal('m-prog');$('#pg-msg').textContent=`망도 변환 중… ${i} / ${n} 페이지`;$('#pg-bar').style.width=(i/n*100).toFixed(0)+'%';};
+window.onPdfLoaded=async o=>{closeModal('m-prog');const s=curSess();
+  const d={id:o.id,sid:s.id,name:String(o.name||'망도').replace(/\.pdf$/i,''),pages:o.pages,created:nowStr()};
+  await dbPut('drawings',d);curDid=d.id;curPage=0;toast(`${d.name} (${d.pages.length}페이지) 불러옴`,3000);if(view!=='map')show('map');else renderMap();};
+window.onPdfError=m=>{closeModal('m-prog');if(m)toast('망도 열기 실패: '+m,5000);};
+$('#mapFile').onchange=async e=>{const fs=[...(e.target.files||[])];if(!fs.length)return;const s=curSess();const id='w'+uid();const pages=[];
+  for(let i=0;i<fs.length;i++){const img=await loadImg(fs[i]);pages.push({w:imgW(img),h:imgH(img)});if(img.close)img.close();await dbPut('photos',fs[i],'dpg_'+id+'_'+i);}
+  window.onPdfLoaded({id,name:fs[0].name.replace(/\.[^.]+$/,''),pages});};
+$('#mapDel').onclick=async()=>{const d=curDrawing();if(!d)return;const n=marks.filter(m=>m.did===d.id).length;
+  if(!await confirmBox(`[${d.name}] 망도를 삭제할까요?\n이 망도의 손상 표시 ${n}개도 함께 지워집니다.\n(사진·기록은 남습니다)`,'삭제'))return;
+  await tx(['drawings','marks','photos'],'readwrite',t=>{t.objectStore('drawings').delete(d.id);marks.filter(m=>m.did===d.id).forEach(m=>t.objectStore('marks').delete(m.id));d.pages.forEach((p,i)=>t.objectStore('photos').delete('dpg_'+d.id+'_'+i));});
+  if(NATIVE){try{Android.deleteDrawing(d.id)}catch(e){}}curDid=null;closeMarkSheet(true);renderMap();toast('망도 삭제됨');};
 
 /* ---------- 시작 ---------- */
 (async()=>{
