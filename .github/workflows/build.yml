@@ -26,19 +26,29 @@ jobs:
       - name: APK 만들기
         run: gradle assembleRelease --no-daemon --stacktrace
 
-      - name: 파일 이름 정리
-        run: cp app/build/outputs/apk/release/app-release.apk FieldCam.apk
+      - name: 파일 이름 정리 · 버전 정보
+        env:
+          MSG: ${{ github.event.head_commit.message }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk FieldCam.apk
+          python3 -c "import json,os;n=int(os.environ['GITHUB_RUN_NUMBER']);msg=os.environ.get('MSG','').split('Co-Authored-By')[0].strip();json.dump({'versionCode':n,'versionName':'1.3.%d'%n,'notes':msg},open('version.json','w',encoding='utf-8'),ensure_ascii=False)"
+          cat version.json
 
       - uses: actions/upload-artifact@v4
         with:
           name: FieldCam-APK
-          path: FieldCam.apk
+          path: |
+            FieldCam.apk
+            version.json
 
       - name: 릴리스(다운로드 링크) 올리기
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.2.${{ github.run_number }}
-          name: 현장카메라 v1.2.${{ github.run_number }}
-          files: FieldCam.apk
+          tag_name: v1.3.${{ github.run_number }}
+          name: 인스펙맵 v1.3.${{ github.run_number }}
+          files: |
+            FieldCam.apk
+            version.json
+          body: ${{ github.event.head_commit.message }}
           make_latest: true

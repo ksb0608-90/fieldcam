@@ -12,6 +12,8 @@ import android.graphics.Color;
 import android.graphics.pdf.PdfRenderer;
 import android.os.ParcelFileDescriptor;
 import android.provider.OpenableColumns;
+import android.provider.Settings;
+import android.content.pm.PackageInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -35,6 +37,10 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.io.OutputStream;
 import java.util.Map;
@@ -54,7 +60,8 @@ public class MainActivity extends Activity {
     private static final int REQ_PDF = 1003;
     private static final int PAGE_PX = 3600;   // 망도 페이지 가로 해상도(px)
     private static final String START_URL = "https://appassets.androidplatform.net/assets/index.html";
-    private static final String ROOT_DIR = Environment.DIRECTORY_DOWNLOADS + "/현장카메라";
+    private static final String ROOT_DIR = Environment.DIRECTORY_DOWNLOADS + "/인스펙맵";
+    private static final String UPDATE_BASE = "https://github.com/ksb0608-90/fieldcam/releases/latest/download/";
 
     private WebView web;
     private ValueCallback<Uri[]> fileCallback;
@@ -242,6 +249,53 @@ public class MainActivity extends Activity {
         }).start();
     }
 
+    /** URL 내려받기: out이 null이면 내용을 반환, 아니면 파일로 저장(진행률 JS 전달) */
+    private byte[] download(String url, File out) throws Exception {
+        for (int hop = 0; hop < 6; hop++) {
+            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+            c.setInstanceFollowRedirects(false);
+            c.setConnectTimeout(15000);
+            c.setReadTimeout(30000);
+            c.setRequestProperty("User-Agent", "InspecMap");
+            c.setRequestProperty("Cache-Control", "no-cache");
+            int code = c.getResponseCode();
+            if (code >= 300 && code < 400) {
+                url = new URL(new URL(url), c.getHeaderField("Location")).toString();
+                c.disconnect();
+                continue;
+            }
+            if (code != 200) throw new Exception("서버 응답 " + code);
+            long total = c.getContentLengthLong();
+            try (InputStream in = c.getInputStream()) {
+                byte[] buf = new byte[65536];
+                long done = 0;
+                int n, lastPct = -1;
+                if (out == null) {
+                    ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                    while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                    return bo.toByteArray();
+                }
+                try (FileOutputStream fo = new FileOutputStream(out)) {
+                    while ((n = in.read(buf)) > 0) {
+                        fo.write(buf, 0, n);
+                        done += n;
+                        if (total > 0) {
+                            int pct = (int) (done * 99 / total);
+                            if (pct != lastPct) {
+                                lastPct = pct;
+                                callJs("window.onUpdateProgress && window.onUpdateProgress(" + pct + ")");
+                            }
+                        }
+                    }
+                }
+                return null;
+            } finally {
+                c.disconnect();
+            }
+        }
+        throw new Exception("리다이렉트가 너무 많음");
+    }
+
     private static void deleteTree(File f) {
         File[] ch = f.listFiles();
         if (ch != null) for (File c : ch) deleteTree(c);
@@ -367,6 +421,58 @@ public class MainActivity extends Activity {
             if (id == null || id.isEmpty() || id.contains("/") || id.contains("..")) return "ERR:id";
             deleteTree(new File(getFilesDir(), "drawings/" + id));
             return "OK";
+        }
+
+        /** 새 버전 확인 → window.onUpdateInfo({current, currentName, latest, latestName, notes}) */
+        @JavascriptInterface
+        public void checkUpdate() {
+            new Thread(() -> {
+                try {
+                    String txt = new String(download(UPDATE_BASE + "version.json", null), "UTF-8");
+                    JSONObject v = new JSONObject(txt);
+                    PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+                    JSONObject o = new JSONObject();
+                    o.put("current", pi.versionCode);
+                    o.put("currentName", pi.versionName);
+                    o.put("latest", v.optInt("versionCode", 0));
+                    o.put("latestName", v.optString("versionName", ""));
+                    o.put("notes", v.optString("notes", ""));
+                    callJs("window.onUpdateInfo && window.onUpdateInfo(" + o.toString() + ")");
+                } catch (Throwable e) {
+                    callJs("window.onUpdateInfo && window.onUpdateInfo({error:" + JSONObject.quote(String.valueOf(e.getMessage())) + "})");
+                }
+            }).start();
+        }
+
+        /** 새 버전 내려받아 설치 화면 열기 */
+        @JavascriptInterface
+        public void startUpdate() {
+            if (!getPackageManager().canRequestPackageInstalls()) {
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, "'이 출처 허용'을 켠 뒤 뒤로 와서 [업데이트]를 다시 누르세요", Toast.LENGTH_LONG).show();
+                    startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:" + getPackageName())));
+                });
+                callJs("window.onUpdateProgress && window.onUpdateProgress(-2)");
+                return;
+            }
+            new Thread(() -> {
+                try {
+                    File dir = new File(getCacheDir(), "apk");
+                    dir.mkdirs();
+                    File apk = new File(dir, "update.apk");
+                    if (apk.exists()) apk.delete();
+                    download(UPDATE_BASE + "FieldCam.apk", apk);
+                    Uri uri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".fileprovider", apk);
+                    Intent i = new Intent(Intent.ACTION_VIEW);
+                    i.setDataAndType(uri, "application/vnd.android.package-archive");
+                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                    callJs("window.onUpdateProgress && window.onUpdateProgress(100)");
+                    runOnUiThread(() -> startActivity(i));
+                } catch (Throwable e) {
+                    callJs("window.onUpdateProgress && window.onUpdateProgress(-1," + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
+                }
+            }).start();
         }
 
         @JavascriptInterface
