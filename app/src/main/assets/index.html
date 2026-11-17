@@ -160,6 +160,11 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 .side .li{background:#fff;border:1px solid #d1fadf;border-left:4px solid #16a34a;border-radius:8px;padding:6px 8px;margin-bottom:5px;font-size:14px;cursor:pointer}
 .side .li span{font-size:12px;color:var(--sub)}
 .side .li.done{background:#ecfdf3}
+.qpad{border-top:1px solid #eef0f3;padding-top:8px;margin-top:4px}
+.qpad-h{font-weight:700;font-size:14px;margin-bottom:4px}
+.qpad canvas{display:block;background:#f8fafc;border:2px dashed #98a2b3;border-radius:10px;touch-action:none}
+.qpad-r{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:15px}
+.qpad-r .btn{padding:8px 12px;font-size:14px}
 </style>
 </head>
 <body>
@@ -484,7 +489,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.12.0';
+const VERSION = '1.13.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -1058,8 +1063,10 @@ window.addEventListener('resize',()=>{if(view==='map'&&curDrawing())fitView();})
 
 function nosLabel(nos){nos=[...new Set(nos||[])].sort((a,b)=>a-b);const out=[];for(let i=0;i<nos.length;){let j=i;while(j+1<nos.length&&nos[j+1]===nos[j]+1)j++;
   out.push(j>i+1?`${pad(nos[i])}~${pad(nos[j])}`:(j===i+1?`${pad(nos[i])},${pad(nos[j])}`:pad(nos[i])));i=j+1;}return out.join(',');}
-function markLabel(m){if(m.group)return `묶음${m.n?' '+m.n+'ea':''}`;const t=(m.type==='금회'||m.type==='기존')?'':m.type+' ';const c=m.shape==='area'&&m.content?m.content+' ':'';
-  return `${m.dmg?'#'+m.dmg+' ':''}${t}${c}${nosLabel(m.photoNos)}`.trim();}
+function markLabel(m){if(m.group)return `묶음${m.n?' '+m.n+'ea':''}`;const t=(m.type==='금회'||m.type==='기존')?'':m.type+' ';
+  const c=m.content&&m.content!=='균열'?m.content.replace('(0.3㎜미만)','').replace('(0.3㎜이상)','')+' ':'';
+  return `${m.dmg?'#'+m.dmg+' ':''}${t}${c}${sizeStr(m)}`.trim();}
+function markLabel2(m){const n=nosLabel(m.photoNos);return n?'📷'+n:'';}
 function drawMarks(){const d=curDrawing();if(!d)return;const p=d.pages[curPage];const W=p.w,H=p.h,sz=Math.max(10,W/220);
   let h='<defs>'+Object.entries(MK_COLOR).map(([t,c])=>`<pattern id="ht-${MK_KEY[t]}" patternUnits="userSpaceOnUse" width="${sz}" height="${sz}" patternTransform="rotate(45)"><rect width="${sz}" height="${sz}" fill="${c}" fill-opacity="0.10"/><line x1="0" y1="0" x2="0" y2="${sz}" stroke="${c}" stroke-width="${sz/5}" stroke-opacity="0.75"/></pattern>`).join('')+'</defs>';
   const one=(m,temp)=>{const c=MK_COLOR[m.type]||MK_COLOR.금회;const pts=m.pts.map(q=>[q[0]*W,q[1]*H]);const ps=pts.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ');
@@ -1071,8 +1078,8 @@ function drawMarks(){const d=curDrawing();if(!d)return;const p=d.pages[curPage];
     else if(m.shape==='line')pls.forEach(pp=>x+=`<polyline points="${pp}" fill="none" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"${dash}${op}/>`);
     else if(m.shape==='area')x+=`<polygon points="${ps}" fill="url(#ht-${MK_KEY[m.type]||'n'})" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linejoin="round"${dash}/>`;
     else x+=`<circle class="pt" cx="${pts[0][0]}" cy="${pts[0][1]}" fill="${c}" stroke="${sel?'#facc15':'#fff'}" stroke-width="${sel?5:2}" vector-effect="non-scaling-stroke"/>`;
-    if(!temp&&!(m.src==='pdf'&&settings.showLabels!==false)){const lab=markLabel(m);if(lab){let lx,ly;if(m.shape==='area'){lx=Math.max(...pts.map(q=>q[0]));ly=Math.min(...pts.map(q=>q[1]));}else{const lp=parts(m)[parts(m).length-1];[lx,ly]=[lp[lp.length-1][0]*W,lp[lp.length-1][1]*H];}
-      x+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" dx="0.5em" dy="-0.35em" fill="${c}">${esc(lab)}</text>`;}}
+    if(!temp&&!(m.src==='pdf'&&settings.showLabels!==false)){const lab=markLabel(m)||(markLabel2(m)?' ':'');if(lab){let lx,ly;if(m.shape==='area'){lx=Math.max(...pts.map(q=>q[0]));ly=Math.min(...pts.map(q=>q[1]));}else{const lp=parts(m)[parts(m).length-1];[lx,ly]=[lp[lp.length-1][0]*W,lp[lp.length-1][1]*H];}
+      const l2=markLabel2(m);x+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" dy="${l2?'-1.4em':'-0.35em'}" fill="${c}"><tspan x="${lx.toFixed(1)}" dx="0.5em">${esc(lab)}</tspan>${l2?`<tspan x="${lx.toFixed(1)}" dx="0.5em" dy="1.15em">${esc(l2)}</tspan>`:''}</text>`;}}
     return x;};
   const ink=(strokes,col,op,w)=>strokes.map(st=>`<polyline points="${st.map(q=>(q[0]*W).toFixed(1)+','+(q[1]*H).toFixed(1)).join(' ')}" fill="none" stroke="${col}" stroke-opacity="${op||1}" stroke-width="${w||2.4}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
   for(const m of marks){if(m.did!==curDid||m.page!==curPage)continue;
@@ -1252,7 +1259,7 @@ function parseInk(raw,shape){let t=String(raw||'').trim().replace(/\s+/g,'').rep
   if((shape==='point'||shape==='nonnew')&&/^\d{1,4}$/.test(t))return {dmg:t};
   return null;}
 function inkText(p){if(!p)return '';if(p.dmg)return '#'+p.dmg;return [p.w&&p.l?(p.w+(p.l?'/'+p.l:'')):'',p.n?p.n+'ea':''].filter(Boolean).join(' ');}
-window.onInkResult=async(id,cands)=>{const k=inkPending[id];delete inkPending[id];if(!k)return;const m=marks.find(x=>x.id===k.markId);
+window.onInkResult=async(id,cands)=>{if(padPending[id]){const f=padPending[id];delete padPending[id];f(cands);return;}const k=inkPending[id];delete inkPending[id];if(!k)return;const m=marks.find(x=>x.id===k.markId);
   const shp=m?(m.shape==='point'||m.type!=='금회'?'nonnew':m.shape):'';
   let p=null,raw=(cands&&cands[0])||'';for(const c of (cands||[])){p=parseInk(c,shp);if(p){raw=c;break;}}
   if(!p&&k.strokes.length===1&&k.color!=='black'){const pg=curD&&curD.pages[k.page];const st=k.strokes[0];
@@ -1348,6 +1355,37 @@ function openPdfLabelMenu(l,q){const ex=marks.find(m=>m.src==='pdf'&&m.did===cur
   r=qrow();[['기존','기존(변화 없음)'],['변경','변경'],['보수','보수'],['삭제','삭제(없어짐)']].forEach(([t,lbl])=>r.appendChild(qbtn(lbl,'chip',async()=>{const m=await mk(t);openMarkMenu(m,q);})));b.appendChild(r);
   placeQMenu(q);}
 
+/* ---------- 메뉴 안 규모 손글씨 칸 ---------- */
+const padPending={};
+function sizeStr(m){const a=m.w&&m.l?(m.shape==='area'?`${m.w}×${m.l}`:`${m.w}/${m.l}`):(m.l?`L=${m.l}`:'');return [a,m.n?m.n+'ea':''].filter(Boolean).join(' ');}
+function makePad(m,q){const box=document.createElement('div');box.className='qpad';
+  box.innerHTML=`<div class="qpad-h">규모 손글씨 <span class="muted">${m.shape==='area'?'예: 0.3x0.2, 2ea':m.shape==='line'?'예: 0.2/1.2, 3ea':'예: 2ea'}</span></div>
+    <canvas></canvas><div class="qpad-r"><span class="res"></span><span style="flex:1"></span><button class="btn" data-a="clr">지우기</button><button class="btn" data-a="kb">직접 입력</button></div>`;
+  const cv=box.querySelector('canvas'),res=box.querySelector('.res');const dpr=window.devicePixelRatio||1;const W=420,H=120;
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';const g=cv.getContext('2d');g.scale(dpr,dpr);g.lineWidth=2.6;g.lineCap='round';g.lineJoin='round';g.strokeStyle='#1e3a8a';
+  let strokes=[],cur=null,timer=null,penOn=false;
+  const show=()=>{const s=sizeStr(m);res.innerHTML=s?`<b style="color:#027a48">✓ ${esc(s)}</b>`:'<span class="muted">여기에 펜으로 쓰세요</span>';};show();
+  const pt=e=>{const r=cv.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top,Date.now()];};
+  cv.addEventListener('pointerdown',e=>{if(e.pointerType!=='pen'&&penOn)return;if(e.pointerType==='pen')penOn=true;e.preventDefault();e.stopPropagation();try{cv.setPointerCapture(e.pointerId)}catch(_){}clearTimeout(timer);cur=[pt(e)];strokes.push(cur);g.beginPath();g.moveTo(cur[0][0],cur[0][1]);});
+  cv.addEventListener('pointermove',e=>{if(!cur)return;const p=pt(e);cur.push(p);g.lineTo(p[0],p[1]);g.stroke();});
+  const up=e=>{if(!cur)return;if(cur.length===1){g.beginPath();g.arc(cur[0][0],cur[0][1],1.5,0,7);g.fill();}cur=null;if(e.pointerType==='pen')penOn=false;clearTimeout(timer);timer=setTimeout(recog,900);};
+  cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+  const apply=async(text)=>{const shp=m.shape==='point'||m.type!=='금회'?'nonnew':m.shape;const p=parseInk(text,shp);
+    if(p){applyParsed(m,p);if(p.w!==undefined&&m.shape==='area')m.w=p.w;await saveMarkObj(m);selMark=m;drawMarks();show();updHead();}
+    else res.innerHTML=`<span style="color:#d92d20">인식: "${esc(text||'?')}" – 다시 쓰거나 [직접 입력]</span>`;};
+  const recog=()=>{if(!strokes.length)return;res.innerHTML='<span class="muted">인식 중…</span>';const id='pad'+uid();const t0=strokes[0][0][2];
+    const json=JSON.stringify(strokes.map(st=>st.map(a=>[+a[0].toFixed(1),+a[1].toFixed(1),a[2]-t0])));
+    padPending[id]=cands=>{let pick=(cands&&cands[0])||'';for(const c of (cands||[])){if(parseInk(c,m.shape==='point'||m.type!=='금회'?'nonnew':m.shape)){pick=c;break;}}apply(pick);};
+    if(NATIVE&&Android.inkRecognize&&inkState==='ready')Android.inkRecognize(id,json);
+    else if(window.__mockInk)setTimeout(()=>window.onInkResult(id,window.__mockInk()),50);
+    else{delete padPending[id];res.innerHTML='<span style="color:#d92d20">손글씨 인식 준비 안 됨 – [직접 입력]</span>';}};
+  const clear=()=>{strokes=[];g.clearRect(0,0,W,H);};
+  box.querySelector('[data-a=clr]').onclick=e=>{e.stopPropagation();clear();};
+  box.querySelector('[data-a=kb]').onclick=async e=>{e.stopPropagation();const v=await inputBox('규모 (예: 0.3x0.2, 0.2/1.2, 2ea)',sizeStr(m).replace('×','x'));if(v!==null){await apply(v);openMarkMenu(m,q);}};
+  const updHead=()=>{$('#qm-h').textContent=menuHead(m);};
+  return box;}
+function menuHead(m){return `${m.group?'묶음선':(m.dmg?'#'+m.dmg+' ':'')+(m.content||SHAPE_NAME[m.shape])} ${sizeStr(m)}`.trim()+(m.photoNos&&m.photoNos.length?` · 사진 ${nosLabel(m.photoNos)}`:'');}
+
 /* ---------- 빠른 메뉴 ---------- */
 function hideQMenu(){$('#qmenu').classList.remove('on');}
 function placeQMenu(q){const r=wrap.getBoundingClientRect(),el=$('#qmenu');el.classList.add('on');const w=el.offsetWidth,h=el.offsetHeight;
@@ -1363,13 +1401,14 @@ async function openMenuAt(q){const m=hitMark(q);if(m)return openMarkMenu(m,q);co
   r.appendChild(qbtn('📷 일반 사진','',()=>{hideQMenu();shoot({type:'일반',did:curDid,dname:curD.name,page:curPage+1});}));
   b.appendChild(r);placeQMenu(q);}
 async function openMarkMenu(m,q){selMark=m;drawMarks();const b=$('#qm-b');b.innerHTML='';
-  $('#qm-h').textContent=`${m.group?'묶음선':(m.dmg?'#'+m.dmg+' ':'')+(m.content||SHAPE_NAME[m.shape])} ${m.w&&m.l?m.w+(m.shape==='area'?'x':'/')+m.l:''} ${m.n?m.n+'ea':''}`.trim()+(m.photoNos&&m.photoNos.length?` · 사진 ${nosLabel(m.photoNos)}`:'');
-  let r=qrow();
-  r.appendChild(qbtn('📷 촬영','acc big',()=>{hideQMenu();shootMarkObj(m,false);}));
-  if(NATIVE)r.appendChild(qbtn(settings.camMode==='app'?'기본 카메라':'앱 카메라','',()=>{hideQMenu();shootMarkObj(m,true);}));
-  b.appendChild(r);
+  $('#qm-h').textContent=menuHead(m);
+  const shootRow=qrow();
+  shootRow.appendChild(qbtn('📷 촬영','acc big',()=>{hideQMenu();shootMarkObj(m,false);}));
+  if(NATIVE)shootRow.appendChild(qbtn(settings.camMode==='app'?'기본 카메라':'앱 카메라','',()=>{hideQMenu();shootMarkObj(m,true);}));
+  let r;
   if(!m.group){r=qrow();const list=m.shape==='line'?LINE_DMG():m.shape==='area'?AREA_DMG():preset().dmg;
     list.forEach(c=>r.appendChild(qbtn(esc(c),'chip'+(m.content===c?' on':''),async()=>{m.content=c;m.contentManual=true;await saveMarkObj(m);openMarkMenu(m,q);})));b.appendChild(r);}
+  b.appendChild(makePad(m,q));b.appendChild(shootRow);
   r=qrow();TYPES.filter(t=>t!=='일반').forEach(t=>r.appendChild(qbtn(t,'chip'+(m.type===t?' on':''),async()=>{m.type=t;if(t==='금회'&&!m.dmg)m.dmg=String(await nextDmgFor(curD,m.page));await saveMarkObj(m);openMarkMenu(m,q);})));b.appendChild(r);
   r=qrow();
   r.appendChild(qbtn('상세 입력','',()=>{hideQMenu();openMarkSheet(m);}));
