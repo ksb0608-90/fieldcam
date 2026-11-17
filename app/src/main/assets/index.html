@@ -125,6 +125,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 #v-map:not(.viewing) .maptop,#v-map:not(.viewing) .mapbody{display:none}
 #v-map.viewing .browse{display:none}
 .browse{flex:1;overflow:auto;padding:12px;max-width:1100px;width:100%;margin:0 auto}
+.navbk{display:inline-flex;gap:4px}.navbk .btn{min-width:46px;font-size:20px;padding:6px 10px}.navbk .btn:disabled,#mBack2:disabled,#mFwd2:disabled{opacity:.3}
 .crumbs{font-size:18px;font-weight:700;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .crumbs a{color:var(--pri);cursor:pointer;padding:4px 2px}
 .bitem{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer}
@@ -260,12 +261,12 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 <!-- 망도 -->
 <section class="view" id="v-map">
   <div class="browse" id="mapBrowse">
-    <div class="crumbs" id="crumbs"></div>
-    <div class="row" style="margin:10px 0"><button class="btn pri" onclick="addFolder()">＋ 폴더</button><button class="btn acc hide" id="bAddPdf" onclick="addDrawing()">＋ 망도 (PDF, 여러 개 선택 가능)</button></div>
+    <div class="row" style="gap:8px;align-items:center"><span class="navbk"><button class="btn" id="mBack" title="뒤로">←</button><button class="btn" id="mFwd" title="앞으로">→</button></span><div class="crumbs" id="crumbs"></div></div>
+    <div class="row" style="margin:10px 0"><button class="btn pri" onclick="addFolder()">＋ 폴더</button><button class="btn acc hide" id="bAddPdf" onclick="addDrawing()">＋ 망도 PDF</button><button class="btn acc hide" id="bAddPdfDir" onclick="addDrawingDir()">＋ 폴더째 불러오기</button><span class="muted hide" id="bAddHint">PDF 선택 화면에서 파일을 길게 누르면 여러 개 선택</span></div>
     <div id="browseList"></div>
   </div>
   <div class="maptop">
-    <div class="grp"><button class="btn" id="sideBtn" onclick="toggleSide()" title="망도 목록 창">☰</button><button class="btn" onclick="closeDrawing()">◀ 폴더</button><b id="mapTitle" class="mtitle"></b></div>
+    <div class="grp"><button class="btn" id="sideBtn" onclick="toggleSide()" title="망도 목록 창">☰</button><button class="btn" id="mBack2" title="뒤로">←</button><button class="btn" id="mFwd2" title="앞으로">→</button><button class="btn" onclick="closeDrawing()">◀ 폴더</button><b id="mapTitle" class="mtitle"></b></div>
     <span class="sep"></span>
     <div class="grp"><button class="btn" onclick="goPage(-1)">◀</button><b id="mapPage" style="min-width:56px;text-align:center">-</b><button class="btn" onclick="goPage(1)">▶</button></div>
     <span class="sep"></span>
@@ -303,7 +304,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
     <div class="muted" style="margin-top:8px">손상 사진은 [망도]에서 표시를 길게 누르거나 기존 손상 글자를 탭해 촬영하세요. 여기 촬영 버튼은 전경·일반 사진용입니다.</div>
   </div>
   <div class="row" style="margin-bottom:10px">
-    <div class="crumb" id="listCrumb"></div>
+    <span class="navbk"><button class="btn" id="pBack" title="뒤로">←</button><button class="btn" id="pFwd" title="앞으로">→</button></span><div class="crumb" id="listCrumb"></div>
     <select id="listFilter"><option value="">전체 구분</option></select>
     <span class="muted" id="listCount"></span>
     <span style="flex:1"></span>
@@ -512,7 +513,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.17.0';
+const VERSION = '1.18.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -594,6 +595,14 @@ function chips(el,items,val,onPick,cls){el.innerHTML='';items.forEach(it=>{const
   b.className='chip'+(cls?' '+cls:'')+(it===val?' on':'');b.textContent=it;b.onclick=()=>onPick(it);el.appendChild(b);});}
 
 let view='shot';
+/* 뒤로/앞으로 – 사진 탭(폴더 단계), 망도 탭(폴더·망도 열기) */
+function mkHist(apply,ids){const h={st:[],i:-1,busy:false,
+  push(x){if(h.busy)return;const k=JSON.stringify(x);if(h.i>=0&&JSON.stringify(h.st[h.i])===k){h.ui();return;}h.st=h.st.slice(0,h.i+1);h.st.push(JSON.parse(k));if(h.st.length>60)h.st.shift();h.i=h.st.length-1;h.ui();},
+  async go(d){const j=h.i+d;if(j<0||j>=h.st.length)return false;h.i=j;h.busy=true;try{await apply(JSON.parse(JSON.stringify(h.st[j])));}finally{h.busy=false;}h.ui();return true;},
+  ui(){ids.forEach(([b,f])=>{const eb=document.getElementById(b),ef=document.getElementById(f);if(eb)eb.disabled=h.i<=0;if(ef)ef.disabled=h.i>=h.st.length-1;});}};
+  ids.forEach(([b,f])=>{const eb=document.getElementById(b),ef=document.getElementById(f);if(eb)eb.onclick=()=>h.go(-1);if(ef)ef.onclick=()=>h.go(1);});h.ui();return h;}
+const histP=mkHist(async x=>{listSel=x;await renderList();},[['pBack','pFwd']]);
+const histM=mkHist(async x=>{if(x.d){if(curDid!==x.d)await openDrawing(x.d);}else{if(curD){flushInk();hideQMenu();closeMarkSheet(true);curDid=null;curD=null;LS.set('map.open',null);}curFolder=x.f;LS.set('map.folder',curFolder);await renderMap();}},[['mBack','mFwd'],['mBack2','mFwd2']]);
 function show(v){if(v==='shot')v='list';view=v;renderHeader();document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   $('#shutter').style.display=(v==='list'&&curSess())?'':'none';
@@ -720,6 +729,8 @@ async function nativeSavePhoto(s,r,blob){if(!NATIVE)return;
   try{await nativeWrite(sessDir(s)+'/사진',r.file,blob,'image/jpeg');await writeCsv(s);}
   catch(e){console.error(e);toast('⚠ 폴더 저장 실패: '+e.message+'\n(앱 안에는 저장됨 · 내보내기로 받으세요)',6000);}}
 window.onAndroidBack=()=>{if($('#pv').classList.contains('on')){pvClose();return true;}if(kpT){kpClose();return true;}if($('#mk-sheet').classList.contains('on')){closeMarkSheet();return true;}const m=document.querySelector('.modal.on');if(m){if(m.id!=='m-prog')m.classList.remove('on');return true;}
+  if($('#qmenu').classList.contains('on')){hideQMenu();return true;}
+  if(view==='list'&&histP.i>0){histP.go(-1);return true;}if(view==='map'&&histM.i>0){histM.go(-1);return true;}
   if(view!=='shot'){show('shot');return true;}return false;};
 
 async function saveCapture(file,ctx,quiet){ctx=ctx||form;const s=curSess();
@@ -754,7 +765,7 @@ async function renderList(){await loadFolders();const sel=$('#listFilter');if(se
     $('#listBody').innerHTML='<div class="empty">아직 사진이 없습니다. [망도] 탭에서 구조물 망도를 여세요.</div>';$('#listCount').textContent='';$('#shutter').style.display='none';return;}
   if(listSel.sid===null&&listSel.site===undefined){const c=sessions.find(x=>x.id===curId);listSel=c?{site:c.site,sid:c.id,did:curD&&recIn({did:curD.id},curD)&&drawingKey(curD).fac===c.facility?curD.id:null,page:null}:{site:null,sid:null,did:null,page:null};}
   if(listSel.sid&&!sessions.find(x=>x.id===listSel.sid))listSel={site:null,sid:null,did:null,page:null};
-  const L=listSel;const s=L.sid?sessions.find(x=>x.id===L.sid):null;
+  const L=listSel;const s=L.sid?sessions.find(x=>x.id===L.sid):null;histP.push({site:L.site??null,sid:L.sid??null,did:L.did??null,page:L.page??null});
   /* 촬영 대상: 시설물을 고르면 그 시설물, 아니면 현재 조사 */
   if(s&&curId!==s.id){curId=s.id;LS.set('cur',curId);loadDraft();renderHeader();}
   const cs=s||curSess();
@@ -1031,7 +1042,7 @@ function inputBox(title,val,ph){return new Promise(r=>{$('#ib-title').textConten
   const done=v=>{closeModal('m-in');r(v);};$('#ib-ok').onclick=()=>done(i.value.trim()||null);$('#ib-no').onclick=()=>done(null);i.onkeydown=e=>{if(e.key==='Enter')done(i.value.trim()||null);};});}
 const badName=n=>/[\\/:*?"<>|]/.test(n);
 
-async function renderBrowse(){await loadFolders();if(view==='map')$('#hdr').innerHTML=`인스펙맵<small>조사자 ${esc(settings.inspector||'-')}</small>`;const all=await dbAll('drawings');const path=fPath(curFolder);
+async function renderBrowse(){await loadFolders();if(!curD)histM.push({f:curFolder||null,d:null});if(view==='map')$('#hdr').innerHTML=`인스펙맵<small>조사자 ${esc(settings.inspector||'-')}</small>`;const all=await dbAll('drawings');const path=fPath(curFolder);
   $('#crumbs').innerHTML=`<a data-f="">📂 전체</a>`+path.map(f=>` › <a data-f="${f.id}">${esc(f.name)}</a>`).join('');
   $('#crumbs').querySelectorAll('a').forEach(a=>a.onclick=()=>{curFolder=a.dataset.f||null;LS.set('map.folder',curFolder);renderBrowse();});
   const subs=fChildren(curFolder),dws=all.filter(d=>(d.folderId||null)===(curFolder||null)).sort(byName);
@@ -1042,7 +1053,7 @@ async function renderBrowse(){await loadFolders();if(view==='map')$('#hdr').inne
   if(!h)h=curFolder?`<div class="empty">비어 있습니다.<br>[＋ 폴더]로 구조물 폴더를 만들거나 [＋ 망도]로 PDF를 넣으세요.</div>`
     :`<div class="empty">아직 폴더가 없습니다.<br>[＋ 폴더]로 용역 폴더(예: PQ6)를 만든 뒤,<br>그 안에 구조물 폴더(예: 금곡교)를 만들고 망도 PDF를 넣으세요.</div>`;
   $('#browseList').innerHTML=h;
-  $('#bAddPdf').classList.toggle('hide',!curFolder);
+  $('#bAddPdf').classList.toggle('hide',!curFolder);$('#bAddPdfDir').classList.toggle('hide',!curFolder||!(NATIVE&&Android.pickPdfFolder));$('#bAddHint').classList.toggle('hide',!curFolder||!NATIVE);
   $('#browseList').querySelectorAll('.bitem').forEach(el=>{const id=el.dataset.id,k=el.dataset.k;
     el.onclick=e=>{if(e.target.closest('[data-a]'))return;if(k==='f'){curFolder=id;LS.set('map.folder',curFolder);renderBrowse();}else openDrawing(id);};
     el.querySelector('[data-a=more]').onclick=()=>k==='f'?folderMenu(id):drawingMenu(id);});}
@@ -1071,7 +1082,7 @@ async function deleteDrawing(d){const ms=await byIndex('marks','did',d.id);
   if(NATIVE){try{Android.deleteDrawing(d.id)}catch(e){}}if(curDid===d.id){curDid=null;curD=null;}}
 
 /* ---------- 망도 보기 ---------- */
-async function openDrawing(id,page){flushInk();const d=await dbGet('drawings',id);if(!d)return;await loadFolders();curDid=id;curD=d;undoStack=[];
+async function openDrawing(id,page){flushInk();const d=await dbGet('drawings',id);if(!d)return;histM.push({f:d.folderId||null,d:id});await loadFolders();curDid=id;curD=d;undoStack=[];
   const pref=page!==undefined?page:LS.get('page.'+id,0);curPage=pref<d.pages.length?pref:0;selMark=null;mv.page=null;await sessForDrawing(d);
   marks=await byIndex('marks','did',id);LS.set('map.open',id);{const c=sessions.find(x=>x.id===curId);listSel={site:c?c.site:null,sid:curId,did:id,page:null};}renderMap();}
 function closeDrawing(){flushInk();hideQMenu();closeMarkSheet(true);curDid=null;curD=null;LS.set('map.open',null);renderMap();}
@@ -1216,6 +1227,7 @@ async function endPtr(e){if(e.pointerType==='pen')penDown=false;if(!ptrs.has(e.p
       if(dx>0&&(atFit||leftVis)&&curPage>0){goPage(-1);return;}}
     return;}
   if(g.k==='erase'){finishErase(g);return;}
+  if(g.k==='draw'&&g.maxd>=6){const bb=sbb(g.spts);const l=await labelCircled(g.spts);if(l){drawMarks();openPdfLabelMenu(l,{x:(bb.x0+bb.x1)/2,y:(bb.y0+bb.y1)/2});return;}}
   if(g.k==='draw'&&g.col==='black'){if(g.maxd<6&&!nearInk(sbb(g.spts))){drawMarks();onMapTap(g.start,true,g.pen);return;}addInkStroke(g);return;}
   if(g.k==='draw'){const bb=sbb(g.spts),size=Math.max(bb.w,bb.h);
     if(g.maxd<6){ /* 점 찍기: 글씨 중이면 소수점 */
@@ -1404,6 +1416,16 @@ async function scanLabels(d,i){const k=d.id+':'+i;if(labelCache[k])return labelC
   out.sort((a,b)=>a.box[1]-b.box[1]||a.box[0]-b.box[0]);
   return labelCache[k]=out;}
 /* 펜으로 초록 상자(기존 손상)를 동그라미 쳤는지: 상자 중심이 동그라미 안에 있고 동그라미가 상자보다 너무 크지 않을 때 */
+/* 펜 획이 초록 상자(기존 손상)를 감싸는지: 상자 중심을 도는 각도 합이 300° 이상이면 동그라미로 봄
+   (덜 닫힌 동그라미·겹쳐 그린 동그라미·펜 색 무관) */
+async function labelCircled(sp){if(!curD||sp.length<8)return null;const p=curD.pages[curPage];const ls=await scanLabels(curD,curPage);if(!ls.length)return null;
+  const bb=sbb(sp),area=bb.w*bb.h;if(Math.max(bb.w,bb.h)<14)return null;let best=null,bs=0,bd=1e9;
+  for(const l of ls){const a=pg2s([l.box[0]*p.w,l.box[1]*p.h]),b=pg2s([l.box[2]*p.w,l.box[3]*p.h]);const cx=(a.x+b.x)/2,cy=(a.y+b.y)/2;
+    if(cx<bb.x0||cx>bb.x1||cy<bb.y0||cy>bb.y1)continue;const ba=Math.max((b.x-a.x)*(b.y-a.y),1);if(area>Math.max(ba*30,180*180))continue;
+    let sw=0,pa=Math.atan2(sp[0][1]-cy,sp[0][0]-cx);for(let i=1;i<sp.length;i++){const an=Math.atan2(sp[i][1]-cy,sp[i][0]-cx);let d=an-pa;if(d>Math.PI)d-=2*Math.PI;if(d<-Math.PI)d+=2*Math.PI;sw+=d;pa=an;}
+    sw=Math.abs(sw);if(sw<Math.PI*2*0.83)continue;const dd=Math.hypot(cx-(bb.x0+bb.x1)/2,cy-(bb.y0+bb.y1)/2);
+    if(!best||dd<bd){best=l;bs=sw;bd=dd;}}
+  return best?Object.assign({},best,{dno:dnoOf(await pageWords(curD,curPage))}):null;}
 async function labelInLoop(sp){if(!curD)return null;const p=curD.pages[curPage];const ls=await scanLabels(curD,curPage);if(!ls.length)return null;
   const poly=sp.map(a=>({x:a[0],y:a[1]})),bb=sbb(sp),area=bb.w*bb.h,cx=(bb.x0+bb.x1)/2,cy=(bb.y0+bb.y1)/2;let best=null,bd=1e9;
   for(const l of ls){const a=pg2s([l.box[0]*p.w,l.box[1]*p.h]),b=pg2s([l.box[2]*p.w,l.box[3]*p.h]);const c={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
@@ -1655,11 +1677,15 @@ function addDrawing(){if(!curFolder){toast('폴더를 먼저 만들고 들어간
   pdfFolder=curFolder;if(NATIVE&&Android.pickPdf)Android.pickPdf();else{$('#mapFile').value='';$('#mapFile').click();}}
 window.onPdfProgress=(i,n,kind,fi,fn)=>{openModal('m-prog');$('#pg-msg').textContent=`${fn>1?`망도 ${fi} / ${fn} · `:''}${kind==='text'?'글자 읽는 중':'변환 중'}… ${i} / ${n} 페이지`;$('#pg-bar').style.width=(i/n*100).toFixed(0)+'%';};
 window.onPdfLoaded=async o=>{const multi=o.fn>1;if(!multi||o.fi>=o.fn)closeModal('m-prog');
-  const d={id:o.id,folderId:o.folder||pdfFolder||curFolder,name:String(o.name||'망도').replace(/\.pdf$/i,''),pages:o.pages,created:nowStr()};
+  let fid=o.folder||pdfFolder||curFolder;if(o.sub){await loadFolders();for(const nm of String(o.sub).split('/').filter(Boolean)){const f=await ensureFolder(nm,fid);fid=f.id;}}
+  const d={id:o.id,folderId:fid,name:String(o.name||'망도').replace(/\.pdf$/i,''),pages:o.pages,created:nowStr()};
   await dbPut('drawings',d);if(!multi)toast(`${d.name} (${d.pages.length}페이지) 불러옴`,3000);
-  else{pdfBatch.push(d.name+' ('+d.pages.length+'p)');if(o.fi>=o.fn){toast(`망도 ${pdfBatch.length}개 불러옴\n`+pdfBatch.join('\n'),5000);pdfBatch=[];}}
+  else{pdfBatch.push((o.sub?o.sub+'/':'')+d.name+' ('+d.pages.length+'p)');if(o.fi>=o.fn){toast(`망도 ${pdfBatch.length}개 불러옴\n`+pdfBatch.slice(0,12).join('\n')+(pdfBatch.length>12?`\n외 ${pdfBatch.length-12}개`:''),6000);pdfBatch=[];}}
   if(!multi||o.fi>=o.fn){if(view!=='map')show('map');else renderMap();}};
 let pdfBatch=[],pdfFolder=null;
+function addDrawingDir(){if(!curFolder){toast('폴더를 먼저 만들고 들어간 뒤 망도를 넣으세요');return;}pdfFolder=curFolder;
+  toast('망도 PDF가 들어 있는 폴더를 고른 뒤 [이 폴더 사용]을 누르세요\n하위 폴더는 같은 이름의 폴더로 만들어집니다',4500);Android.pickPdfFolder();}
+window.onPdfPicked=(n,dir)=>{if(n>0){openModal('m-prog');$('#pg-msg').textContent=`${dir?'폴더에서 PDF ':'PDF '}${n}개 받음 – 변환 준비 중…`;$('#pg-bar').style.width='0%';}};
 window.onPdfFileError=(name,m)=>{toast(`${name} 열기 실패: ${m}`,5000);};
 window.onPdfError=m=>{closeModal('m-prog');if(pdfBatch.length){toast(`망도 ${pdfBatch.length}개 불러옴\n`+pdfBatch.join('\n'),5000);pdfBatch=[];renderMap();}if(m)toast('망도 열기 실패: '+m,5000);};
 $('#mapFile').onchange=async e=>{const fs=[...(e.target.files||[])];if(!fs.length)return;const id='w'+uid();const pages=[];

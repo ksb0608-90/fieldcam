@@ -11,6 +11,7 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.pdf.PdfRenderer;
 import android.os.ParcelFileDescriptor;
+import android.provider.DocumentsContract;
 import android.provider.OpenableColumns;
 import android.provider.Settings;
 import android.content.pm.PackageInfo;
@@ -78,6 +79,7 @@ public class MainActivity extends Activity {
     private static final int REQ_CAMERA = 1001;
     private static final int REQ_INAPP = 1002;
     private static final int REQ_PDF = 1003;
+    private static final int REQ_PDF_TREE = 1004;
     private static final int PAGE_PX = 3600;   // 망도 페이지 가로 해상도(px)
     private static final String START_URL = "https://appassets.androidplatform.net/assets/index.html";
     private static final String ROOT_DIR = Environment.DIRECTORY_DOWNLOADS + "/인스펙맵";
@@ -202,8 +204,28 @@ public class MainActivity extends Activity {
                     for (int k = 0; k < data.getClipData().getItemCount(); k++) uris.add(data.getClipData().getItemAt(k).getUri());
                 } else if (data.getData() != null) uris.add(data.getData());
             }
-            if (!uris.isEmpty()) renderPdfs(uris);
+            callJs("window.onPdfPicked && window.onPdfPicked(" + uris.size() + ")");
+            if (!uris.isEmpty()) renderPdfs(uris, null);
             else callJs("window.onPdfError && window.onPdfError('')");
+            return;
+        }
+        if (requestCode == REQ_PDF_TREE) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                final Uri tree = data.getData();
+                new Thread(() -> {
+                    ArrayList<Uri> uris = new ArrayList<>();
+                    ArrayList<String> subs = new ArrayList<>();
+                    try {
+                        listPdfs(tree, DocumentsContract.getTreeDocumentId(tree), "", 0, uris, subs);
+                    } catch (Exception e) {
+                        callJs("window.onPdfError && window.onPdfError(" + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
+                        return;
+                    }
+                    callJs("window.onPdfPicked && window.onPdfPicked(" + uris.size() + ",true)");
+                    if (uris.isEmpty()) callJs("window.onPdfError && window.onPdfError('선택한 폴더에 PDF가 없습니다')");
+                    else renderPdfs(uris, subs);
+                }).start();
+            } else callJs("window.onPdfError && window.onPdfError('')");
             return;
         }
         if (requestCode != REQ_CAMERA) return;
@@ -228,18 +250,43 @@ public class MainActivity extends Activity {
 
     /* ---------- 망도 PDF → 페이지 이미지 ---------- */
     private volatile int curFi = 1, curFn = 1;
+    private volatile String curSub = "";
+
+    /** 폴더 안 PDF 찾기(하위 폴더 3단계까지). subs = 선택 폴더 기준 하위 폴더 경로("금곡교" 등) */
+    private void listPdfs(Uri tree, String docId, String rel, int depth, ArrayList<Uri> uris, ArrayList<String> subs) {
+        Uri kids = DocumentsContract.buildChildDocumentsUriUsingTree(tree, docId);
+        ArrayList<String[]> dirs = new ArrayList<>();
+        ArrayList<String[]> files = new ArrayList<>();
+        try (Cursor c = getContentResolver().query(kids, new String[]{DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE}, null, null, null)) {
+            while (c != null && c.moveToNext()) {
+                String id = c.getString(0), nm = c.getString(1), mt = c.getString(2);
+                if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mt)) dirs.add(new String[]{id, nm});
+                else if ("application/pdf".equals(mt) || (nm != null && nm.toLowerCase().endsWith(".pdf"))) files.add(new String[]{id, nm});
+            }
+        }
+        java.util.Comparator<String[]> byName = (a, b) -> String.valueOf(a[1]).compareTo(String.valueOf(b[1]));
+        files.sort(byName);
+        dirs.sort(byName);
+        for (String[] f : files) {
+            uris.add(DocumentsContract.buildDocumentUriUsingTree(tree, f[0]));
+            subs.add(rel);
+        }
+        if (depth < 3) for (String[] d : dirs) listPdfs(tree, d[0], rel.isEmpty() ? d[1] : rel + "/" + d[1], depth + 1, uris, subs);
+    }
 
     /** 여러 PDF를 차례로 변환 */
-    private void renderPdfs(final ArrayList<Uri> uris) {
+    private void renderPdfs(final ArrayList<Uri> uris, final ArrayList<String> subs) {
         new Thread(() -> {
             int fn = uris.size();
             for (int f = 0; f < fn; f++) {
                 curFi = f + 1;
                 curFn = fn;
+                curSub = subs == null ? "" : subs.get(f);
                 renderPdf(uris.get(f));
             }
             curFi = 1;
             curFn = 1;
+            curSub = "";
         }).start();
     }
 
@@ -298,6 +345,7 @@ public class MainActivity extends Activity {
                 res.put("pages", pages);
                 res.put("fi", curFi);
                 res.put("fn", curFn);
+                res.put("sub", curSub);
                 callJs("window.onPdfLoaded && window.onPdfLoaded(" + res.toString() + ")");
             } catch (Throwable e) {
                 if (curFn > 1) {
@@ -536,6 +584,18 @@ public class MainActivity extends Activity {
                     i.setType("application/pdf");
                     i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
                     startActivityForResult(i, REQ_PDF);
+                } catch (Exception e) {
+                    callJs("window.onPdfError && window.onPdfError(" + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
+                }
+            });
+        }
+
+        /** 폴더째 망도 불러오기(폴더 안 PDF 전부, 하위 폴더 포함) */
+        @JavascriptInterface
+        public void pickPdfFolder() {
+            runOnUiThread(() -> {
+                try {
+                    startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_PDF_TREE);
                 } catch (Exception e) {
                     callJs("window.onPdfError && window.onPdfError(" + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
                 }
