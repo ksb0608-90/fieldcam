@@ -314,6 +314,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
     <div class="sw"><div>펜으로만 그리기<div class="muted">켜면 펜=그리기, 손가락=이동·확대·페이지 넘김 (자동: 펜을 한 번 쓰면 켜짐)</div></div><select id="s-pen"><option value="auto">자동</option><option value="on">켜기</option><option value="off">끄기</option></select></div>
     <div class="sw"><div>손글씨 인식<div class="muted">빨강·파랑 펜으로 쓴 0.2/1.2, 0.3x0.2, 2ea, 손상번호 자동 입력 (처음 1번 인터넷 필요)</div></div><div class="row"><span id="inkInfo" class="muted">-</span><button class="btn" onclick="if(NATIVE&&Android.inkPrepare)Android.inkPrepare();else toast('앱에서만 사용')">다시 시도</button></div></div>
     <div class="sw"><div>기존 손상 표시 (초록 상자)<div class="muted">망도에서 인식한 기존 손상을 초록 점선 상자로 표시 · 촬영하면 채워지고 ✓사진번호 표시</div></div><input type="checkbox" id="s-labels"></div>
+    <div class="sw"><div>인식 문제 신고용 파일 저장<div class="muted">열려 있는 망도 페이지의 글자 정보를 다운로드/인스펙맵/진단 폴더에 저장 → PC로 옮겨 Claude에게 전달</div></div><button class="btn" onclick="saveDiag()">저장</button></div>
     <div class="sw"><div>망도 글자 위치 표시 (확인용)<div class="muted">기존 손상 자동 인식이 어긋날 때 확인: 망도의 글자 위치를 파란 상자로 표시</div></div><input type="checkbox" id="s-words"></div>
     <div class="muted" style="padding-top:6px">펜 색: 빨강=신규 손상, 파랑=보수, 검정=메모(전경·특이사항) · S펜 버튼을 누른 채 그으면 지우개</div>
   </div>
@@ -489,7 +490,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.13.0';
+const VERSION = '1.14.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -902,6 +903,12 @@ async function editNums(){const x=selSess();if(!x)return;
   const recs=await recsOf(x.id);const mx=recs.reduce((m,r)=>Math.max(m,r.no),0);
   if(np<=mx&&!await confirmBox(`이미 ${pad(mx)}번까지 찍었습니다. ${pad(np)}부터 쓰면 번호가 겹칠 수 있습니다. 계속할까요?`))return;
   x.nextPhoto=np;x.nextDmg=nd;await dbPut('sessions',x);showNums();toast('번호 변경됨');}
+async function saveDiag(){if(!curD){toast('망도를 먼저 여세요');return;}const ws=await pageWords(curD,curPage);const ls=await scanLabels(curD,curPage);
+  const raw=curD.pages[curPage].words||null;let orig=raw;if(!orig&&curD.pages[curPage].wfile){try{orig=await (await fetch('https://appassets.androidplatform.net/drawings/'+curD.pages[curPage].wfile)).json();}catch(e){}}
+  const data=JSON.stringify({app:VERSION,drawing:curD.name,page:curPage+1,size:[curD.pages[curPage].w,curD.pages[curPage].h],words:orig||ws,labels:ls},null,0);
+  const name=`${safe(curD.name)}_p${curPage+1}_글자정보.json`;
+  if(NATIVE){try{await nativeWrite('진단',name,new Blob([data],{type:'application/json'}),'application/json');toast('다운로드/인스펙맵/진단/'+name+' 저장',4000);}catch(e){toast('저장 실패: '+e.message,4000);}}
+  else downloadBlob(new Blob([data],{type:'application/json'}),name);}
 function exportSel(){const x=selSess();if(!x){toast('구조물이 없습니다');return;}exportSess(x);}
 async function delSel(){const x=selSess();if(!x)return;await delSess(x);renderSet();}
 function loadPresetFields(){const p=preset();$('#s-mem').value=p.mem.join(', ');$('#s-dmgs').value=p.dmg.join(', ');$('#s-ws').value=p.ws.join(', ');}
@@ -1287,9 +1294,9 @@ function numOf(t){t=String(t).trim();const c=CIRC.indexOf(t);if(c>=0)return Stri
 const isSize=t=>/(L\s*=|\d\s*[xX×*]\s*\d|\d\/\d|ea$|EA$|개소|T\s*=|㎡)/.test(t);
 const STATUS_W=/^(신규|기존|금회|변경|보수|삭제|진단|\d{2}[상하]|\d{2}진단)$/;
 const isName=t=>/[가-힣]{2,}/.test(t)&&!STATUS_W.test(t);
-function dnoOf(ws){const k=ws.find(w=>/도면\s*번호/.test(w[4]));if(!k)return '';const cy=(k[1]+k[3])/2,h=k[3]-k[1];let best=null,bd=1e9;
-  for(const w of ws){if(w===k||!/^[A-Za-z\-]*\d{1,4}[A-Za-z\-\d]*$/.test(w[4]))continue;const dx=w[0]-k[2],dy=(w[1]+w[3])/2-cy;
-    if(dx>-h&&dx<0.25&&Math.abs(dy)<h*1.2){const d=dx+Math.abs(dy)*3;if(d<bd){bd=d;best=w;}}}return best?best[4]:'';}
+function dnoOf(ws){const k=ws.find(w=>/도면\s*번호/.test(w[4]));if(!k)return '';const Hm=medH(ws);let best=null,bd=1e9;
+  for(const w of ws){if(w===k||!/^[A-Za-z\-]*\d{1,4}[A-Za-z\-\d]*$/.test(w[4]))continue;const dx=w[0]-k[2],dy=w[3]-k[3];
+    if(dx>-Hm&&dx<0.25&&Math.abs(dy)<Hm*1.5){const d=dx+Math.abs(dy)*3;if(d<bd){bd=d;best=w;}}}return best?best[4]:'';}
 function parseSize(s){const o={};let m;s=String(s||'');
   if((m=s.match(/L\s*=\s*(\d*\.?\d+)/i)))o.l=m[1];
   if((m=s.match(/(\d*\.?\d+)\s*[xX×*]\s*(\d*\.?\d+)/))){o.w=m[1];o.l=m[2];}
@@ -1298,21 +1305,27 @@ function parseSize(s){const o={};let m;s=String(s||'');
 const NAME_BL=/^(손상명|손상현황표|손상규모|손상현황|손상물량표|구조물명|도면번호|도면명|준공년월|발주처|용역사|용역명|비고|개소|단위|물량|번호|구분|서울방향|부산방향|시점부|종점부)$/;
 const labelCache={};
 /* 페이지의 기존 손상 표기(번호+손상명[+규모])를 모두 찾음 – 망도 위 표기와 손상현황표 행 */
-async function scanLabels(d,i){const k=d.id+':'+i;if(labelCache[k])return labelCache[k];const ws=await pageWords(d,i);
-  const it=ws.map(w=>({w,cy:(w[1]+w[3])/2,h:Math.max(w[3]-w[1],1e-4)})).sort((a,b)=>a.cy-b.cy||a.w[0]-b.w[0]);
-  const lines=[];for(const a of it){let L=lines.find(l=>Math.abs(l.cy-a.cy)<Math.min(l.h,a.h)*0.6);if(!L){L={cy:a.cy,h:a.h,ws:[]};lines.push(L);}L.ws.push(a);}
+/* 글자 높이가 PDF·글꼴마다 들쭉날쭉할 수 있어, 줄 판단은 기준선(글자 아래쪽), 간격은 페이지 글자 크기 중간값으로 */
+function medH(ws){const hs=ws.map(w=>w[3]-w[1]).filter(h=>h>0).sort((a,b)=>a-b);return hs.length?hs[Math.floor(hs.length/2)]:0.01;}
+async function scanLabels(d,i){const k=d.id+':'+i;if(labelCache[k])return labelCache[k];const ws=await pageWords(d,i);const Hm=medH(ws);
+  const it=ws.map(w=>({w,b:w[3]})).sort((a,c)=>a.w[0]-c.w[0]);
+  /* 바로 옆(간격 2.2글자 이내)에 있고 기준선이 비슷한 글자끼리 이어 붙임 */
+  const used=new Set(),chains=[];
+  for(const a of it){if(used.has(a))continue;const ch=[a];used.add(a);let last=a;
+    for(;;){let nx=null,bd=1e9;for(const c of it){if(used.has(c))continue;const gap=c.w[0]-last.w[2];if(gap<-Hm*0.5||gap>Hm*2.2||Math.abs(c.b-last.b)>Hm*0.6)continue;if(gap<bd){bd=gap;nx=c;}}
+      if(!nx)break;ch.push(nx);used.add(nx);last=nx;}
+    chains.push(ch);}
   const out=[];
-  for(const L of lines){L.ws.sort((a,b)=>a.w[0]-b.w[0]);const cl=[];let cur=[];
-    for(const a of L.ws){if(cur.length&&a.w[0]-cur[cur.length-1].w[2]>L.h*2.2){cl.push(cur);cur=[];}cur.push(a);}if(cur.length)cl.push(cur);
-    cl.forEach((c,ci)=>{let num=null;const names=[],sizes=[];
-      for(const a of c){const t=a.w[4];const n=numOf(t);if(n!==null&&num===null){num=n;continue;}if(isName(t)&&!NAME_BL.test(t))names.push(t);else if(isSize(t))sizes.push(t);}
-      if(!names.length)return;let cc=c;
-      if(num===null&&ci>0){const pc=cl[ci-1],last=pc[pc.length-1];if(c[0].w[0]-last.w[2]<L.h*8){const n=numOf(last.w[4]);if(n!==null){num=n;cc=[last,...c];}}}
-      if(num===null||+num>999)return;
-      const x0=Math.min(...cc.map(a=>a.w[0])),y0=Math.min(...cc.map(a=>a.w[1])),x1=Math.max(...cc.map(a=>a.w[2])),y1=Math.max(...cc.map(a=>a.w[3]));
-      let bx1=x1,by1=y1;
-      for(const a of it){if(a.w[1]>=y1-L.h*0.3&&a.w[1]<y1+L.h*1.6&&a.w[2]>x0-L.h&&a.w[0]<x1+L.h&&isSize(a.w[4])){sizes.push(a.w[4]);bx1=Math.max(bx1,a.w[2]);by1=Math.max(by1,a.w[3]);}}
-      out.push({num,name:names.join(' '),size:sizes.join(' '),box:[x0,y0,bx1,by1]});});}
+  for(const c of chains){let num=null;const names=[],sizes=[];
+    for(const a of c){const t=a.w[4];const n=numOf(t);if(n!==null&&num===null){num=n;continue;}if(isName(t)&&!NAME_BL.test(t))names.push(t);else if(isSize(t))sizes.push(t);}
+    if(!names.length)continue;let cc=c;const b0=c[0].b;
+    if(num===null){let best=null,bd=1e9;for(const a of it){const gap=c[0].w[0]-a.w[2];if(gap<-Hm*0.3||gap>Hm*8||Math.abs(a.b-b0)>Hm*0.6||numOf(a.w[4])===null)continue;if(gap<bd){bd=gap;best=a;}}
+      if(best){num=numOf(best.w[4]);cc=[best,...c];}}
+    if(num===null||+num>999)continue;
+    const x0=Math.min(...cc.map(a=>a.w[0])),x1=Math.max(...cc.map(a=>a.w[2])),bl=Math.max(...cc.map(a=>a.b));let by=bl,bx1=x1;
+    for(const a of it){if(a.b>bl+Hm*0.3&&a.b<=bl+Hm*2.4&&a.w[2]>x0-Hm&&a.w[0]<x1+Hm&&isSize(a.w[4])){sizes.push(a.w[4]);bx1=Math.max(bx1,a.w[2]);by=Math.max(by,a.b);}}
+    out.push({num,name:names.join(' '),size:sizes.join(' '),box:[x0,bl-Hm*1.1,bx1,by+Hm*0.25]});}
+  out.sort((a,b)=>a.box[1]-b.box[1]||a.box[0]-b.box[0]);
   return labelCache[k]=out;}
 /* 펜으로 초록 상자(기존 손상)를 동그라미 쳤는지: 상자 중심이 동그라미 안에 있고 동그라미가 상자보다 너무 크지 않을 때 */
 async function labelInLoop(sp){if(!curD)return null;const p=curD.pages[curPage];const ls=await scanLabels(curD,curPage);if(!ls.length)return null;
