@@ -132,6 +132,14 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 .mtitle{max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-left:4px}
 .updbar{position:fixed;top:var(--hh);left:0;right:0;z-index:12;background:#027a48;color:#fff;padding:10px 14px;display:none;align-items:center;gap:10px;font-size:16px}
 .updbar.on{display:flex}.updbar .t{flex:1}
+.qmenu{position:fixed;z-index:30;background:#fff;border:2px solid var(--pri);border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:10px;max-width:min(560px,92vw);display:none}
+.qmenu.on{display:block}
+.qmenu .qh{font-weight:700;font-size:15px;color:var(--pri);margin-bottom:6px}
+.qmenu .qrow{display:flex;flex-wrap:wrap;gap:6px;padding:6px 0;border-top:1px solid #eef0f3}
+.qmenu .qrow:first-of-type{border-top:0}
+.qmenu .btn{padding:10px 14px;font-size:16px}
+.qmenu .btn.big{padding:14px 24px;font-size:19px}
+.qmenu .chip{padding:9px 13px}
 </style>
 </head>
 <body>
@@ -261,6 +269,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
   <div class="card">
     <div class="sw"><div>사진에 정보판 넣기<div class="muted">사진번호·손상번호·규모·날짜를 사진 하단에 표기</div></div><input type="checkbox" id="s-overlay"></div>
     <div class="sw" id="row-dl"><div>촬영 즉시 기기에도 저장<div class="muted">사진을 다운로드 폴더에 파일명 그대로 저장(백업용)</div></div><input type="checkbox" id="s-dl"></div>
+    <div class="sw"><div>손글씨 인식<div class="muted">펜으로 쓴 0.2/1.2, 0.3x0.2, 2ea 를 자동 입력 (처음 1번 인터넷 필요)</div></div><div class="row"><span id="inkInfo" class="muted">-</span><button class="btn" onclick="if(NATIVE&&Android.inkPrepare)Android.inkPrepare();else toast('앱에서만 사용')">다시 시도</button></div></div>
     <div class="sw"><div>펜으로만 그리기<div class="muted">켜면 펜=그리기, 손가락=이동·확대·페이지 넘김 (자동: 펜을 한 번 쓰면 켜짐)</div></div><select id="s-pen"><option value="auto">자동</option><option value="on">켜기</option><option value="off">끄기</option></select></div>
     <div class="sw" id="row-cam"><div>기본 촬영 방식<div class="muted">앱 카메라: 셔터 한 번에 저장·연속 촬영 / 기본 카메라: 삼성 카메라 기능 사용</div></div><select id="s-cam"><option value="app">앱 카메라</option><option value="sys">기본 카메라</option></select></div>
     <div class="sw"><div>세부 입력란 표시<div class="muted">끄면 구분·손상번호만 보고 바로 촬영</div></div><input type="checkbox" id="s-detail"></div>
@@ -387,6 +396,9 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
   </div>
 </div>
 
+<!-- 빠른 메뉴 -->
+<div class="qmenu" id="qmenu"><div class="qh" id="qm-h"></div><div id="qm-b"></div></div>
+
 <!-- 숫자패드 -->
 <div class="kpad" id="kpad">
   <div class="kh"><span id="kp-lbl"></span><b id="kp-val"></b></div>
@@ -421,7 +433,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.4.0';
+const VERSION = '1.5.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -501,7 +513,7 @@ function show(v){view=v;renderHeader();document.querySelectorAll('.view').forEac
   $('#shutter').style.display=(v==='shot'&&curSess())?'':'none';
   $('#shutter2').classList.toggle('hide',!(NATIVE&&v==='shot'&&curSess()));
   if(v!=='shot') $('#after').classList.remove('on');
-  if(v!=='map') closeMarkSheet(true);
+  if(v!=='map'){closeMarkSheet(true);hideQMenu();flushInk();}
   kpClose();
   if(v==='map') renderMap();
   if(v==='list') renderList(); if(v==='sess') renderSess(); if(v==='set') renderSet(); if(v==='shot') renderShot();}
@@ -883,10 +895,10 @@ async function deleteDrawing(d){const ms=await byIndex('marks','did',d.id);
 async function openDrawing(id){const d=await dbGet('drawings',id);if(!d)return;await loadFolders();curDid=id;curD=d;
   const pref=LS.get('page.'+id,0);curPage=pref<d.pages.length?pref:0;selMark=null;mv.page=null;await sessForDrawing(d);
   marks=await byIndex('marks','did',id);LS.set('map.open',id);renderMap();}
-function closeDrawing(){closeMarkSheet(true);curDid=null;curD=null;LS.set('map.open',null);renderMap();}
+function closeDrawing(){flushInk();hideQMenu();closeMarkSheet(true);curDid=null;curD=null;LS.set('map.open',null);renderMap();}
 async function pageSrc(d,i){const p=d.pages[i];if(p.file)return 'https://appassets.androidplatform.net/drawings/'+p.file;
   const k=d.id+':'+i;if(!pageUrls[k]){const b=await dbGet('photos','dpg_'+d.id+'_'+i);pageUrls[k]=b?URL.createObjectURL(b):'';}return pageUrls[k];}
-async function renderMap(keepView){const d=curD;$('#v-map').classList.toggle('viewing',!!d);
+async function renderMap(keepView){const d=curD;$('#v-map').classList.toggle('viewing',!!d);$('#mapStage').classList.toggle('hide',!d);$('#mapEmpty').classList.add('hide');
   if(!d){renderBrowse();return;}
   document.querySelectorAll('#toolGrp .tbtn').forEach(b=>b.classList.toggle('on',b.dataset.t===tool));
   if(curPage>=d.pages.length)curPage=0;
@@ -900,26 +912,33 @@ async function renderMap(keepView){const d=curD;$('#v-map').classList.toggle('vi
 function fitView(){const d=curDrawing();if(!d)return;const p=d.pages[curPage];const W=$('#mapWrap').clientWidth,H=$('#mapWrap').clientHeight;if(!W||!H)return;
   const s=Math.min(W/p.w,H/p.h)*0.98;Object.assign(mv,{s,fit:s,tx:(W-p.w*s)/2,ty:(H-p.h*s)/2});applyView();}
 function applyView(){$('#mapStage').style.transform=`translate(${mv.tx}px,${mv.ty}px) scale(${mv.s})`;$('#mapSvg').style.setProperty('--fs',(16/mv.s).toFixed(3));}
-function goPage(d){const dr=curDrawing();if(!dr)return;const n=clamp(curPage+d,0,dr.pages.length-1);if(n===curPage){toast(d>0?'마지막 페이지입니다':'첫 페이지입니다',1200);return;}
+function goPage(d){const dr=curDrawing();if(!dr)return;flushInk();hideQMenu();const n=clamp(curPage+d,0,dr.pages.length-1);if(n===curPage){toast(d>0?'마지막 페이지입니다':'첫 페이지입니다',1200);return;}
   curPage=n;selMark=null;closeMarkSheet(true);const st=$('#mapStage');st.style.opacity='0.2';renderMap().then(()=>setTimeout(()=>st.style.opacity='',60));toast(`${n+1} / ${dr.pages.length} 페이지`,900);}
 document.querySelectorAll('#toolGrp .tbtn').forEach(b=>b.onclick=()=>{tool=b.dataset.t;document.querySelectorAll('#toolGrp .tbtn').forEach(x=>x.classList.toggle('on',x===b));});
 window.addEventListener('resize',()=>{if(view==='map'&&curDrawing())fitView();});
 
 function nosLabel(nos){nos=[...new Set(nos||[])].sort((a,b)=>a-b);const out=[];for(let i=0;i<nos.length;){let j=i;while(j+1<nos.length&&nos[j+1]===nos[j]+1)j++;
   out.push(j>i+1?`${pad(nos[i])}~${pad(nos[j])}`:(j===i+1?`${pad(nos[i])},${pad(nos[j])}`:pad(nos[i])));i=j+1;}return out.join(',');}
-function markLabel(m){const t=(m.type==='금회'||m.type==='기존')?'':m.type+' ';return `${m.dmg?'#'+m.dmg+' ':''}${t}${nosLabel(m.photoNos)}`.trim();}
+function markLabel(m){if(m.group)return `묶음${m.n?' '+m.n+'ea':''}`;const t=(m.type==='금회'||m.type==='기존')?'':m.type+' ';const c=m.shape==='area'&&m.content?m.content+' ':'';
+  return `${m.dmg?'#'+m.dmg+' ':''}${t}${c}${nosLabel(m.photoNos)}`.trim();}
 function drawMarks(){const d=curDrawing();if(!d)return;const p=d.pages[curPage];const W=p.w,H=p.h,sz=Math.max(10,W/220);
   let h='<defs>'+Object.entries(MK_COLOR).map(([t,c])=>`<pattern id="ht-${MK_KEY[t]}" patternUnits="userSpaceOnUse" width="${sz}" height="${sz}" patternTransform="rotate(45)"><rect width="${sz}" height="${sz}" fill="${c}" fill-opacity="0.10"/><line x1="0" y1="0" x2="0" y2="${sz}" stroke="${c}" stroke-width="${sz/5}" stroke-opacity="0.75"/></pattern>`).join('')+'</defs>';
   const one=(m,temp)=>{const c=MK_COLOR[m.type]||MK_COLOR.금회;const pts=m.pts.map(q=>[q[0]*W,q[1]*H]);const ps=pts.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ');
     const sel=selMark&&selMark.id===m.id;const sw=sel?6:3.5;const dash=m.type==='삭제'?' stroke-dasharray="7 5"':'';let x='';
     if(sel&&m.shape!=='point')x+=`<polyline points="${ps}${m.shape==='area'?' '+pts[0].join(','):''}" fill="none" stroke="#facc15" stroke-width="12" stroke-opacity=".6" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`;
-    if(m.shape==='line')x+=`<polyline points="${ps}" fill="none" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"${dash}/>`;
+    if(m.shape==='line'&&m.group)x+=`<polyline points="${ps}" fill="none" stroke="#475467" stroke-width="${sel?4:2}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-dasharray="2 4"/>`;
+    else if(m.shape==='line')x+=`<polyline points="${ps}" fill="none" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"${dash}/>`;
     else if(m.shape==='area')x+=`<polygon points="${ps}" fill="url(#ht-${MK_KEY[m.type]||'n'})" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linejoin="round"${dash}/>`;
     else x+=`<circle class="pt" cx="${pts[0][0]}" cy="${pts[0][1]}" fill="${c}" stroke="${sel?'#facc15':'#fff'}" stroke-width="${sel?5:2}" vector-effect="non-scaling-stroke"/>`;
     if(!temp){const lab=markLabel(m);if(lab){let lx,ly;if(m.shape==='area'){lx=Math.max(...pts.map(q=>q[0]));ly=Math.min(...pts.map(q=>q[1]));}else{[lx,ly]=pts[pts.length-1];}
       x+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" dx="0.5em" dy="-0.35em" fill="${c}">${esc(lab)}</text>`;}}
     return x;};
-  for(const m of marks)if(m.did===curDid&&m.page===curPage)h+=one(m);
+  const ink=(strokes,col,op)=>strokes.map(st=>`<polyline points="${st.map(q=>(q[0]*W).toFixed(1)+','+(q[1]*H).toFixed(1)).join(' ')}" fill="none" stroke="${col}" stroke-opacity="${op||1}" stroke-width="2.4" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
+  for(const m of marks){if(m.did!==curDid||m.page!==curPage)continue;
+    if(m.shape==='ink'){h+=ink(m.strokes,'#1e3a8a');const tm=marks.find(x=>x.id===m.markId);const ok=m.ok&&tm;
+      h+=`<text x="${(m.bb[2]*W).toFixed(1)}" y="${(m.bb[3]*H).toFixed(1)}" dx="0.3em" style="font-size:calc(var(--fs) * .8px)" fill="${ok?'#027a48':'#d92d20'}">${ok?'✓':'? '+esc(m.text||'')}</text>`;continue;}
+    h+=one(m);}
+  if(inkGroup&&inkGroup.did===curDid&&inkGroup.page===curPage)h+=ink(inkGroup.strokes.map(st=>st.map(q=>[q[0]/W,q[1]/H])),'#2563eb',.8);
   if(selMark&&selMark.isNew&&selMark.did===curDid&&selMark.page===curPage)h+=one(selMark);
   if(tmpPts&&tmpPts.length>1)h+=one({type:'금회',shape:tool==='area'?'area':'line',pts:tmpPts.map(q=>[q[0]/W,q[1]/H])},true);
   $('#mapSvg').innerHTML=h;}
@@ -929,59 +948,166 @@ const wrap=$('#mapWrap'),ptrs=new Map();let G=null;
 const wp=e=>{const r=wrap.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};};
 const toPage=q=>[(q.x-mv.tx)/mv.s,(q.y-mv.ty)/mv.s];
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
-let penDown=false;
+let penDown=false,inkGroup=null,inkTimer=null,lpTimer=null,inkPending={},inkState='none';
+const SMALL=72;   /* 화면상 이 크기(px, 약 11mm)보다 작은 획 = 글씨 */
 const penMode=()=>settings.penMode==='on'||(settings.penMode!=='off'&&settings.penSeen);
-wrap.addEventListener('pointerdown',e=>{if(!curDrawing())return;
-  const isPen=e.pointerType==='pen';
-  if(isPen&&!settings.penSeen){settings.penSeen=true;LS.set('settings',settings);if(settings.penMode!=='off')toast('펜이 감지되었습니다: 펜=그리기, 손가락=이동·확대·페이지 넘김',3500);}
-  if(!isPen&&penDown)return; /* 펜으로 그리는 중 손바닥 무시 */
-  try{wrap.setPointerCapture(e.pointerId)}catch(_){}ptrs.set(e.pointerId,wp(e));kpClose();
+function cancelLP(){clearTimeout(lpTimer);lpTimer=null;}
+function startLP(q){cancelLP();lpTimer=setTimeout(()=>{lpTimer=null;if(!G||G.k==='pinch')return;if(G.k==='draw'&&G.maxd>8)return;if(G.k==='pan'&&G.moved)return;
+  G=null;tmpPts=null;drawMarks();openMenuAt(q);},550);}
+wrap.addEventListener('pointerdown',e=>{if(!curD)return;const isPen=e.pointerType==='pen';
+  if(isPen&&!settings.penSeen){settings.penSeen=true;LS.set('settings',settings);if(settings.penMode!=='off'){tool='line';renderMap(true);toast('펜 감지: 펜=그리기·글씨, 손가락=이동·확대·페이지 넘김',3500);}}
+  if(!isPen&&penDown)return; /* 펜 사용 중 손바닥 무시 */
+  try{wrap.setPointerCapture(e.pointerId)}catch(_){}ptrs.set(e.pointerId,wp(e));kpClose();hideQMenu();
   if(isPen){penDown=true;ptrs.clear();ptrs.set(e.pointerId,wp(e));}
-  if(ptrs.size===2){const [a,b]=[...ptrs.values()];G={k:'pinch',d0:Math.max(dist(a,b),1),s0:mv.s,m0:mid(a,b),t0:{x:mv.tx,y:mv.ty}};tmpPts=null;drawMarks();return;}
-  if(ptrs.size>2)return;const q=wp(e);
-  const canDraw=isPen||!penMode();
-  if(canDraw&&(tool==='line'||tool==='area')&&e.button!==1)G={k:'draw',pts:[toPage(q)],last:q,start:q,maxd:0,pen:isPen};
-  else G={k:'pan',start:q,t0:{x:mv.tx,y:mv.ty},moved:false,t:Date.now(),pen:isPen,canPoint:canDraw};});
+  if(ptrs.size===2){cancelLP();const [a,b]=[...ptrs.values()];G={k:'pinch',d0:Math.max(dist(a,b),1),s0:mv.s,m0:mid(a,b),t0:{x:mv.tx,y:mv.ty}};tmpPts=null;drawMarks();return;}
+  if(ptrs.size>2)return;const q=wp(e);const canDraw=isPen||!penMode();
+  if(canDraw&&tool!=='pan'&&tool!=='point'&&e.button!==1)G={k:'draw',pts:[toPage(q)],spts:[[q.x,q.y,Date.now()]],last:q,start:q,maxd:0,pen:isPen};
+  else G={k:'pan',start:q,t0:{x:mv.tx,y:mv.ty},moved:false,t:Date.now(),pen:isPen,canPoint:canDraw};
+  startLP(q);});
 wrap.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,wp(e));if(!G)return;
   if(G.k==='pinch'&&ptrs.size>=2){const [a,b]=[...ptrs.values()];const ns=clamp(G.s0*dist(a,b)/G.d0,mv.fit*0.5,mv.fit*25);const m=mid(a,b);
     const px=(G.m0.x-G.t0.x)/G.s0,py=(G.m0.y-G.t0.y)/G.s0;mv.s=ns;mv.tx=m.x-px*ns;mv.ty=m.y-py*ns;applyView();}
-  else if(G.k==='pan'){const q=wp(e),dx=q.x-G.start.x,dy=q.y-G.start.y;if(Math.hypot(dx,dy)>8)G.moved=true;if(G.moved){mv.tx=G.t0.x+dx;mv.ty=G.t0.y+dy;applyView();}}
-  else if(G.k==='draw'){const q=wp(e);G.maxd=Math.max(G.maxd,dist(q,G.start));if(dist(q,G.last)>=3){G.pts.push(toPage(q));G.last=q;tmpPts=G.pts;drawMarks();}}});
-function endPtr(e){if(e.pointerType==='pen')penDown=false;if(!ptrs.has(e.pointerId))return;const q=ptrs.get(e.pointerId);ptrs.delete(e.pointerId);if(!G)return;
+  else if(G.k==='pan'){const q=wp(e),dx=q.x-G.start.x,dy=q.y-G.start.y;if(Math.hypot(dx,dy)>8){G.moved=true;cancelLP();}if(G.moved){mv.tx=G.t0.x+dx;mv.ty=G.t0.y+dy;applyView();}}
+  else if(G.k==='draw'){const q=wp(e);G.maxd=Math.max(G.maxd,dist(q,G.start));if(G.maxd>8)cancelLP();
+    if(dist(q,G.last)>=2){G.pts.push(toPage(q));G.spts.push([q.x,q.y,Date.now()]);G.last=q;tmpPts=G.pts;drawMarks();}}});
+function sbb(sp){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const p of sp){x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);}return {x0,y0,x1,y1,w:x1-x0,h:y1-y0};}
+const pg2s=p=>({x:p[0]*mv.s+mv.tx,y:p[1]*mv.s+mv.ty});
+function nearInk(bb){if(!inkGroup||inkGroup.did!==curDid||inkGroup.page!==curPage)return false;const a=pg2s([inkGroup.x0,inkGroup.y0]),b=pg2s([inkGroup.x1,inkGroup.y1]);
+  const gap=Math.max(a.x-bb.x1,bb.x0-b.x,a.y-bb.y1,bb.y0-b.y);return gap<SMALL*1.2;}
+function endPtr(e){if(e.pointerType==='pen')penDown=false;if(!ptrs.has(e.pointerId))return;const q=ptrs.get(e.pointerId);ptrs.delete(e.pointerId);if(!G){cancelLP();return;}
   if(G.k==='pinch'){if(ptrs.size===1){const r=[...ptrs.values()][0];G={k:'pan',start:r,t0:{x:mv.tx,y:mv.ty},moved:true};}else G=null;return;}
-  if(ptrs.size>0)return;const g=G;G=null;tmpPts=null;
-  if(g.k==='pan'){if(!g.moved){onMapTap(g.start,g.canPoint);return;}
-    /* 좌우로 밀기 → 페이지 넘김 (전체보기 상태이거나 페이지 끝이 보일 때) */
+  if(ptrs.size>0)return;cancelLP();const g=G;G=null;tmpPts=null;
+  if(g.k==='pan'){if(!g.moved){onMapTap(g.start,g.canPoint,g.pen);return;}
     const dx=q.x-g.start.x,dy=q.y-g.start.y,d=curD,p=d&&d.pages[curPage];
     if(p&&!g.pen&&Math.abs(dx)>90&&Math.abs(dx)>Math.abs(dy)*1.8&&Date.now()-g.t<700){const W=wrap.clientWidth,pw=p.w*mv.s;
       const atFit=mv.s<=mv.fit*1.08,rightVis=g.t0.x+pw<=W+4,leftVis=g.t0.x>=-4;
       if(dx<0&&(atFit||rightVis)&&curPage<d.pages.length-1){goPage(1);return;}
       if(dx>0&&(atFit||leftVis)&&curPage>0){goPage(-1);return;}}
     return;}
-  if(g.k==='draw'){if(g.maxd<12||g.pts.length<3){drawMarks();onMapTap(g.start);return;}
+  if(g.k==='draw'){const bb=sbb(g.spts),size=Math.max(bb.w,bb.h);
+    if(g.maxd<6){ /* 점 찍기: 글씨 중이면 소수점 */
+      if(nearInk(bb)){addInkStroke(g);return;}drawMarks();onMapTap(g.start,true,g.pen);return;}
+    if(tool!=='area'&&(size<SMALL||(nearInk(bb)&&size<SMALL*1.6))){addInkStroke(g);return;}
+    flushInk();
     let pts=g.pts;if(pts.length>400){const st=Math.ceil(pts.length/400);pts=pts.filter((_,i)=>i%st===0||i===pts.length-1);}
-    if(tool==='area'&&pts.length<3){drawMarks();return;}newMark(tool,pts);}}
+    let len=0;for(let i=1;i<g.spts.length;i++)len+=Math.hypot(g.spts[i][0]-g.spts[i-1][0],g.spts[i][1]-g.spts[i-1][1]);
+    const sp0=g.spts[0],sp1=g.spts[g.spts.length-1];const closed=Math.hypot(sp0[0]-sp1[0],sp0[1]-sp1[1])<Math.max(28,size*0.18)&&len>size*2.2;
+    newMark(tool==='area'||closed?'area':'line',pts);}}
 wrap.addEventListener('pointerup',endPtr);
-wrap.addEventListener('pointercancel',e=>{if(e.pointerType==='pen')penDown=false;ptrs.delete(e.pointerId);if(!ptrs.size){G=null;tmpPts=null;drawMarks();}});
+wrap.addEventListener('pointercancel',e=>{if(e.pointerType==='pen')penDown=false;cancelLP();ptrs.delete(e.pointerId);if(!ptrs.size){G=null;tmpPts=null;drawMarks();}});
 wrap.addEventListener('wheel',e=>{if(!curDrawing())return;e.preventDefault();const q=wp(e),f=e.deltaY<0?1.15:1/1.15;const ns=clamp(mv.s*f,mv.fit*0.5,mv.fit*25);
   const px=(q.x-mv.tx)/mv.s,py=(q.y-mv.ty)/mv.s;mv.s=ns;mv.tx=q.x-px*ns;mv.ty=q.y-py*ns;applyView();},{passive:false});
+wrap.addEventListener('contextmenu',e=>e.preventDefault());
 
 function segDist(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy;let t=l?((p.x-a.x)*dx+(p.y-a.y)*dy)/l:0;t=clamp(t,0,1);return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy);}
 function inPoly(p,vs){let ins=false;for(let i=0,j=vs.length-1;i<vs.length;j=i++){const a=vs[i],b=vs[j];if(((a.y>p.y)!==(b.y>p.y))&&(p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x))ins=!ins;}return ins;}
-function hitMark(q){const d=curDrawing(),p=d.pages[curPage];let best=null,bd=26;
-  for(const m of marks){if(m.did!==curDid||m.page!==curPage)continue;const sp=m.pts.map(t=>({x:t[0]*p.w*mv.s+mv.tx,y:t[1]*p.h*mv.s+mv.ty}));let dd=Infinity;
-    if(sp.length===1)dd=dist(sp[0],q);else{const seg=m.shape==='area'?[...sp,sp[0]]:sp;for(let i=1;i<seg.length;i++)dd=Math.min(dd,segDist(q,seg[i-1],seg[i]));if(m.shape==='area'&&inPoly(q,sp))dd=Math.min(dd,10);}
-    if(dd<bd){bd=dd;best=m;}}return best;}
-function onMapTap(q,canPoint){const m=hitMark(q);if(m){openMarkSheet(m);return;}
-  if(tool==='point'&&canPoint!==false){newMark('point',[toPage(q)]);return;}
-  if(selMark){closeMarkSheet();}}
+function markDist(m,q){const p=curD.pages[curPage];const sp=m.pts.map(t=>({x:t[0]*p.w*mv.s+mv.tx,y:t[1]*p.h*mv.s+mv.ty}));let dd=Infinity;
+  if(sp.length===1)dd=dist(sp[0],q);else{const seg=m.shape==='area'?[...sp,sp[0]]:sp;for(let i=1;i<seg.length;i++)dd=Math.min(dd,segDist(q,seg[i-1],seg[i]));if(m.shape==='area'&&inPoly(q,sp))dd=Math.min(dd,10);}return dd;}
+function hitMark(q){let best=null,bd=26;for(const m of marks){if(m.did!==curDid||m.page!==curPage||m.shape==='ink')continue;const dd=markDist(m,q);if(dd<bd){bd=dd;best=m;}}return best;}
+function hitInk(q){const p=curD.pages[curPage];for(const k of marks){if(k.shape!=='ink'||k.did!==curDid||k.page!==curPage)continue;
+  const a=pg2s([k.bb[0]*p.w,k.bb[1]*p.h]),b=pg2s([k.bb[2]*p.w,k.bb[3]*p.h]);if(q.x>=a.x-12&&q.x<=b.x+40&&q.y>=a.y-12&&q.y<=b.y+12)return k;}return null;}
+function onMapTap(q,canPoint,pen){const m=hitMark(q);if(m){openMarkMenu(m,q);return;}const k=hitInk(q);if(k){openInkMenu(k,q);return;}
+  if(tool==='point'&&canPoint!==false){newMark('point',[toPage(q)],q);return;}}
 
+/* ---------- 손글씨 ---------- */
+function addInkStroke(g){const p=curD.pages[curPage];
+  if(!inkGroup)inkGroup={did:curDid,page:curPage,strokes:[],spts:[],x0:1e9,y0:1e9,x1:-1e9,y1:-1e9};
+  inkGroup.strokes.push(g.pts);inkGroup.spts.push(g.spts);for(const q of g.pts){inkGroup.x0=Math.min(inkGroup.x0,q[0]);inkGroup.y0=Math.min(inkGroup.y0,q[1]);inkGroup.x1=Math.max(inkGroup.x1,q[0]);inkGroup.y1=Math.max(inkGroup.y1,q[1]);}
+  clearTimeout(inkTimer);inkTimer=setTimeout(flushInk,1100);drawMarks();}
+function inkTarget(gr){const p=curD.pages[curPage];const c=pg2s([(gr.x0+gr.x1)/2,(gr.y0+gr.y1)/2]);const lnk=new Set(marks.filter(k=>k.shape==='ink'&&k.markId).map(k=>k.markId));
+  let best=null,bs=230;for(const m of marks){if(m.shape==='ink'||m.did!==gr.did||m.page!==gr.page)continue;
+    let sc=markDist(m,c);const age=(Date.now()-(m.ts||0))/1000;if(age<90)sc-=40;if(lnk.has(m.id))sc+=90;if(sc<bs){bs=sc;best=m;}}return best;}
+async function flushInk(){clearTimeout(inkTimer);if(!inkGroup)return;const gr=inkGroup;inkGroup=null;if(!curD||gr.did!==curDid){return;}
+  const p=curD.pages[gr.page],s=curSess();const tgt=inkTarget(gr);
+  const k={id:uid(),sid:s.id,did:gr.did,page:gr.page,shape:'ink',pts:[[0,0]],strokes:gr.strokes.map(st=>st.map(q=>[+(q[0]/p.w).toFixed(5),+(q[1]/p.h).toFixed(5)])),
+    bb:[gr.x0/p.w,gr.y0/p.h,gr.x1/p.w,gr.y1/p.h],text:'',ok:false,markId:tgt?tgt.id:'',created:nowStr(),ts:Date.now()};
+  marks.push(k);await dbPut('marks',k);drawMarks();
+  const t0=gr.spts[0][0][2],x0=Math.min(...gr.spts.flat().map(a=>a[0])),y0=Math.min(...gr.spts.flat().map(a=>a[1]));
+  const json=JSON.stringify(gr.spts.map(st=>st.map(a=>[+(a[0]-x0).toFixed(1),+(a[1]-y0).toFixed(1),a[2]-t0])));
+  if(NATIVE&&Android.inkRecognize&&inkState==='ready'){inkPending[k.id]=k;Android.inkRecognize(k.id,json);}
+  else if(window.__mockInk){inkPending[k.id]=k;setTimeout(()=>window.onInkResult(k.id,window.__mockInk(gr)),50);}
+  else{k.text='';await dbPut('marks',k);drawMarks();if(NATIVE&&inkState!=='ready')toast('손글씨 인식 준비 안 됨 – 글씨를 눌러 직접 입력하세요',3000);}}
+function fixW(v){return /^0\d$/.test(v)?'0.'+v[1]:v;}
+function parseInk(raw,shape){let t=String(raw||'').trim().replace(/\s+/g,'').replace(/[×xX*]/g,'x').replace(/,/g,'.').replace(/[lI|]/g,'1').replace(/[oO]/g,'0');
+  let n='',m=t.match(/(\d+)(ea|개소|개)$/i);if(m){n=m[1];t=t.slice(0,m.index);}
+  const N='(\\d*\\.?\\d+)';
+  if((m=t.match(new RegExp('^'+N+'/'+N+'$'))))return {w:fixW(m[1]),l:m[2],n};
+  if((m=t.match(new RegExp('^'+N+'x'+N+'$'))))return {w:m[1],l:m[2],n};
+  if(!t&&n)return {n};
+  if(shape==='point'&&/^\d{1,4}$/.test(t))return {dmg:t};
+  return null;}
+function inkText(p){if(!p)return '';if(p.dmg)return '#'+p.dmg;return [p.w&&p.l?(p.w+(p.l?'/'+p.l:'')):'',p.n?p.n+'ea':''].filter(Boolean).join(' ');}
+window.onInkResult=async(id,cands)=>{const k=inkPending[id];delete inkPending[id];if(!k)return;const m=marks.find(x=>x.id===k.markId);
+  let p=null,raw=(cands&&cands[0])||'';for(const c of (cands||[])){p=parseInk(c,m&&m.shape);if(p){raw=c;break;}}
+  k.text=raw;k.ok=!!p;await dbPut('marks',k);
+  if(p&&m){applyParsed(m,p);await saveMarkObj(m);}
+  drawMarks();if(!p)toast(`글씨 인식: "${raw||'?'}" – 형식 확인 필요 (글씨를 눌러 수정)`,3000);};
+function applyParsed(m,p){if(p.w!==undefined&&m.shape!=='area'&&!m.group){m.w=p.w;}if(p.w!==undefined&&m.shape==='area'){m.w=p.w;}
+  if(p.l)m.l=p.l;if(p.n)m.n=p.n;if(p.dmg){m.dmg=p.dmg;if(m.type==='금회')m.type='기존';}
+  if(m.shape==='line'&&!m.group&&p.w&&!m.contentManual)m.content=parseFloat(p.w)>=0.3?'균열(0.3㎜이상)':'균열(0.3㎜미만)';}
+window.onInkStatus=st=>{inkState=st.startsWith('error')?'error':st;const el=$('#inkInfo');if(el)el.textContent=st==='ready'?'준비됨':st==='downloading'?'인식 모델 내려받는 중…':'실패 (인터넷 연결 후 다시 시도)';
+  if(st==='ready'&&window.__inkWasDl)toast('손글씨 인식 준비 완료',2000);if(st==='downloading')window.__inkWasDl=true;};
+
+/* ---------- 빠른 메뉴 ---------- */
+function hideQMenu(){$('#qmenu').classList.remove('on');}
+function placeQMenu(q){const r=wrap.getBoundingClientRect(),el=$('#qmenu');el.classList.add('on');const w=el.offsetWidth,h=el.offsetHeight;
+  let x=r.left+q.x+18,y=r.top+q.y-20;if(x+w>innerWidth-8)x=r.left+q.x-w-18;if(x<8)x=8;if(y+h>innerHeight-70)y=innerHeight-70-h;if(y<60)y=60;el.style.left=x+'px';el.style.top=y+'px';}
+function qbtn(lbl,cls,fn){const b=document.createElement('button');b.className='btn '+(cls||'');b.innerHTML=lbl;b.onclick=e=>{e.stopPropagation();fn();};return b;}
+function qrow(){const d=document.createElement('div');d.className='qrow';return d;}
+const AREA_DMG=()=>preset().dmg.filter(x=>!/균열/.test(x));
+const LINE_DMG=()=>preset().dmg.filter(x=>/균열/.test(x));
+function openMenuAt(q){const m=hitMark(q);if(m)return openMarkMenu(m,q);const k=hitInk(q);if(k)return openInkMenu(k,q);
+  const b=$('#qm-b');b.innerHTML='';$('#qm-h').textContent='여기에';const r=qrow();
+  r.appendChild(qbtn('● 기존 손상 점','',()=>{hideQMenu();newMark('point',[toPage(q)],q,'기존');}));
+  r.appendChild(qbtn('📷 일반 사진','',()=>{hideQMenu();shoot({type:'일반',dname:curD.name,page:curPage+1});}));
+  b.appendChild(r);placeQMenu(q);}
+async function openMarkMenu(m,q){selMark=m;drawMarks();const b=$('#qm-b');b.innerHTML='';
+  $('#qm-h').textContent=`${m.group?'묶음선':(m.dmg?'#'+m.dmg+' ':'')+(m.content||SHAPE_NAME[m.shape])} ${m.w&&m.l?m.w+(m.shape==='area'?'x':'/')+m.l:''} ${m.n?m.n+'ea':''}`.trim()+(m.photoNos&&m.photoNos.length?` · 사진 ${nosLabel(m.photoNos)}`:'');
+  let r=qrow();
+  r.appendChild(qbtn('📷 촬영','acc big',()=>{hideQMenu();shootMarkObj(m,false);}));
+  if(NATIVE)r.appendChild(qbtn(settings.camMode==='app'?'기본 카메라':'앱 카메라','',()=>{hideQMenu();shootMarkObj(m,true);}));
+  b.appendChild(r);
+  if(!m.group){r=qrow();const list=m.shape==='line'?LINE_DMG():m.shape==='area'?AREA_DMG():preset().dmg;
+    list.forEach(c=>r.appendChild(qbtn(esc(c),'chip'+(m.content===c?' on':''),async()=>{m.content=c;m.contentManual=true;await saveMarkObj(m);openMarkMenu(m,q);})));b.appendChild(r);}
+  r=qrow();TYPES.filter(t=>t!=='일반').forEach(t=>r.appendChild(qbtn(t,'chip'+(m.type===t?' on':''),async()=>{m.type=t;if(t==='금회'&&!m.dmg)m.dmg=String(curSess().nextDmg);await saveMarkObj(m);openMarkMenu(m,q);})));b.appendChild(r);
+  r=qrow();
+  r.appendChild(qbtn('상세 입력','',()=>{hideQMenu();openMarkSheet(m);}));
+  if(m.shape==='line')r.appendChild(qbtn(m.group?'균열로 바꾸기':'묶음선으로','',async()=>{const ss=curSess();m.group=!m.group;
+    if(m.group){if(m.type==='금회'&&parseInt(m.dmg,10)===ss.nextDmg-1){ss.nextDmg--;await dbPut('sessions',ss);}m.dmg='';}else if(m.type==='금회'&&!m.dmg)m.dmg=String(ss.nextDmg);
+    await saveMarkObj(m);openMarkMenu(m,q);}));
+  if(m.shape!=='point')r.appendChild(qbtn(m.shape==='line'?'영역으로':'선으로','',async()=>{m.shape=m.shape==='line'?'area':'line';await saveMarkObj(m);openMarkMenu(m,q);}));
+  r.appendChild(qbtn('삭제','bad',async()=>{hideQMenu();if(!await confirmBox('이 손상 표시를 삭제할까요?\n(찍은 사진·기록은 남습니다)','삭제'))return;await deleteMark(m);}));
+  b.appendChild(r);placeQMenu(q);}
+function openInkMenu(k,q){const b=$('#qm-b');b.innerHTML='';const m=marks.find(x=>x.id===k.markId);
+  $('#qm-h').textContent=`글씨: ${k.text||'(인식 안 됨)'}${m?' → '+(m.dmg?'#'+m.dmg:SHAPE_NAME[m.shape]):' (연결된 손상 없음)'}`;const r=qrow();
+  r.appendChild(qbtn('글자 수정','pri',async()=>{hideQMenu();const v=await inputBox('글씨 내용 (예: 0.2/1.2, 0.3x0.2, 2ea)',k.text);if(v===null)return;
+    k.text=v;const p=parseInk(v,m&&m.shape);k.ok=!!p;await dbPut('marks',k);if(p&&m){applyParsed(m,p);await saveMarkObj(m);}else if(!p)toast('형식을 인식하지 못했습니다',2500);drawMarks();}));
+  r.appendChild(qbtn('선으로 바꾸기','',async()=>{hideQMenu();const p=curD.pages[k.page];const st=k.strokes.reduce((a,b)=>b.length>a.length?b:a,[]);
+    await dbDel('marks',k.id);marks=marks.filter(x=>x.id!==k.id);newMark('line',st.map(q=>[q[0]*p.w,q[1]*p.h]));}));
+  r.appendChild(qbtn('삭제','bad',async()=>{hideQMenu();await dbDel('marks',k.id);marks=marks.filter(x=>x.id!==k.id);drawMarks();}));
+  b.appendChild(r);placeQMenu(q);}
+document.addEventListener('pointerdown',e=>{if($('#qmenu').classList.contains('on')&&!(e.target.closest&&e.target.closest('#qmenu,#mapWrap'))){hideQMenu();}},true);
 /* 손상 표시 */
-function newMark(shape,pts){const s=curSess(),d=curDrawing(),p=d.pages[curPage];const last=LS.get('mk.last.'+s.id,{});
-  const m={id:uid(),sid:s.id,did:d.id,page:curPage,shape,pts:pts.map(q=>[+(clamp(q[0],0,p.w)/p.w).toFixed(5),+(clamp(q[1],0,p.h)/p.h).toFixed(5)]),
-    type:last.type||'금회',dmg:'',mem:last.mem||'',loc:last.loc||'',content:last['c_'+shape]||'',w:'',l:'',b:'',n:'',note:'',photoNos:[],created:nowStr(),isNew:true};
+async function newMark(shape,pts,q,type){const s=curSess(),d=curD,p=d.pages[curPage];const last=LS.get('mk.last.'+s.id,{});
+  const m={id:uid(),sid:s.id,did:d.id,page:curPage,shape,pts:pts.map(t=>[+(clamp(t[0],0,p.w)/p.w).toFixed(5),+(clamp(t[1],0,p.h)/p.h).toFixed(5)]),
+    type:type||last.type||'금회',dmg:'',mem:last.mem||'',loc:last.loc||'',content:shape==='line'?'균열':'',w:'',l:'',b:'',n:'',note:'',photoNos:[],created:nowStr(),ts:Date.now()};
   if(m.type==='금회')m.dmg=String(s.nextDmg);
-  openMarkSheet(m);}
+  await saveMarkObj(m);
+  if(q)openMarkMenu(m,q);else{selMark=null;drawMarks();}}
+async function saveMarkObj(m){const s=curSess();
+  if(m.type==='금회'){const n=parseInt(m.dmg,10);if(!isNaN(n)&&n>=s.nextDmg){s.nextDmg=n+1;await dbPut('sessions',s);}}
+  m.updated=nowStr();delete m.isNew;await dbPut('marks',m);const i=marks.findIndex(x=>x.id===m.id);if(i<0)marks.push(m);else marks[i]=m;
+  await syncRecs(m);drawMarks();return m;}
+async function syncRecs(m){const s=curSess();if(!s||m.shape==='ink')return;const rs=(await recsOf(s.id)).filter(r=>r.markId===m.id);if(!rs.length)return;
+  for(const r of rs){['dmg','mem','loc','content','w','l','b','n'].forEach(k=>r[k]=m[k]||'');await dbPut('records',r);}
+  if(NATIVE){try{await writeCsv(s);}catch(e){}}}
+async function deleteMark(m){const ks=marks.filter(k=>k.shape==='ink'&&k.markId===m.id);
+  await tx(['marks'],'readwrite',t=>{t.objectStore('marks').delete(m.id);ks.forEach(k=>t.objectStore('marks').delete(k.id));});
+  marks=marks.filter(x=>x.id!==m.id&&!ks.includes(x));selMark=null;drawMarks();toast('표시 삭제됨');}
+function shootMarkObj(m,alt){const d=curD;const mode=alt?(settings.camMode==='app'?'sys':'app'):settings.camMode;
+  shoot({type:m.type,dmg:m.dmg,mem:m.mem,loc:m.loc,content:m.content,w:m.w,l:m.l,b:m.b,n:m.n,note:m.note,markId:m.id,dname:d?d.name:'',page:m.page+1,shape:m.group?'묶음선':SHAPE_NAME[m.shape],
+    onDone:async recs=>{recs=recs.filter(Boolean);if(!recs.length)return;const cur=marks.find(x=>x.id===m.id)||m;cur.photoNos=[...(cur.photoNos||[]),...recs.map(r=>r.no)];
+      await dbPut('marks',cur);drawMarks();}},mode);}
 let mkEdit=null;
 function openMarkSheet(m){kpClose();mkEdit=JSON.parse(JSON.stringify(m));selMark=m;drawMarks();
   $('#mk-title').textContent=(m.isNew?'새 손상 · ':'손상 · ')+SHAPE_NAME[m.shape]+(m.dmg?` #${m.dmg}`:'');
@@ -1006,7 +1132,7 @@ async function saveMark(){const s=curSess(),e=mkEdit;if(!e)return null;
   ['dmg','loc','w','l','b','n','note'].forEach(k=>e[k]=$('#mk-'+k).value.trim());
   if(e.type==='금회'){const n=parseInt(e.dmg,10);if(!isNaN(n)&&n>=s.nextDmg){s.nextDmg=n+1;await dbPut('sessions',s);}}
   delete e.isNew;e.updated=nowStr();
-  await dbPut('marks',e);const i=marks.findIndex(x=>x.id===e.id);if(i<0)marks.push(e);else marks[i]=e;
+  e.contentManual=true;await dbPut('marks',e);const i=marks.findIndex(x=>x.id===e.id);if(i<0)marks.push(e);else marks[i]=e;await syncRecs(e);
   const last=LS.get('mk.last.'+s.id,{});if(e.type==='금회'||e.type==='기존')last.type=e.type;last.mem=e.mem;last.loc=e.loc;last['c_'+e.shape]=e.content;LS.set('mk.last.'+s.id,last);
   ['mem','loc','content'].forEach(k=>pushRecent(k,e[k]));
   selMark=e;mkEdit=JSON.parse(JSON.stringify(e));$('#mk-title').textContent='손상 · '+SHAPE_NAME[e.shape]+(e.dmg?` #${e.dmg}`:'');$('#mk-del').textContent='표시 삭제';
@@ -1018,10 +1144,10 @@ async function shootMark(alt){const m=await saveMark();if(!m)return;const d=curD
     onDone:async recs=>{recs=recs.filter(Boolean);if(!recs.length)return;const cur=await dbGet('marks',m.id)||m;cur.photoNos=[...(cur.photoNos||[]),...recs.map(r=>r.no)];
       await dbPut('marks',cur);const i=marks.findIndex(x=>x.id===cur.id);if(i>=0)marks[i]=cur;
       if(mkEdit&&mkEdit.id===cur.id){mkEdit.photoNos=cur.photoNos;selMark=cur;mkPhotos();}drawMarks();}},mode);}
-$('#mk-shoot').onclick=()=>shootMark(false);$('#mk-shoot2').onclick=()=>shootMark(true);
+$('#mk-shoot').onclick=async()=>{const m=await saveMark();if(m){closeMarkSheet(true);shootMarkObj(m,false);}};$('#mk-shoot2').onclick=async()=>{const m=await saveMark();if(m){closeMarkSheet(true);shootMarkObj(m,true);}};
 $('#mk-del').onclick=async()=>{const e=mkEdit;if(!e)return;if(!marks.find(x=>x.id===e.id)){closeMarkSheet();return;}
   if(!await confirmBox(`이 손상 표시를 삭제할까요?\n(이미 찍은 사진·기록은 그대로 남습니다)`,'삭제'))return;
-  await dbDel('marks',e.id);marks=marks.filter(x=>x.id!==e.id);closeMarkSheet();toast('표시 삭제됨');};
+  closeMarkSheet(true);await deleteMark(marks.find(x=>x.id===e.id)||e);};
 
 /* 망도 불러오기 */
 function addDrawing(){if(!curFolder){toast('폴더를 먼저 만들고 들어간 뒤 망도를 넣으세요');return;}
@@ -1070,6 +1196,7 @@ async function migrateDrawings(){const ds=await dbAll('drawings');let n=0;await 
   loadDraft();renderHeader();show('map');
   askInspector();
   if(NATIVE)setTimeout(()=>checkUpd(false),1500);
+  if(NATIVE&&Android.inkPrepare)setTimeout(()=>Android.inkPrepare(),800);
   if(!NATIVE&&'serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
 </script>
