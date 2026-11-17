@@ -277,7 +277,9 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
     <div class="muted" style="margin-top:8px">손상 사진은 [망도]에서 표시를 길게 누르거나 기존 손상 글자를 탭해 촬영하세요. 여기 촬영 버튼은 전경·일반 사진용입니다.</div>
   </div>
   <div class="row" style="margin-bottom:10px">
-    <select id="listScope"><option value="cur">열린 망도</option><option value="all">이 구조물 전체</option></select>
+    <select id="listSite" title="현장(용역)"></select>
+    <select id="listFac" title="시설물"></select>
+    <select id="listDwg" title="망도"></select>
     <select id="listFilter"><option value="">전체 구분</option></select>
     <span class="muted" id="listCount"></span>
     <span style="flex:1"></span>
@@ -482,7 +484,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.11.0';
+const VERSION = '1.12.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -636,7 +638,8 @@ function camInfo(c){const s=curSess();return [`${s.facility} · ${s.inspector}`,
 function shoot(ctx,mode){if(!curSess())return;kpClose();camCtx=ctx;mode=mode||settings.camMode;
   if(NATIVE&&mode==='app'&&Android.openCamera){Android.openCamera(JSON.stringify({startNo:curSess().nextPhoto,digits:settings.digits,info:camInfo(ctx)}));}
   else{$('#cam').value='';$('#cam').click();}}
-const formCtx=()=>Object.assign({type:'일반',note:($('#pNote').value||'').trim()},curD?{did:curD.id,dname:curD.name,page:curPage+1,dno:dnoOf(wordCache[curDid+':'+curPage]||[]),shape:'일반'}:{});
+const formCtx=()=>{const s=curSess(),k=curD?drawingKey(curD):null,here=curD&&s&&k.site===s.site&&k.fac===s.facility;
+  return Object.assign({type:'일반',note:($('#pNote').value||'').trim()},here?{did:curD.id,dname:curD.name,page:curPage+1,dno:dnoOf(wordCache[curDid+':'+curPage]||[]),shape:'일반'}:{});};
 $('#shutter').onclick=()=>shoot(formCtx());
 $('#shutter2').onclick=()=>shoot(formCtx(),settings.camMode==='app'?'sys':'app');
 $('#cam').onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;const ctx=camCtx||formCtx();
@@ -706,21 +709,41 @@ function nextDamage(){const s=curSess();const t=form.type;form=blankForm();form.
   saveDraft();$('#after').classList.remove('on');fillForm();window.scrollTo(0,0);}
 
 /* ---------- 기록 ---------- */
-async function renderList(){const s=curSess();const sel=$('#listFilter');
-  $('#pNext').textContent=s?pad(s.nextPhoto):'-';$('#pCtx').textContent=s?(curD?`${s.facility} · 망도: ${curD.name} ${curPage+1}페이지${(()=>{const n=dnoOf(wordCache[curDid+':'+curPage]||[]);return n?' (도면 '+n+')':'';})()}`:`${s.facility} · 망도 없음`):'망도를 먼저 여세요';
-  $('#shutter').style.display=view==='list'&&s?'':'none';
-  if(sel.options.length===1) TYPES.forEach(t=>sel.add(new Option(t,t)));
-  if(!s){$('#listBody').innerHTML='<div class="empty">아직 연 망도가 없습니다. [망도] 탭에서 구조물 망도를 여세요.</div>';$('#listCount').textContent='';return;}
+/* 사진 탭: 현장 › 시설물 › 망도 선택 */
+let listSel={sid:null,did:''};
+function drawingKey(d){const path=fPath(d.folderId);return {site:path.length?path[0].name:'미분류',fac:path.length>=2?path[path.length-1].name:d.name};}
+async function renderList(){await loadFolders();const sel=$('#listFilter');if(sel.options.length===1) TYPES.forEach(t=>sel.add(new Option(t,t)));
+  const ko=(a,b)=>String(a).localeCompare(String(b),'ko',{numeric:true});
+  if(!sessions.length){$('#listSite').innerHTML='';$('#listFac').innerHTML='';$('#listDwg').innerHTML='';$('#pNext').textContent='-';$('#pCtx').textContent='망도를 먼저 여세요';
+    $('#listBody').innerHTML='<div class="empty">아직 사진이 없습니다. [망도] 탭에서 구조물 망도를 여세요.</div>';$('#listCount').textContent='';$('#shutter').style.display='none';return;}
+  if(!sessions.find(x=>x.id===listSel.sid))listSel={sid:curId||sessions[0].id,did:curD&&curSess()&&curD?curD.id:''};
+  let s=sessions.find(x=>x.id===listSel.sid);
+  const sites=[...new Set(sessions.map(x=>x.site))].sort(ko);
+  $('#listSite').innerHTML=sites.map(x=>`<option>${esc(x)}</option>`).join('');$('#listSite').value=s.site;
+  const facs=sessions.filter(x=>x.site===s.site).sort((a,b)=>ko(a.facility,b.facility));const many=new Set(facs.map(x=>x.facility)).size<facs.length;
+  $('#listFac').innerHTML=facs.map(x=>`<option value="${x.id}">${esc(x.facility)}${many||x.inspector!==settings.inspector?' · '+esc(x.inspector):''}</option>`).join('');$('#listFac').value=s.id;
+  const dws=(await dbAll('drawings')).filter(d=>{const k=drawingKey(d);return k.site===s.site&&k.fac===s.facility;}).sort(byName);
+  $('#listDwg').innerHTML=`<option value="">전체 망도</option>`+dws.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('')+`<option value="-">망도 없이 촬영</option>`;
+  if(listSel.did&&listSel.did!=='-'&&!dws.find(d=>d.id===listSel.did))listSel.did='';$('#listDwg').value=listSel.did;
+  /* 촬영 대상: 선택한 시설물 (열린 망도가 같은 시설물이면 그 페이지 위치까지) */
+  if(curId!==s.id){curId=s.id;LS.set('cur',curId);loadDraft();renderHeader();}
+  const here=curD&&dws.find(d=>d.id===curD.id);
+  $('#pNext').textContent=pad(s.nextPhoto);
+  $('#pCtx').textContent=`${s.site} › ${s.facility} · `+(here?`촬영 위치: ${curD.name} ${curPage+1}페이지${(()=>{const n=dnoOf(wordCache[curDid+':'+curPage]||[]);return n?' (도면 '+n+')':'';})()}`:'촬영 위치: 망도 지정 없음(일반)');
+  $('#shutter').style.display=view==='list'?'':'none';$('#shutter2').classList.toggle('hide',!(NATIVE&&view==='list'));
   let rs=(await recsOf(s.id)).sort((a,b)=>b.no-a.no);const f=sel.value;if(f) rs=rs.filter(r=>r.type===f);
-  const scope=curD?$('#listScope').value:'all';$('#listScope').classList.toggle('hide',!curD);
-  if(scope==='cur')rs=rs.filter(r=>recIn(r,curD));
-  $('#listCount').textContent=`${rs.length}장`+(scope==='cur'?` · ${curD.name}`:'');
-  const groups=new Map();for(const r of rs){const k=scope==='cur'?(r.page?`${r.page}페이지${r.dno?' (도면 '+r.dno+')':''}`:'페이지 미지정'):(r.dname||'망도 없이 촬영');if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r);}
-  const keys=[...groups.keys()].sort((a,b)=>a.localeCompare(b,'ko',{numeric:true}));
-  $('#listBody').innerHTML=rs.length?keys.map(k=>`<div class="lbl" style="margin-top:14px">${esc(k)} <span class="muted">${groups.get(k).length}장</span></div><table><tbody>${groups.get(k).map(rowHtml).join('')}</tbody></table>`).join(''):'<div class="empty">기록 없음</div>';
+  const dsel=dws.find(d=>d.id===listSel.did);
+  if(dsel)rs=rs.filter(r=>recIn(r,dsel));else if(listSel.did==='-')rs=rs.filter(r=>!r.did&&!r.dname);
+  $('#listCount').textContent=`${rs.length}장`;
+  const groups=new Map();for(const r of rs){const pg=r.page?`${r.page}페이지${r.dno?' (도면 '+r.dno+')':''}`:'';
+    const k=dsel?(pg||'페이지 미지정'):(r.dname?`${r.dname}${pg?' · '+pg:''}`:'망도 없이 촬영');if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r);}
+  const keys=[...groups.keys()].sort(ko);
+  $('#listBody').innerHTML=rs.length?keys.map(k=>`<div class="lbl" style="margin-top:14px">${esc(k)} <span class="muted">${groups.get(k).length}장</span></div><table><tbody>${groups.get(k).map(rowHtml).join('')}</tbody></table>`).join(''):'<div class="empty">사진 없음</div>';
   bindRows($('#listBody'));}
 function recIn(r,d){return d&&(r.did?r.did===d.id:r.dname===d.name);}
-$('#listScope').onchange=renderList;
+$('#listSite').onchange=()=>{const x=sessions.find(z=>z.site===$('#listSite').value);if(x)listSel={sid:x.id,did:''};renderList();};
+$('#listFac').onchange=()=>{listSel={sid:$('#listFac').value,did:''};renderList();};
+$('#listDwg').onchange=()=>{listSel.did=$('#listDwg').value;renderList();};
 $('#listFilter').onchange=renderList;
 
 let editRec=null,editType=null;
@@ -901,10 +924,10 @@ const MK_COLOR={금회:'#e11d48',기존:'#15803d',변경:'#ea580c',보수:'#1d4e
 const PEN_HEX={red:'#e11d48',blue:'#1d4ed8',black:'#111827'},PEN_TYPE={red:'금회',blue:'보수'},PEN_W={1:2,2:3.5,3:6};
 let penSt=Object.assign({c:'red',w:2,hl:false},LS.get('pen',{})),eraser=false,undoStack=[];
 function renderPenBar(){document.querySelectorAll('#penGrp .pcol').forEach(b=>b.classList.toggle('on',!eraser&&b.dataset.c===penSt.c));
-  document.querySelectorAll('#penGrp .pw').forEach(b=>{b.classList.toggle('on',+b.dataset.w===penSt.w);const i=b.querySelector('i');i.style.background=eraser?'#fff':PEN_HEX[penSt.c];i.style.border=eraser?'2px solid #667085':'0';});
+  document.querySelectorAll('#penGrp .pw').forEach(b=>{b.classList.toggle('on',+b.dataset.w===(eraser?(penSt.ew||2):penSt.w));const i=b.querySelector('i');i.style.background=eraser?'#fff':PEN_HEX[penSt.c];i.style.border=eraser?'2px solid #667085':'0';});
   $('#hlBtn').classList.toggle('on',penSt.hl);$('#eraseBtn').classList.toggle('on',eraser);}
 document.querySelectorAll('#penGrp .pcol').forEach(b=>b.onclick=()=>{flushInk();penSt.c=b.dataset.c;eraser=false;LS.set('pen',penSt);renderPenBar();});
-document.querySelectorAll('#penGrp .pw').forEach(b=>b.onclick=()=>{penSt.w=+b.dataset.w;LS.set('pen',penSt);renderPenBar();if(eraser)toast(['','지우개: 작게','지우개: 보통','지우개: 크게'][penSt.w],900);});
+document.querySelectorAll('#penGrp .pw').forEach(b=>b.onclick=()=>{if(eraser){penSt.ew=+b.dataset.w;toast(['','지우개: 작게','지우개: 보통','지우개: 크게'][penSt.ew],900);}else penSt.w=+b.dataset.w;LS.set('pen',penSt);renderPenBar();});
 $('#hlBtn').onclick=()=>{penSt.hl=!penSt.hl;eraser=false;LS.set('pen',penSt);renderPenBar();};
 $('#eraseBtn').onclick=()=>{flushInk();eraser=!eraser;renderPenBar();};
 const clone=o=>JSON.parse(JSON.stringify(o));
@@ -979,7 +1002,7 @@ async function deleteDrawing(d){const ms=await byIndex('marks','did',d.id);
 /* ---------- 망도 보기 ---------- */
 async function openDrawing(id,page){flushInk();const d=await dbGet('drawings',id);if(!d)return;await loadFolders();curDid=id;curD=d;undoStack=[];
   const pref=page!==undefined?page:LS.get('page.'+id,0);curPage=pref<d.pages.length?pref:0;selMark=null;mv.page=null;await sessForDrawing(d);
-  marks=await byIndex('marks','did',id);LS.set('map.open',id);renderMap();}
+  marks=await byIndex('marks','did',id);LS.set('map.open',id);listSel={sid:curId,did:id};renderMap();}
 function closeDrawing(){flushInk();hideQMenu();closeMarkSheet(true);curDid=null;curD=null;LS.set('map.open',null);renderMap();}
 async function pageSrc(d,i){const p=d.pages[i];if(p.file)return 'https://appassets.androidplatform.net/drawings/'+p.file;
   const k=d.id+':'+i;if(!pageUrls[k]){const b=await dbGet('photos','dpg_'+d.id+'_'+i);pageUrls[k]=b?URL.createObjectURL(b):'';}return pageUrls[k];}
@@ -1061,7 +1084,7 @@ function drawMarks(){const d=curDrawing();if(!d)return;const p=d.pages[curPage];
     h+=one(m);}
   if(inkGroup&&inkGroup.did===curDid&&inkGroup.page===curPage)h+=ink(inkGroup.strokes.map(st=>st.map(q=>[q[0]/W,q[1]/H])),PEN_HEX[inkGroup.col]||'#2563eb',inkGroup.hl?.35:.85,(PEN_W[inkGroup.pw]||2.4)*(inkGroup.hl?3:1));
   if(selMark&&selMark.isNew&&selMark.did===curDid&&selMark.page===curPage)h+=one(selMark);
-  if(tmpPts&&tmpPts.length>1)h+=eraser?`<polyline points="${tmpPts.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')}" fill="none" stroke="#98a2b3" stroke-opacity=".45" stroke-width="${(ERASE_R[penSt.w]||14)*2}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`
+  if(tmpPts&&tmpPts.length>1)h+=eraser?`<polyline points="${tmpPts.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')}" fill="none" stroke="#98a2b3" stroke-opacity=".45" stroke-width="${(ERASE_R[penSt.ew||2]||14)*2}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`
     :ink([tmpPts.map(q=>[q[0]/W,q[1]/H])],PEN_HEX[penSt.c],penSt.hl?.35:1,(PEN_W[penSt.w]||3.5)*(penSt.hl?3:1));
   if(settings.showLabels!==false){const ls=labelCache[curDid+':'+curPage];
     if(ls){const pad=Math.max(3,W*0.002);for(const l of ls){const done=marks.find(m=>m.src==='pdf'&&m.did===curDid&&m.page===curPage&&m.dmg===l.num);
@@ -1175,7 +1198,7 @@ function cutPoly(pt,q,r){const p=curD.pages[curPage];const sp=pt.map(t=>({x:t[0]
   for(const t of d){const s2={x:t[0]*p.w*mv.s+mv.tx,y:t[1]*p.h*mv.s+mv.ty};if(dist(s2,q)<r){if(cur.length)runs.push(cur);cur=[];}else cur.push(t);}
   if(cur.length)runs.push(cur);return runs;}
 function inkBB(k){let x0=1,y0=1,x1=0,y1=0;k.strokes.flat().forEach(t=>{x0=Math.min(x0,t[0]);y0=Math.min(y0,t[1]);x1=Math.max(x1,t[0]);y1=Math.max(y1,t[1]);});k.bb=[x0,y0,x1,y1];}
-function eraseAt(q,g){const r=ERASE_R[penSt.w]||14;
+function eraseAt(q,g){const r=ERASE_R[penSt.ew||2]||14;
   for(const m of marks){if(m.did!==curDid||m.page!==curPage||g.gone.has(m.id))continue;
     const keep=()=>{if(!g.before.has(m.id))g.before.set(m.id,clone(m));};
     if(m.shape==='ink'){let ch=false;const ns=[];for(const st of m.strokes){const rs=cutPoly(st,q,r);if(rs===null){ns.push(st);continue;}ch=true;rs.filter(x=>x.length>=2).forEach(x=>ns.push(x));}
