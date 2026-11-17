@@ -471,7 +471,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -883,17 +883,17 @@ const MK_COLOR={금회:'#e11d48',기존:'#15803d',변경:'#ea580c',보수:'#1d4e
 const PEN_HEX={red:'#e11d48',blue:'#1d4ed8',black:'#111827'},PEN_TYPE={red:'금회',blue:'보수'},PEN_W={1:2,2:3.5,3:6};
 let penSt=Object.assign({c:'red',w:2,hl:false},LS.get('pen',{})),eraser=false,undoStack=[];
 function renderPenBar(){document.querySelectorAll('#penGrp .pcol').forEach(b=>b.classList.toggle('on',!eraser&&b.dataset.c===penSt.c));
-  document.querySelectorAll('#penGrp .pw').forEach(b=>{b.classList.toggle('on',+b.dataset.w===penSt.w);b.querySelector('i').style.background=PEN_HEX[penSt.c];});
+  document.querySelectorAll('#penGrp .pw').forEach(b=>{b.classList.toggle('on',+b.dataset.w===penSt.w);const i=b.querySelector('i');i.style.background=eraser?'#fff':PEN_HEX[penSt.c];i.style.border=eraser?'2px solid #667085':'0';});
   $('#hlBtn').classList.toggle('on',penSt.hl);$('#eraseBtn').classList.toggle('on',eraser);}
 document.querySelectorAll('#penGrp .pcol').forEach(b=>b.onclick=()=>{flushInk();penSt.c=b.dataset.c;eraser=false;LS.set('pen',penSt);renderPenBar();});
-document.querySelectorAll('#penGrp .pw').forEach(b=>b.onclick=()=>{penSt.w=+b.dataset.w;eraser=false;LS.set('pen',penSt);renderPenBar();});
+document.querySelectorAll('#penGrp .pw').forEach(b=>b.onclick=()=>{penSt.w=+b.dataset.w;LS.set('pen',penSt);renderPenBar();if(eraser)toast(['','지우개: 작게','지우개: 보통','지우개: 크게'][penSt.w],900);});
 $('#hlBtn').onclick=()=>{penSt.hl=!penSt.hl;eraser=false;LS.set('pen',penSt);renderPenBar();};
 $('#eraseBtn').onclick=()=>{flushInk();eraser=!eraser;renderPenBar();};
 const clone=o=>JSON.parse(JSON.stringify(o));
 function pushUndo(e){undoStack.push(e);if(undoStack.length>40)undoStack.shift();}
 async function undo(){flushInk();const e=undoStack.pop();if(!e){toast('되돌릴 작업이 없습니다',1200);return;}
   if(e.op==='add'){await tx(['marks'],'readwrite',t=>e.objs.forEach(o=>t.objectStore('marks').delete(o.id)));const ids=new Set(e.objs.map(o=>o.id));marks=marks.filter(m=>!ids.has(m.id));}
-  else{await tx(['marks'],'readwrite',t=>e.objs.forEach(o=>t.objectStore('marks').put(o)));e.objs.forEach(o=>{if(!marks.find(m=>m.id===o.id))marks.push(o);});}
+  else{await tx(['marks'],'readwrite',t=>e.objs.forEach(o=>t.objectStore('marks').put(o)));e.objs.forEach(o=>{const i=marks.findIndex(m=>m.id===o.id);if(i>=0)marks[i]=o;else marks.push(o);});}
   selMark=null;hideQMenu();drawMarks();toast('되돌림',900);}
 const MK_KEY={금회:'n',기존:'e',변경:'c',보수:'r',삭제:'d',일반:'g'};
 const SHAPE_NAME={line:'균열선',area:'면적',point:'점'};
@@ -985,10 +985,10 @@ async function thumbOf(d,i){const k='th_'+d.id+'_'+i;if(thumbUrls[k])return thum
   return thumbUrls[k]=b?URL.createObjectURL(b):'';}
 let sideObs=null;
 async function renderSide(){$('#v-map').classList.toggle('sideon',sideOn);if(!sideOn||!curD)return;const el=$('#mapSide');
-  const key=curD.folderId+'|'+curDid+'|'+curPage+'|'+marks.length;if(key===sideKey)return;const sameFolder=sideKey.split('|')[0]===curD.folderId&&el.children.length;sideKey=key;
+  const key=curDid+'|'+curPage+'|'+marks.length;if(key===sideKey)return;const sameFolder=sideKey.split('|')[0]===curDid&&el.children.length;sideKey=key;
   if(sameFolder){el.querySelectorAll('.sp').forEach(x=>x.classList.toggle('on',x.dataset.d===curDid&&+x.dataset.i===curPage));
     el.querySelectorAll(`.sp[data-d="${curDid}"]`).forEach(x=>{const n=marks.filter(m=>m.page===+x.dataset.i&&m.shape!=='ink').length;x.querySelector('span').innerHTML=`${+x.dataset.i+1}p${n?` · <b>손상 ${n}</b>`:''}`;});}
-  else{const ds=(await dbAll('drawings')).filter(d=>d.folderId===curD.folderId).sort(byName);let h='';
+  else{const ds=[curD];let h='';
     for(const d of ds){const ms=d.id===curDid?marks:await byIndex('marks','did',d.id);h+=`<div class="sh">${esc(d.name)}</div>`;
       d.pages.forEach((p,i)=>{const n=ms.filter(m=>m.page===i&&m.shape!=='ink').length;h+=`<div class="sp${d.id===curDid&&i===curPage?' on':''}" data-d="${d.id}" data-i="${i}"><img alt=""><span>${i+1}p${n?` · <b>손상 ${n}</b>`:''}</span></div>`;});}
     el.innerHTML=h;if(sideObs)sideObs.disconnect();
@@ -1010,12 +1010,14 @@ function drawMarks(){const d=curDrawing();if(!d)return;const p=d.pages[curPage];
   let h='<defs>'+Object.entries(MK_COLOR).map(([t,c])=>`<pattern id="ht-${MK_KEY[t]}" patternUnits="userSpaceOnUse" width="${sz}" height="${sz}" patternTransform="rotate(45)"><rect width="${sz}" height="${sz}" fill="${c}" fill-opacity="0.10"/><line x1="0" y1="0" x2="0" y2="${sz}" stroke="${c}" stroke-width="${sz/5}" stroke-opacity="0.75"/></pattern>`).join('')+'</defs>';
   const one=(m,temp)=>{const c=MK_COLOR[m.type]||MK_COLOR.금회;const pts=m.pts.map(q=>[q[0]*W,q[1]*H]);const ps=pts.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ');
     const sel=selMark&&selMark.id===m.id;const sw=(PEN_W[m.pw]||3.5)*(m.hl?3:1)+(sel?2:0);const op=m.hl?' stroke-opacity=".38"':'';const dash=m.type==='삭제'?' stroke-dasharray="7 5"':'';let x='';
-    if(sel&&m.shape!=='point')x+=`<polyline points="${ps}${m.shape==='area'?' '+pts[0].join(','):''}" fill="none" stroke="#facc15" stroke-width="12" stroke-opacity=".6" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`;
-    if(m.shape==='line'&&m.group)x+=`<polyline points="${ps}" fill="none" stroke="#475467" stroke-width="${sel?4:2}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-dasharray="2 4"/>`;
-    else if(m.shape==='line')x+=`<polyline points="${ps}" fill="none" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"${dash}${op}/>`;
+    if(sel&&m.shape==='area')x+=`<polyline points="${ps} ${pts[0].join(',')}" fill="none" stroke="#facc15" stroke-width="12" stroke-opacity=".6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+    if(sel&&m.shape==='line')parts(m).forEach(pt=>x+=`<polyline points="${pt.map(q=>(q[0]*W).toFixed(1)+','+(q[1]*H).toFixed(1)).join(' ')}" fill="none" stroke="#facc15" stroke-width="12" stroke-opacity=".6" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`);
+    const pls=m.shape==='line'?parts(m).map(pt=>pt.map(q=>(q[0]*W).toFixed(1)+','+(q[1]*H).toFixed(1)).join(' ')):[];
+    if(m.shape==='line'&&m.group)pls.forEach(pp=>x+=`<polyline points="${pp}" fill="none" stroke="#475467" stroke-width="${sel?4:2}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-dasharray="2 4"/>`);
+    else if(m.shape==='line')pls.forEach(pp=>x+=`<polyline points="${pp}" fill="none" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"${dash}${op}/>`);
     else if(m.shape==='area')x+=`<polygon points="${ps}" fill="url(#ht-${MK_KEY[m.type]||'n'})" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linejoin="round"${dash}/>`;
     else x+=`<circle class="pt" cx="${pts[0][0]}" cy="${pts[0][1]}" fill="${c}" stroke="${sel?'#facc15':'#fff'}" stroke-width="${sel?5:2}" vector-effect="non-scaling-stroke"/>`;
-    if(!temp){const lab=markLabel(m);if(lab){let lx,ly;if(m.shape==='area'){lx=Math.max(...pts.map(q=>q[0]));ly=Math.min(...pts.map(q=>q[1]));}else{[lx,ly]=pts[pts.length-1];}
+    if(!temp){const lab=markLabel(m);if(lab){let lx,ly;if(m.shape==='area'){lx=Math.max(...pts.map(q=>q[0]));ly=Math.min(...pts.map(q=>q[1]));}else{const lp=parts(m)[parts(m).length-1];[lx,ly]=[lp[lp.length-1][0]*W,lp[lp.length-1][1]*H];}
       x+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" dx="0.5em" dy="-0.35em" fill="${c}">${esc(lab)}</text>`;}}
     return x;};
   const ink=(strokes,col,op,w)=>strokes.map(st=>`<polyline points="${st.map(q=>(q[0]*W).toFixed(1)+','+(q[1]*H).toFixed(1)).join(' ')}" fill="none" stroke="${col}" stroke-opacity="${op||1}" stroke-width="${w||2.4}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
@@ -1028,7 +1030,7 @@ function drawMarks(){const d=curDrawing();if(!d)return;const p=d.pages[curPage];
     h+=one(m);}
   if(inkGroup&&inkGroup.did===curDid&&inkGroup.page===curPage)h+=ink(inkGroup.strokes.map(st=>st.map(q=>[q[0]/W,q[1]/H])),PEN_HEX[inkGroup.col]||'#2563eb',inkGroup.hl?.35:.85,(PEN_W[inkGroup.pw]||2.4)*(inkGroup.hl?3:1));
   if(selMark&&selMark.isNew&&selMark.did===curDid&&selMark.page===curPage)h+=one(selMark);
-  if(tmpPts&&tmpPts.length>1)h+=eraser?`<polyline points="${tmpPts.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')}" fill="none" stroke="#98a2b3" stroke-opacity=".6" stroke-width="22" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`
+  if(tmpPts&&tmpPts.length>1)h+=eraser?`<polyline points="${tmpPts.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')}" fill="none" stroke="#98a2b3" stroke-opacity=".45" stroke-width="${(ERASE_R[penSt.w]||14)*2}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`
     :ink([tmpPts.map(q=>[q[0]/W,q[1]/H])],PEN_HEX[penSt.c],penSt.hl?.35:1,(PEN_W[penSt.w]||3.5)*(penSt.hl?3:1));
   $('#mapSvg').innerHTML=h;}
 
@@ -1051,7 +1053,7 @@ wrap.addEventListener('pointerdown',e=>{if(!curD)return;const isPen=e.pointerTyp
   if(ptrs.size===2){cancelLP();const [a,b]=[...ptrs.values()];G={k:'pinch',d0:Math.max(dist(a,b),1),s0:mv.s,m0:mid(a,b),t0:{x:mv.tx,y:mv.ty}};tmpPts=null;drawMarks();return;}
   if(ptrs.size>2)return;const q=wp(e);const canDraw=isPen||!penMode();
   const penErase=isPen&&((e.buttons&32)||(e.buttons&2)||e.button===5);
-  if(canDraw&&(eraser||penErase)){G={k:'erase',pts:[toPage(q)],last:q,start:q,maxd:0,hit:new Set()};eraseAt(q,G);cancelLP();return;}
+  if(canDraw&&(eraser||penErase)){G={k:'erase',pts:[toPage(q)],last:q,start:q,maxd:0,before:new Map(),changed:new Set(),gone:new Set()};eraseAt(q,G);tmpPts=G.pts;drawMarks();cancelLP();return;}
   if(canDraw&&e.button!==1)G={k:'draw',pts:[toPage(q)],spts:[[q.x,q.y,Date.now()]],last:q,start:q,maxd:0,pen:isPen,col:penSt.c,pw:penSt.w,hl:penSt.hl};
   else G={k:'pan',start:q,t0:{x:mv.tx,y:mv.ty},moved:false,t:Date.now(),pen:isPen,canPoint:canDraw};
   startLP(q);});
@@ -1067,7 +1069,7 @@ function sbb(sp){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const p of sp){x0=Math.mi
 const pg2s=p=>({x:p[0]*mv.s+mv.tx,y:p[1]*mv.s+mv.ty});
 function nearInk(bb){if(!inkGroup||inkGroup.did!==curDid||inkGroup.page!==curPage)return false;const a=pg2s([inkGroup.x0,inkGroup.y0]),b=pg2s([inkGroup.x1,inkGroup.y1]);
   const gap=Math.max(a.x-bb.x1,bb.x0-b.x,a.y-bb.y1,bb.y0-b.y);return gap<SMALL*1.2;}
-function endPtr(e){if(e.pointerType==='pen')penDown=false;if(!ptrs.has(e.pointerId))return;const q=ptrs.get(e.pointerId);ptrs.delete(e.pointerId);if(!G){cancelLP();return;}
+async function endPtr(e){if(e.pointerType==='pen')penDown=false;if(!ptrs.has(e.pointerId))return;const q=ptrs.get(e.pointerId);ptrs.delete(e.pointerId);if(!G){cancelLP();return;}
   if(G.k==='pinch'){if(ptrs.size===1){const r=[...ptrs.values()][0];G={k:'pan',start:r,t0:{x:mv.tx,y:mv.ty},moved:true};}else G=null;return;}
   if(ptrs.size>0)return;cancelLP();const g=G;G=null;tmpPts=null;
   if(g.k==='pan'){if(!g.moved){onMapTap(g.start,g.canPoint,g.pen);return;}
@@ -1086,8 +1088,29 @@ function endPtr(e){if(e.pointerType==='pen')penDown=false;if(!ptrs.has(e.pointer
     flushInk();
     let pts=g.pts;if(pts.length>400){const st=Math.ceil(pts.length/400);pts=pts.filter((_,i)=>i%st===0||i===pts.length-1);}
     let len=0;for(let i=1;i<g.spts.length;i++)len+=Math.hypot(g.spts[i][0]-g.spts[i-1][0],g.spts[i][1]-g.spts[i-1][1]);
-    const sp0=g.spts[0],sp1=g.spts[g.spts.length-1];const closed=Math.hypot(sp0[0]-sp1[0],sp0[1]-sp1[1])<Math.max(28,size*0.18)&&len>size*2.2;
-    newMark(closed?'area':'line',pts,null,PEN_TYPE[g.col]||'금회',{pw:g.pw,hl:g.hl});}}
+    if(await tryJoin(g,pts))return;
+    newMark(isClosed(g.spts)?'area':'line',isClosed(g.spts)?snapRect(pts):pts,null,PEN_TYPE[g.col]||'금회',{pw:g.pw,hl:g.hl});}}
+/* 닫힌 도형 판정: 끝점이 시작 부분(처음 25%) 근처로 돌아오면 닫힘 (덜 닫거나 지나쳐도 인정) */
+function isClosed(sp){if(sp.length<6)return false;const bb=sbb(sp),size=Math.max(bb.w,bb.h);if(size<20)return false;
+  let len=0;for(let i=1;i<sp.length;i++)len+=Math.hypot(sp[i][0]-sp[i-1][0],sp[i][1]-sp[i-1][1]);if(len<size*1.8)return false;
+  const e=sp[sp.length-1],tol=Math.max(30,size*0.3),k=Math.max(2,Math.floor(sp.length*0.25));
+  for(let i=0;i<k;i++)if(Math.hypot(sp[i][0]-e[0],sp[i][1]-e[1])<tol)return true;return false;}
+/* 네모에 가까우면 반듯한 사각형으로 정리 */
+function snapRect(pts){if(pts.length<4)return pts;let a=0;for(let i=0,j=pts.length-1;i<pts.length;j=i++)a+=(pts[j][0]+pts[i][0])*(pts[j][1]-pts[i][1]);a=Math.abs(a/2);
+  const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),ba=(x1-x0)*(y1-y0);
+  return ba>0&&a/ba>0.8?[[x0,y0],[x1,y0],[x1,y1],[x0,y1]]:pts;}
+/* 여러 획으로 그린 선 잇기: 직전(4초 이내) 같은 색 선의 끝에서 이어 그리면 한 선으로 합치고, 닫히면 영역으로 */
+async function tryJoin(g,pts){const p=curD.pages[curPage],type=PEN_TYPE[g.col]||'금회',now=Date.now();
+  const last=[...marks].reverse().find(m=>m.shape==='line'&&!m.group&&!m.parts&&m.did===curDid&&m.page===curPage&&m.type===type&&now-(m.ts||0)<4000);if(!last)return false;
+  const S=t=>[t[0]*p.w*mv.s+mv.tx,t[1]*p.h*mv.s+mv.ty];const L=last.pts.map(S),N=g.spts.map(a=>[a[0],a[1]]),tol=30;
+  const d=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);const lp=last.pts,np=pts.map(t=>[+(t[0]/p.w).toFixed(5),+(t[1]/p.h).toFixed(5)]);let merged=null,ms=null;
+  if(d(L[L.length-1],N[0])<tol){merged=[...lp,...np];ms=[...L,...N];}
+  else if(d(L[L.length-1],N[N.length-1])<tol){merged=[...lp,...np.slice().reverse()];ms=[...L,...N.slice().reverse()];}
+  else if(d(L[0],N[N.length-1])<tol){merged=[...np,...lp];ms=[...N,...L];}
+  else if(d(L[0],N[0])<tol){merged=[...np.slice().reverse(),...lp];ms=[...N.slice().reverse(),...L];}
+  if(!merged)return false;pushUndo({op:'del',objs:[clone(last)]});
+  last.pts=merged;last.ts=now;if(isClosed(ms)){last.shape='area';last.content='';last.pts=snapRect(merged.map(t=>[t[0]*p.w,t[1]*p.h])).map(t=>[+(t[0]/p.w).toFixed(5),+(t[1]/p.h).toFixed(5)]);toast('영역(단면손상)으로 인식',1200);}
+  await saveMarkObj(last);return true;}
 wrap.addEventListener('pointerup',endPtr);
 wrap.addEventListener('pointercancel',e=>{if(e.pointerType==='pen')penDown=false;cancelLP();ptrs.delete(e.pointerId);if(!ptrs.size){G=null;tmpPts=null;drawMarks();}});
 wrap.addEventListener('wheel',e=>{if(!curDrawing())return;e.preventDefault();const q=wp(e),f=e.deltaY<0?1.15:1/1.15;const ns=clamp(mv.s*f,mv.fit*0.5,mv.fit*25);
@@ -1096,16 +1119,39 @@ wrap.addEventListener('contextmenu',e=>e.preventDefault());
 
 function segDist(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy;let t=l?((p.x-a.x)*dx+(p.y-a.y)*dy)/l:0;t=clamp(t,0,1);return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy);}
 function inPoly(p,vs){let ins=false;for(let i=0,j=vs.length-1;i<vs.length;j=i++){const a=vs[i],b=vs[j];if(((a.y>p.y)!==(b.y>p.y))&&(p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x))ins=!ins;}return ins;}
-function markDist(m,q){const p=curD.pages[curPage];const sp=m.pts.map(t=>({x:t[0]*p.w*mv.s+mv.tx,y:t[1]*p.h*mv.s+mv.ty}));let dd=Infinity;
-  if(sp.length===1)dd=dist(sp[0],q);else{const seg=m.shape==='area'?[...sp,sp[0]]:sp;for(let i=1;i<seg.length;i++)dd=Math.min(dd,segDist(q,seg[i-1],seg[i]));if(m.shape==='area'&&inPoly(q,sp))dd=Math.min(dd,10);}return dd;}
+const parts=m=>m.shape==='line'&&m.parts&&m.parts.length?m.parts:[m.pts];
+function markDist(m,q){const p=curD.pages[curPage];let dd=Infinity;
+  for(const pt of parts(m)){const sp=pt.map(t=>({x:t[0]*p.w*mv.s+mv.tx,y:t[1]*p.h*mv.s+mv.ty}));
+    if(sp.length===1)dd=Math.min(dd,dist(sp[0],q));else{const seg=m.shape==='area'?[...sp,sp[0]]:sp;for(let i=1;i<seg.length;i++)dd=Math.min(dd,segDist(q,seg[i-1],seg[i]));if(m.shape==='area'&&inPoly(q,sp))dd=Math.min(dd,10);}}
+  return dd;}
 function inkDist(k,q){const p=curD.pages[curPage];let dd=Infinity;for(const st of k.strokes){const sp=st.map(t=>({x:t[0]*p.w*mv.s+mv.tx,y:t[1]*p.h*mv.s+mv.ty}));
   if(sp.length===1)dd=Math.min(dd,dist(sp[0],q));for(let i=1;i<sp.length;i++)dd=Math.min(dd,segDist(q,sp[i-1],sp[i]));}return dd;}
-function eraseAt(q,g){for(const m of marks){if(m.did!==curDid||m.page!==curPage||g.hit.has(m.id))continue;const d=m.shape==='ink'?inkDist(m,q):markDist(m,q);if(d<14)g.hit.add(m.id);}}
-async function finishErase(g){tmpPts=null;const ids=g.hit;if(!ids.size){drawMarks();return;}
-  const objs=marks.filter(m=>ids.has(m.id));const extra=marks.filter(k=>k.shape==='ink'&&k.kind!=='note'&&ids.has(k.markId)&&!ids.has(k.id));
-  const all=[...objs,...extra];pushUndo({op:'del',objs:clone(all)});
-  await tx(['marks'],'readwrite',t=>all.forEach(o=>t.objectStore('marks').delete(o.id)));const del=new Set(all.map(o=>o.id));marks=marks.filter(m=>!del.has(m.id));
-  selMark=null;drawMarks();toast(`${all.length}개 지움 (↶ 되돌리기)`,1500);}
+const ERASE_R={1:7,2:14,3:28};   /* 지우개 반지름(화면 px): 가늘게/보통/굵게 */
+function densify(pt,stepPx){const p=curD.pages[curPage];const out=[];for(let i=0;i<pt.length;i++){if(i){const a=pt[i-1],b=pt[i];
+    const dpx=Math.hypot((b[0]-a[0])*p.w,(b[1]-a[1])*p.h)*mv.s;const n=Math.floor(dpx/stepPx);
+    for(let k=1;k<n;k++)out.push([+(a[0]+(b[0]-a[0])*k/n).toFixed(5),+(a[1]+(b[1]-a[1])*k/n).toFixed(5)]);}out.push(pt[i]);}return out;}
+function cutPoly(pt,q,r){const p=curD.pages[curPage];const sp=pt.map(t=>({x:t[0]*p.w*mv.s+mv.tx,y:t[1]*p.h*mv.s+mv.ty}));
+  let near=sp.length===1?dist(sp[0],q)<r:false;for(let i=1;i<sp.length&&!near;i++)if(segDist(q,sp[i-1],sp[i])<r)near=true;if(!near)return null;
+  const d=densify(pt,Math.max(2,r/3));const runs=[];let cur=[];
+  for(const t of d){const s2={x:t[0]*p.w*mv.s+mv.tx,y:t[1]*p.h*mv.s+mv.ty};if(dist(s2,q)<r){if(cur.length)runs.push(cur);cur=[];}else cur.push(t);}
+  if(cur.length)runs.push(cur);return runs;}
+function inkBB(k){let x0=1,y0=1,x1=0,y1=0;k.strokes.flat().forEach(t=>{x0=Math.min(x0,t[0]);y0=Math.min(y0,t[1]);x1=Math.max(x1,t[0]);y1=Math.max(y1,t[1]);});k.bb=[x0,y0,x1,y1];}
+function eraseAt(q,g){const r=ERASE_R[penSt.w]||14;
+  for(const m of marks){if(m.did!==curDid||m.page!==curPage||g.gone.has(m.id))continue;
+    const keep=()=>{if(!g.before.has(m.id))g.before.set(m.id,clone(m));};
+    if(m.shape==='ink'){let ch=false;const ns=[];for(const st of m.strokes){const rs=cutPoly(st,q,r);if(rs===null){ns.push(st);continue;}ch=true;rs.filter(x=>x.length>=2).forEach(x=>ns.push(x));}
+      if(!ch)continue;keep();g.changed.add(m.id);if(!ns.length){g.gone.add(m.id);}else{m.strokes=ns;inkBB(m);}}
+    else if(m.shape==='line'){let ch=false;const np=[];for(const pt of parts(m)){const rs=cutPoly(pt,q,r);if(rs===null){np.push(pt);continue;}ch=true;rs.filter(x=>x.length>=2).forEach(x=>np.push(x));}
+      if(!ch)continue;keep();g.changed.add(m.id);if(!np.length)g.gone.add(m.id);else{m.parts=np;m.pts=np[0];}}
+    else if(m.shape==='area'){const rs=cutPoly([...m.pts,m.pts[0]],q,r);if(rs===null)continue;keep();g.changed.add(m.id);
+      const left=rs.flat();if(left.length<3)g.gone.add(m.id);else m.pts=left;}
+    else if(markDist(m,q)<r){keep();g.changed.add(m.id);g.gone.add(m.id);}}}
+async function finishErase(g){tmpPts=null;if(!g.changed.size){drawMarks();return;}
+  /* 손상이 통째로 지워지면 연결된 글씨도 함께 */
+  marks.filter(k=>k.shape==='ink'&&k.kind!=='note'&&g.gone.has(k.markId)&&!g.gone.has(k.id)).forEach(k=>{g.before.set(k.id,clone(k));g.gone.add(k.id);g.changed.add(k.id);});
+  pushUndo({op:'del',objs:[...g.before.values()]});
+  await tx(['marks'],'readwrite',t=>{for(const id of g.changed){if(g.gone.has(id))t.objectStore('marks').delete(id);else{const m=marks.find(x=>x.id===id);if(m)t.objectStore('marks').put(m);}}});
+  marks=marks.filter(m=>!g.gone.has(m.id));selMark=null;drawMarks();}
 function hitMark(q){let best=null,bd=26;for(const m of marks){if(m.did!==curDid||m.page!==curPage||m.shape==='ink')continue;const dd=markDist(m,q);if(dd<bd){bd=dd;best=m;}}return best;}
 function hitInk(q){const p=curD.pages[curPage];for(const k of marks){if(k.shape!=='ink'||k.did!==curDid||k.page!==curPage)continue;
   const a=pg2s([k.bb[0]*p.w,k.bb[1]*p.h]),b=pg2s([k.bb[2]*p.w,k.bb[3]*p.h]);if(q.x>=a.x-12&&q.x<=b.x+40&&q.y>=a.y-12&&q.y<=b.y+12)return k;}return null;}
@@ -1122,7 +1168,9 @@ function inkTarget(gr){const p=curD.pages[curPage];const c=pg2s([(gr.x0+gr.x1)/2
   let best=null,bs=230;for(const m of marks){if(m.shape==='ink'||m.did!==gr.did||m.page!==gr.page)continue;
     let sc=markDist(m,c);const age=(Date.now()-(m.ts||0))/1000;if(age<90)sc-=40;if(lnk.has(m.id))sc+=90;if(sc<bs){bs=sc;best=m;}}return best;}
 async function flushInk(){clearTimeout(inkTimer);if(!inkGroup)return;const gr=inkGroup;inkGroup=null;if(!curD||gr.did!==curDid){return;}
-  const p=curD.pages[gr.page],s=curSess();const note=gr.col==='black';const tgt=note?null:inkTarget(gr);
+  const p=curD.pages[gr.page],s=curSess();const note=gr.col==='black';
+  if(!note&&gr.strokes.length===1&&isClosed(gr.spts[0])){const pts=gr.strokes[0];newMark('area',snapRect(pts),null,PEN_TYPE[gr.col]||'금회',{pw:gr.pw,hl:gr.hl});return;}
+  const tgt=note?null:inkTarget(gr);
   const k={id:uid(),sid:s.id,did:gr.did,page:gr.page,shape:'ink',kind:note?'note':'text',color:gr.col,pw:gr.pw,hl:gr.hl,pts:[[0,0]],strokes:gr.strokes.map(st=>st.map(q=>[+(q[0]/p.w).toFixed(5),+(q[1]/p.h).toFixed(5)])),
     bb:[gr.x0/p.w,gr.y0/p.h,gr.x1/p.w,gr.y1/p.h],text:'',ok:false,markId:tgt?tgt.id:'',photoNos:[],created:nowStr(),ts:Date.now()};
   marks.push(k);await dbPut('marks',k);pushUndo({op:'add',objs:[clone(k)]});drawMarks();if(note)return;
@@ -1144,6 +1192,9 @@ function inkText(p){if(!p)return '';if(p.dmg)return '#'+p.dmg;return [p.w&&p.l?(
 window.onInkResult=async(id,cands)=>{const k=inkPending[id];delete inkPending[id];if(!k)return;const m=marks.find(x=>x.id===k.markId);
   const shp=m?(m.shape==='point'||m.type!=='금회'?'nonnew':m.shape):'';
   let p=null,raw=(cands&&cands[0])||'';for(const c of (cands||[])){p=parseInk(c,shp);if(p){raw=c;break;}}
+  if(!p&&k.strokes.length===1&&k.color!=='black'){const pg=curD&&curD.pages[k.page];const st=k.strokes[0];
+    const lenPx=pg?st.reduce((a,t,i)=>i?a+Math.hypot((t[0]-st[i-1][0])*pg.w,(t[1]-st[i-1][1])*pg.h)*mv.s:0,0):0;
+    if(pg&&lenPx>25){await dbDel('marks',k.id);marks=marks.filter(x=>x.id!==k.id);await newMark('line',st.map(t=>[t[0]*pg.w,t[1]*pg.h]),null,PEN_TYPE[k.color]||'금회',{pw:k.pw,hl:k.hl});return;}}
   k.text=raw;k.ok=!!p;await dbPut('marks',k);
   if(p&&m){applyParsed(m,p);await saveMarkObj(m);}
   drawMarks();if(!p)toast(`글씨 인식: "${raw||'?'}" – 형식 확인 필요 (글씨를 눌러 수정)`,3000);};
