@@ -32,6 +32,16 @@ import android.widget.Toast;
 import androidx.core.content.FileProvider;
 import androidx.webkit.WebViewAssetLoader;
 
+import com.google.mlkit.common.model.DownloadConditions;
+import com.google.mlkit.common.model.RemoteModelManager;
+import com.google.mlkit.vision.digitalink.DigitalInkRecognition;
+import com.google.mlkit.vision.digitalink.DigitalInkRecognitionModel;
+import com.google.mlkit.vision.digitalink.DigitalInkRecognitionModelIdentifier;
+import com.google.mlkit.vision.digitalink.DigitalInkRecognizer;
+import com.google.mlkit.vision.digitalink.DigitalInkRecognizerOptions;
+import com.google.mlkit.vision.digitalink.Ink;
+import com.google.mlkit.vision.digitalink.RecognitionCandidate;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -67,6 +77,8 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> fileCallback;
     private Uri cameraUri;
     private final Map<String, OutputStream> openFiles = new ConcurrentHashMap<>();
+    private DigitalInkRecognitionModel inkModel;
+    private DigitalInkRecognizer inkRec;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -296,6 +308,17 @@ public class MainActivity extends Activity {
         throw new Exception("리다이렉트가 너무 많음");
     }
 
+    /* ---------- 손글씨 인식 (ML Kit) ---------- */
+    private void inkStatus(String st) {
+        callJs("window.onInkStatus && window.onInkStatus(" + JSONObject.quote(st) + ")");
+    }
+
+    private void inkReady() {
+        if (inkRec == null)
+            inkRec = DigitalInkRecognition.getClient(DigitalInkRecognizerOptions.builder(inkModel).build());
+        inkStatus("ready");
+    }
+
     private static void deleteTree(File f) {
         File[] ch = f.listFiles();
         if (ch != null) for (File c : ch) deleteTree(c);
@@ -473,6 +496,68 @@ public class MainActivity extends Activity {
                     callJs("window.onUpdateProgress && window.onUpdateProgress(-1," + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
                 }
             }).start();
+        }
+
+        /** 손글씨 인식 모델 준비(없으면 1회 다운로드) → window.onInkStatus('ready'|'downloading'|'error:..') */
+        @JavascriptInterface
+        public void inkPrepare() {
+            runOnUiThread(() -> {
+                try {
+                    if (inkModel == null) {
+                        DigitalInkRecognitionModelIdentifier id = DigitalInkRecognitionModelIdentifier.fromLanguageTag("en-US");
+                        if (id == null) {
+                            inkStatus("error:모델 없음");
+                            return;
+                        }
+                        inkModel = DigitalInkRecognitionModel.builder(id).build();
+                    }
+                    final RemoteModelManager mm = RemoteModelManager.getInstance();
+                    mm.isModelDownloaded(inkModel).addOnSuccessListener(ok -> {
+                        if (Boolean.TRUE.equals(ok)) {
+                            inkReady();
+                        } else {
+                            inkStatus("downloading");
+                            mm.download(inkModel, new DownloadConditions.Builder().build())
+                                    .addOnSuccessListener(v -> inkReady())
+                                    .addOnFailureListener(e -> inkStatus("error:" + e.getMessage()));
+                        }
+                    }).addOnFailureListener(e -> inkStatus("error:" + e.getMessage()));
+                } catch (Exception e) {
+                    inkStatus("error:" + e.getMessage());
+                }
+            });
+        }
+
+        /** 손글씨 인식: json = [[[x,y,t],...], ...] → window.onInkResult(reqId, [후보...]) */
+        @JavascriptInterface
+        public void inkRecognize(final String reqId, final String json) {
+            runOnUiThread(() -> {
+                final String q = JSONObject.quote(reqId);
+                try {
+                    if (inkRec == null) {
+                        callJs("window.onInkResult && window.onInkResult(" + q + ",null)");
+                        return;
+                    }
+                    JSONArray strokes = new JSONArray(json);
+                    Ink.Builder ib = Ink.builder();
+                    for (int i = 0; i < strokes.length(); i++) {
+                        JSONArray pts = strokes.getJSONArray(i);
+                        Ink.Stroke.Builder sb = Ink.Stroke.builder();
+                        for (int k = 0; k < pts.length(); k++) {
+                            JSONArray p = pts.getJSONArray(k);
+                            sb.addPoint(Ink.Point.create((float) p.getDouble(0), (float) p.getDouble(1), p.getLong(2)));
+                        }
+                        ib.addStroke(sb.build());
+                    }
+                    inkRec.recognize(ib.build()).addOnSuccessListener(r -> {
+                        JSONArray out = new JSONArray();
+                        for (RecognitionCandidate c : r.getCandidates()) out.put(c.getText());
+                        callJs("window.onInkResult && window.onInkResult(" + q + "," + out.toString() + ")");
+                    }).addOnFailureListener(e -> callJs("window.onInkResult && window.onInkResult(" + q + ",[])"));
+                } catch (Exception e) {
+                    callJs("window.onInkResult && window.onInkResult(" + q + ",[])");
+                }
+            });
         }
 
         @JavascriptInterface
