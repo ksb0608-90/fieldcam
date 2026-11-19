@@ -513,7 +513,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.20.0';
+const VERSION = '1.21.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -1082,7 +1082,7 @@ async function deleteDrawing(d){const ms=await byIndex('marks','did',d.id);
   if(NATIVE){try{Android.deleteDrawing(d.id)}catch(e){}}if(curDid===d.id){curDid=null;curD=null;}}
 
 /* ---------- 망도 보기 ---------- */
-async function openDrawing(id,page){flushInk();const d=await dbGet('drawings',id);if(!d)return;histM.push({f:d.folderId||null,d:id});await loadFolders();curDid=id;curD=d;undoStack=[];
+async function openDrawing(id,page){flushInk();if(NATIVE)setTimeout(koPrepare,1500);const d=await dbGet('drawings',id);if(!d)return;histM.push({f:d.folderId||null,d:id});await loadFolders();curDid=id;curD=d;undoStack=[];
   const pref=page!==undefined?page:LS.get('page.'+id,0);curPage=pref<d.pages.length?pref:0;selMark=null;mv.page=null;await sessForDrawing(d);
   marks=await byIndex('marks','did',id);LS.set('map.open',id);{const c=sessions.find(x=>x.id===curId);listSel={site:c?c.site:null,sid:curId,did:id,page:null};}renderMap();}
 function closeDrawing(){flushInk();hideQMenu();closeMarkSheet(true);curDid=null;curD=null;LS.set('map.open',null);renderMap();}
@@ -1326,8 +1326,14 @@ async function flushInk(){clearTimeout(inkTimer);if(!inkGroup)return;const gr=in
   marks.push(k);await dbPut('marks',k);pushUndo({op:'add',objs:[clone(k)]});drawMarks();if(note)return;
   const t0=gr.spts[0][0][2],x0=Math.min(...gr.spts.flat().map(a=>a[0])),y0=Math.min(...gr.spts.flat().map(a=>a[1]));
   const json=JSON.stringify(gr.spts.map(st=>st.map(a=>[+(a[0]-x0).toFixed(1),+(a[1]-y0).toFixed(1),a[2]-t0])));
-  if(NATIVE&&Android.inkRecognize&&inkState==='ready'){inkPending[k.id]=k;Android.inkRecognize(k.id,json);}
-  else if(window.__mockInk){inkPending[k.id]=k;setTimeout(()=>window.onInkResult(k.id,window.__mockInk(gr)),50);}
+  const sx=gr.spts.flat();const bw=Math.max(...sx.map(a=>a[0]))-x0,bh=Math.max(...sx.map(a=>a[1]))-y0;
+  if((NATIVE&&(inkState==='ready'||koState==='ready'))||(!NATIVE&&(window.__mockInk||window.__mockInkKo))){inkPending[k.id]=k;
+    const save=window.__mockInk;if(save){const g0=gr;window.__mockInk=()=>save(g0);}
+    inkBoth(json,bw,bh).then(async({en,ko})=>{if(save)window.__mockInk=save;const m=marks.find(x=>x.id===k.markId);
+      const shp=m?(m.shape==='point'||m.type!=='금회'?'nonnew':m.shape):'';const r=readInk(en,ko,shp);
+      if(r.name&&m){delete inkPending[k.id];setDmgName(m,r.name);if(r.size)applyParsed(m,r.size);k.text=r.name+(r.size?' '+inkText(r.size):'');k.ok=true;
+        await dbPut('marks',k);await saveMarkObj(m);drawMarks();toast(`손상명: ${r.name}${r.size?' · '+inkText(r.size):''}`,2500);return;}
+      window.onInkResult(k.id,en);});}
   else{k.text='';await dbPut('marks',k);drawMarks();if(NATIVE&&inkState!=='ready')toast('손글씨 인식 준비 안 됨 – 글씨를 눌러 직접 입력하세요',3000);}}
 function fixW(v){return /^0\d$/.test(v)?'0.'+v[1]:v;}
 function parseInk(raw,shape){let t=String(raw||'').trim().replace(/\s+/g,'').replace(/[×xX*]/g,'x').replace(/,/g,'.').replace(/[lI|]/g,'1').replace(/[oO]/g,'0');
@@ -1489,7 +1495,7 @@ function openPdfLabelMenu(l,q){const ex=labelDone(l);if(ex)return openMarkMenu(e
 const padPending={};
 function sizeStr(m){const a=m.w&&m.l?(m.shape==='area'?`${m.w}×${m.l}`:`${m.w}/${m.l}`):(m.l?`L=${m.l}`:'');return [a,m.n?m.n+'ea':''].filter(Boolean).join(' ');}
 function makePad(m,q){const box=document.createElement('div');box.className='qpad';
-  box.innerHTML=`<div class="qpad-h">규모 손글씨 <span class="muted">${m.shape==='area'?'예: 0.3x0.2, 2ea':m.shape==='line'?'예: 0.2/1.2, 3ea':'예: 2ea'}</span></div>
+  box.innerHTML=`<div class="qpad-h">손글씨 <span class="muted">손상명·규모 – 예: 박리, ${m.shape==='area'?'0.3x0.2, 2ea':m.shape==='line'?'0.2/1.2, 3ea':'2ea'}</span></div>
     <canvas></canvas><div class="qpad-r"><span class="res"></span><span style="flex:1"></span><button class="btn" data-a="clr">지우기</button><button class="btn" data-a="kb">직접 입력</button></div>`;
   const cv=box.querySelector('canvas'),res=box.querySelector('.res');const dpr=window.devicePixelRatio||1;const W=420,H=120;
   cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';const g=cv.getContext('2d');g.scale(dpr,dpr);g.lineWidth=2.6;g.lineCap='round';g.lineJoin='round';g.strokeStyle='#1e3a8a';
@@ -1503,12 +1509,17 @@ function makePad(m,q){const box=document.createElement('div');box.className='qpa
   const apply=async(text)=>{const shp=m.shape==='point'||m.type!=='금회'?'nonnew':m.shape;const p=parseInk(text,shp);
     if(p){applyParsed(m,p);if(p.w!==undefined&&m.shape==='area')m.w=p.w;await saveMarkObj(m);selMark=m;drawMarks();show();updHead();}
     else res.innerHTML=`<span style="color:#d92d20">인식: "${esc(text||'?')}" – 다시 쓰거나 [직접 입력]</span>`;};
-  const recog=()=>{if(!strokes.length)return;res.innerHTML='<span class="muted">인식 중…</span>';const id='pad'+uid();const t0=strokes[0][0][2];
+  const recog=async()=>{if(!strokes.length)return;res.innerHTML='<span class="muted">인식 중…</span>';const t0=strokes[0][0][2];
     const json=JSON.stringify(strokes.map(st=>st.map(a=>[+a[0].toFixed(1),+a[1].toFixed(1),a[2]-t0])));
-    padPending[id]=cands=>{let pick=(cands&&cands[0])||'';for(const c of (cands||[])){if(parseInk(c,m.shape==='point'||m.type!=='금회'?'nonnew':m.shape)){pick=c;break;}}apply(pick);};
-    if(NATIVE&&Android.inkRecognize&&inkState==='ready')Android.inkRecognize(id,json);
-    else if(window.__mockInk)setTimeout(()=>window.onInkResult(id,window.__mockInk()),50);
-    else{delete padPending[id];res.innerHTML='<span style="color:#d92d20">손글씨 인식 준비 안 됨 – [직접 입력]</span>';}};
+    if(NATIVE&&inkState!=='ready'&&koState!=='ready'){res.innerHTML='<span style="color:#d92d20">손글씨 인식 준비 안 됨 – [직접 입력]</span>';return;}
+    const shp=m.shape==='point'||m.type!=='금회'?'nonnew':m.shape;const {en,ko}=await inkBoth(json,W,H);const r=readInk(en,ko,shp);
+    if(r.name!==undefined){strokes=[];g.clearRect(0,0,W,H);
+      if(r.name){setDmgName(m,r.name);if(r.size){applyParsed(m,r.size);if(r.size.w!==undefined&&m.shape==='area')m.w=r.size.w;}await saveMarkObj(m);selMark=m;drawMarks();updHead();
+        res.innerHTML=`<b style="color:#027a48">✓ ${esc(r.name)}</b>${sizeStr(m)?' · '+esc(sizeStr(m)):''} `;}
+      else res.innerHTML='<span class="muted">손상명 고르기: </span>';
+      [...(r.name?r.alts:[]),...r.raw.filter(x=>x!==r.name&&!(r.alts||[]).includes(x))].slice(0,3).forEach(c=>res.appendChild(qbtn(esc(c),'chip',async()=>{setDmgName(m,c);await saveMarkObj(m);selMark=m;drawMarks();updHead();res.innerHTML=`<b style="color:#027a48">✓ ${esc(c)}</b>`;})));
+      return;}
+    apply(r.text);};
   const clear=()=>{strokes=[];g.clearRect(0,0,W,H);};
   box.querySelector('[data-a=clr]').onclick=e=>{e.stopPropagation();clear();};
   box.querySelector('[data-a=kb]').onclick=async e=>{e.stopPropagation();const v=await inputBox('규모 (예: 0.3x0.2, 0.2/1.2, 2ea)',sizeStr(m).replace('×','x'));if(v!==null){await apply(v);openMarkMenu(m,q);}};
@@ -1529,6 +1540,27 @@ function dictSuggest(cands){const dict=[...new Set([...preset().dmg,...DMG_DICT]
   (cands||[]).slice(0,10).forEach((c,ci)=>{const jc=jamo(String(c).replace(/\s+/g,''));if(!jc)return;
     for(const w of dict){const jw=jamo(w);const d=lev(jc,jw)/Math.max(jc.length,jw.length)+ci*0.01;if(d<=0.34&&(!sc.has(w)||d<sc.get(w)))sc.set(w,d);}});
   return [...sc.entries()].sort((a,b)=>a[1]-b[1]).map(e=>e[0]).slice(0,3);}
+/* 펜 글씨 한 번에 숫자·규모(영문 모델)와 한글 손상명(한국어 모델)을 함께 인식 */
+function inkBoth(json,W,H){return new Promise(res=>{const out={en:null,ko:null};let fin=false;const done=()=>{if(!fin&&out.en!==null&&out.ko!==null){fin=true;res(out);}};
+  setTimeout(()=>{if(out.en===null)out.en=[];if(out.ko===null)out.ko=[];done();},6000);
+  const id1='be'+uid(),id2='bk'+uid();padPending[id1]=c=>{out.en=c||[];done();};
+  if(NATIVE&&Android.inkRecognize&&inkState==='ready')Android.inkRecognize(id1,json);else if(window.__mockInk)setTimeout(()=>window.onInkResult(id1,window.__mockInk()),30);else{delete padPending[id1];out.en=[];}
+  if(NATIVE&&koState!=='ready'){koPrepare();out.ko=[];done();return;}
+  padPending[id2]=c=>{out.ko=c||[];done();};
+  if(NATIVE&&Android.inkRecognizeLangArea)Android.inkRecognizeLangArea('ko',id2,json,Math.max(60,W||400),Math.max(40,H||120));else if(NATIVE&&Android.inkRecognizeLang)Android.inkRecognizeLang('ko',id2,json);
+  else if(window.__mockInkKo)setTimeout(()=>window.onInkResult(id2,window.__mockInkKo()),30);else{delete padPending[id2];out.ko=[];}
+  done();});}
+/* 한글 후보 → 손상명(사전 보정). 한글 2글자 이상일 때만 */
+function nameFromKo(ko){const hs=[...new Set((ko||[]).map(c=>(String(c).replace(/\s+/g,'').match(/[가-힣]+/g)||[]).join('')).filter(h=>h.length>=2))];
+  if(!hs.length)return null;const sug=dictSuggest(hs);return {name:sug[0]||null,alts:sug.slice(1),raw:hs.slice(0,3)};}
+function sizeFromKo(ko,shp){for(const c of ko||[]){const r=String(c).replace(/[가-힣\s]+/g,'');if(r){const p=parseInk(r,shp);if(p)return p;}}return null;}
+/* 인식 결과 해석: 규모 형식이면 규모, 한글 손상명이면 손상명(+ 같이 쓴 규모) */
+function readInk(en,ko,shp){let p=null,raw=(en&&en[0])||'';for(const c of en||[]){const q=parseInk(c,shp);if(q){p=q;raw=c;break;}}
+  const nk=nameFromKo(ko);const strongSize=p&&(p.w!==undefined||p.n);
+  if(nk&&(nk.name||nk.raw.length)&&!strongSize)return {name:nk.name,alts:nk.alts,raw:nk.raw,size:sizeFromKo(ko,shp),text:(ko&&ko[0])||''};
+  return {size:p,text:raw};}
+function setDmgName(m,name){m.content=name;m.contentManual=true;addCustomDmg(name);
+  document.querySelectorAll('#qmenu .dmgrow .chip').forEach(b=>{if(b.textContent==='＋ 직접')return;b.classList.toggle('on',b.textContent===name);});}
 function addCustomDmg(name){const p=preset();if(p.dmg.includes(name))return;p.dmg.push(name);presets.all={mem:p.mem.join(','),dmg:p.dmg.join(','),ws:p.ws.join(',')};LS.set('presets',presets);}
 function makeNamePad(m,q){koPrepare();const box=document.createElement('div');box.className='qpad npad';
   box.innerHTML=`<div class="qpad-h">손상명 손글씨 <span class="muted">예: 누수흔적, 도장박리</span></div>
@@ -1642,7 +1674,7 @@ async function openMarkMenu(m,q){if(selMark!==m)namePadOpen=false;selMark=m;draw
   if(NATIVE)shootRow.appendChild(qbtn(settings.camMode==='app'?'기본 카메라':'앱 카메라','',()=>{hideQMenu();shootMarkObj(m,true);}));
   let r;
   if(!m.group){r=qrow();const list=m.shape==='line'?LINE_DMG():m.shape==='area'?AREA_DMG():preset().dmg;
-    const lst=list.slice();if(m.content&&!lst.includes(m.content))lst.push(m.content);
+    r.classList.add('dmgrow');    const lst=list.slice();if(m.content&&!lst.includes(m.content))lst.push(m.content);
     lst.forEach(c=>r.appendChild(qbtn(esc(c),'chip'+(m.content===c?' on':''),async()=>{m.content=c;m.contentManual=true;await saveMarkObj(m);openMarkMenu(m,q);})));
     r.appendChild(qbtn('＋ 직접','chip'+(namePadOpen?' on':''),()=>{namePadOpen=!namePadOpen;openMarkMenu(m,q);}));b.appendChild(r);
     if(namePadOpen)b.appendChild(makeNamePad(m,q));}
@@ -1772,11 +1804,13 @@ window.onUpdateInfo=o=>{updInfo=o;renderUpd();
   if(o.error){if(updManual)toast('업데이트 확인 실패 (인터넷 연결 확인)',3500);return;}
   if(o.latest>o.current){$('#upd-txt').innerHTML=`새 버전 <b>${esc(o.latestName)}</b> 이 있습니다${o.notes?` · <span style="opacity:.85">${esc(o.notes.split('\n')[0])}</span>`:''}`;$('#updBar').classList.add('on');}
   else if(updManual)toast(`최신 버전입니다 (${o.currentName})`,2500);};
-function startUpd(){$('#updBar').classList.remove('on');$('#pg-msg').textContent='새 버전 내려받는 중…';$('#pg-bar').style.width='0';openModal('m-prog');Android.startUpdate();}
-window.onUpdateProgress=(p,msg)=>{if(p===-2){closeModal('m-prog');return;}
-  if(p===-1){closeModal('m-prog');toast('업데이트 실패: '+(msg||''),5000);return;}
+let updBusy=false;
+function startUpd(){if(updBusy)return;updBusy=true;$('#updBar').classList.remove('on');$('#pg-msg').textContent='새 버전 내려받는 중…';$('#pg-bar').style.width='0';openModal('m-prog');
+  if(Android.startUpdate2&&updInfo&&updInfo.latestName)Android.startUpdate2(String(updInfo.latestName),+updInfo.latest||0);else Android.startUpdate();}
+window.onUpdateProgress=(p,msg)=>{if(p===-2){updBusy=false;closeModal('m-prog');return;}
+  if(p===-1){updBusy=false;closeModal('m-prog');toast('업데이트 실패: '+(msg||''),5000);return;}
   $('#pg-msg').textContent=`새 버전 내려받는 중… ${p}%`;$('#pg-bar').style.width=p+'%';
-  if(p>=100){closeModal('m-prog');toast('설치 화면에서 [업데이트]를 누르세요',5000);}};
+  if(p>=100){updBusy=false;closeModal('m-prog');toast('설치 화면에서 [업데이트]를 누르세요',5000);}};
 function renderUpd(){const el=$('#updInfo');if(!el)return;const o=updInfo;
   el.textContent=!NATIVE?'웹 버전':!o?'확인 전':o.error?'확인 실패':(o.latest>o.current?`새 버전 ${o.latestName} 있음`:'최신 버전');
   $('#updBtn2').classList.toggle('hide',!(o&&!o.error&&o.latest>o.current));}

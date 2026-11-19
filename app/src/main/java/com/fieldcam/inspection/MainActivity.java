@@ -86,6 +86,8 @@ public class MainActivity extends Activity {
     private static final String START_URL = "https://appassets.androidplatform.net/assets/index.html";
     private static final String ROOT_DIR = Environment.DIRECTORY_DOWNLOADS + "/인스펙맵";
     private static final String UPDATE_BASE = "https://github.com/ksb0608-90/fieldcam/releases/latest/download/";
+    private static final String RELEASE_BASE = "https://github.com/ksb0608-90/fieldcam/releases/download/";
+    private final java.util.concurrent.atomic.AtomicBoolean updating = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     private WebView web;
     private ValueCallback<Uri[]> fileCallback;
@@ -417,6 +419,8 @@ public class MainActivity extends Activity {
     private byte[] download(String url, File out) throws Exception {
         for (int hop = 0; hop < 6; hop++) {
             HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+            c.setUseCaches(false);
+            c.setRequestProperty("Cache-Control", "no-cache");
             c.setInstanceFollowRedirects(false);
             c.setConnectTimeout(15000);
             c.setReadTimeout(30000);
@@ -628,6 +632,43 @@ public class MainActivity extends Activity {
                     callJs("window.onUpdateInfo && window.onUpdateInfo(" + o.toString() + ")");
                 } catch (Throwable e) {
                     callJs("window.onUpdateInfo && window.onUpdateInfo({error:" + JSONObject.quote(String.valueOf(e.getMessage())) + "})");
+                }
+            }).start();
+        }
+
+        /** 새 버전 내려받아 설치 화면 열기 – 버전 지정(해당 릴리스 파일), 중복 실행 막음, 받은 파일 버전 확인 */
+        @JavascriptInterface
+        public void startUpdate2(final String name, final int code) {
+            if (!getPackageManager().canRequestPackageInstalls()) {
+                startUpdate();
+                return;
+            }
+            if (!updating.compareAndSet(false, true)) return;   // 이미 받는 중
+            new Thread(() -> {
+                try {
+                    File dir = new File(getCacheDir(), "apk");
+                    dir.mkdirs();
+                    File apk = new File(dir, "update.apk");
+                    if (apk.exists()) apk.delete();
+                    String url = (name != null && name.matches("[0-9.]+")) ? RELEASE_BASE + "v" + name + "/FieldCam.apk" : UPDATE_BASE + "FieldCam.apk";
+                    try {
+                        download(url, apk);
+                    } catch (Exception e1) {
+                        download(UPDATE_BASE + "FieldCam.apk", apk);
+                    }
+                    PackageInfo pi = getPackageManager().getPackageArchiveInfo(apk.getPath(), 0);
+                    if (pi != null && code > 0 && pi.versionCode < code)
+                        throw new Exception("받은 파일이 최신이 아닙니다(" + pi.versionName + "). 잠시 후 다시 시도하세요");
+                    Uri uri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".fileprovider", apk);
+                    Intent i = new Intent(Intent.ACTION_VIEW);
+                    i.setDataAndType(uri, "application/vnd.android.package-archive");
+                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                    callJs("window.onUpdateProgress && window.onUpdateProgress(100)");
+                    runOnUiThread(() -> startActivity(i));
+                } catch (Throwable e) {
+                    callJs("window.onUpdateProgress && window.onUpdateProgress(-1," + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
+                } finally {
+                    updating.set(false);
                 }
             }).start();
         }
