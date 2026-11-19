@@ -142,6 +142,9 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 .dmgrow .chip .cx{position:absolute;top:-6px;right:-6px;width:15px;height:15px;border-radius:50%;background:#b8bfca;color:#fff;font-size:11px;line-height:15px;text-align:center;font-weight:700}
 .dmgrow .chip .cx::before{content:'';position:absolute;inset:-7px}
 .dmgrow .chip .cx:active{background:#d92d20}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
+.dmgrow .chip.pressing{transform:scale(1.08);background:#eef4ff;transition:transform .5s ease-in,background .5s}
 .chip.ph{display:inline-block;border:2px dashed #2563eb;background:#eff6ff;border-radius:999px;box-sizing:border-box;padding:0}
 .chip.drag{white-space:nowrap;z-index:200;box-shadow:0 8px 20px rgba(0,0,0,.3);transform:scale(1.06);opacity:.95;pointer-events:auto}
 .qmenu .qrow:first-of-type{border-top:0}
@@ -520,7 +523,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.23.0';
+const VERSION = '1.24.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -1578,28 +1581,42 @@ function chipEdit(row,m,q){const chips=()=>[...row.querySelectorAll('.chip[data-
     b.addEventListener('contextmenu',e=>e.preventDefault());
     b.addEventListener('click',e=>{if(b._noClick){b._noClick=false;e.stopImmediatePropagation();e.preventDefault();}},true);
     let st=null;
-    /* 끄는 동안 다른 버튼이 실제로 비켜 주고, 들어갈 자리에 점선 빈 칸이 따라다님 */
-    const flip=fn=>{const cs=[...row.querySelectorAll('.chip')].filter(c=>c!==b);const r0=new Map(cs.map(c=>[c,c.getBoundingClientRect()]));fn();
-      cs.forEach(c=>{const a=r0.get(c),n=c.getBoundingClientRect();const dx=a.left-n.left,dy=a.top-n.top;if(!dx&&!dy)return;
-        c.style.transition='none';c.style.transform=`translate(${dx}px,${dy}px)`;requestAnimationFrame(()=>{c.style.transition='transform .15s';c.style.transform='';});});};
-    b.addEventListener('pointerdown',e=>{if(e.target.classList.contains('cx'))return;st={x:e.clientX,y:e.clientY,id:e.pointerId,drag:false};
-      st.timer=setTimeout(()=>{if(!st)return;st.drag=true;b._noClick=true;const r=b.getBoundingClientRect();
+    /* 끄기: 다른 버튼이 비켜 주고 점선 빈 칸이 들어갈 자리에 표시.
+       위치 계산은 애니메이션 영향 없는 배치 좌표로, 화면 갱신은 프레임당 1번, 줄이 바뀐 직후엔 잠깐 멈춰 떨림 방지 */
+    const menu=$('#qmenu');
+    const layRect=c=>{const op=c.offsetParent||menu;const r=op.getBoundingClientRect();const x=r.left+op.clientLeft+c.offsetLeft-op.scrollLeft,y=r.top+op.clientTop+c.offsetTop-op.scrollTop;return {l:x,t:y,r:x+c.offsetWidth,b:y+c.offsetHeight};};
+    const flip=fn=>{const cs=[...row.querySelectorAll('.chip')].filter(c=>c!==b);const r0=new Map(cs.map(c=>[c,layRect(c)]));fn();
+      cs.forEach(c=>{const a=r0.get(c),n=layRect(c);const dx=a.l-n.l,dy=a.t-n.t;if(!dx&&!dy)return;
+        c.style.transition='none';c.style.transform=`translate(${dx}px,${dy}px)`;requestAnimationFrame(()=>requestAnimationFrame(()=>{c.style.transition='transform .14s ease-out';c.style.transform='';}));});};
+    const frame=()=>{if(!st||!st.drag){return;}st.raf=0;const x=st.px,y=st.py;
+      b.style.left=(x-b.offsetWidth/2)+'px';b.style.top=(y-b.offsetHeight-22)+'px';   /* 펜 끝 위로 띄워 빈 칸이 보이게 */
+      const mr=menu.getBoundingClientRect();let scrolled=false;   /* 메뉴 위·아래 끝에 가면 자동 스크롤 */
+      if(y<mr.top+36&&menu.scrollTop>0){menu.scrollTop-=10;scrolled=true;}else if(y>mr.bottom-36&&menu.scrollTop<menu.scrollHeight-menu.clientHeight){menu.scrollTop+=10;scrolled=true;}
+      if(scrolled)st.raf=requestAnimationFrame(frame);
+      if(performance.now()<st.lock)return;
+      let tgt=null;for(const c of row.querySelectorAll('.chip[data-nm]')){const r=layRect(c);const w=r.r-r.l;
+        if(x>=r.l+w*0.12&&x<=r.r-w*0.12&&y>=r.t-5&&y<=r.b+5){tgt=c;break;}}
+      if(!tgt)return;const r=layRect(tgt);const after=x>(r.l+r.r)/2;const ref=after?tgt.nextSibling:tgt;
+      if(ref===st.ph||st.ph.nextSibling===ref)return;
+      const rowBefore=layRect(st.ph).t;flip(()=>row.insertBefore(st.ph,ref));
+      st.lock=performance.now()+(Math.abs(layRect(st.ph).t-rowBefore)>2?260:120);};
+    const cancelPress=()=>{if(!st)return;clearTimeout(st.timer);b.classList.remove('pressing');};
+    b.addEventListener('pointerdown',e=>{if(e.target.classList.contains('cx'))return;st={x:e.clientX,y:e.clientY,id:e.pointerId,drag:false,lock:0,raf:0};
+      try{b.setPointerCapture(e.pointerId)}catch(_){}b.classList.add('pressing');
+      st.timer=setTimeout(()=>{if(!st)return;st.drag=true;b._noClick=true;b.classList.remove('pressing');const r=b.getBoundingClientRect();
         const ph=document.createElement('span');ph.className='chip ph';ph.style.width=r.width+'px';ph.style.height=r.height+'px';st.ph=ph;
-        st.ox=st.x-r.left;st.oy=st.y-r.top;b.parentNode.insertBefore(ph,b);
-        Object.assign(b.style,{position:'fixed',left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px',margin:'0',whiteSpace:'nowrap',boxSizing:'border-box'});{const cx=b.querySelector('.cx');if(cx)cx.style.display='none';}b.classList.add('drag');document.body.appendChild(b);
-        try{b.setPointerCapture(st.id)}catch(_){}if(navigator.vibrate)try{navigator.vibrate(20)}catch(_){}},450);});
+        b.parentNode.insertBefore(ph,b);
+        Object.assign(b.style,{position:'fixed',left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px',margin:'0',whiteSpace:'nowrap',boxSizing:'border-box'});
+        {const cx=b.querySelector('.cx');if(cx)cx.style.display='none';}b.classList.add('drag');document.body.appendChild(b);
+        try{const sel=getSelection();sel&&sel.removeAllRanges();}catch(_){}
+        try{b.setPointerCapture(st.id)}catch(_){}if(navigator.vibrate)try{navigator.vibrate(25)}catch(_){}
+        st.px=st.x;st.py=st.y;frame();},500);});
     b.addEventListener('pointermove',e=>{if(!st)return;
-      if(!st.drag){if(Math.hypot(e.clientX-st.x,e.clientY-st.y)>10){clearTimeout(st.timer);st=null;}return;}
-      e.preventDefault();b.style.left=(e.clientX-b.offsetWidth/2)+'px';b.style.top=(e.clientY-b.offsetHeight-22)+'px';   /* 펜 끝 위로 띄워 빈 칸이 보이게 */
-      const others=[...row.querySelectorAll('.chip[data-nm]')];let best=null,bd=1e9;
-      for(const c of others){const r=c.getBoundingClientRect();const d=Math.hypot((e.clientX-(r.left+r.right)/2)*0.6,e.clientY-(r.top+r.bottom)/2);if(d<bd){bd=d;best=c;}}
-      if(!best)return;const r=best.getBoundingClientRect();const after=e.clientX>(r.left+r.right)/2;
-      const ref=after?best.nextSibling:best;if(ref===st.ph||(ref&&ref.previousSibling===st.ph&&!after&&false))return;
-      if((after&&best.nextSibling===st.ph)||(!after&&best.previousSibling===st.ph))return;
-      flip(()=>row.insertBefore(st.ph,ref));});
-    const end=e=>{if(!st)return;clearTimeout(st.timer);const s0=st;st=null;if(!s0.drag)return;
+      if(!st.drag){if(Math.hypot(e.clientX-st.x,e.clientY-st.y)>14){cancelPress();st=null;}return;}
+      e.preventDefault();st.px=e.clientX;st.py=e.clientY;if(!st.raf)st.raf=requestAnimationFrame(frame);});
+    const end=e=>{if(!st)return;cancelPress();const s0=st;st=null;if(s0.raf)cancelAnimationFrame(s0.raf);if(!s0.drag)return;
       const order=[...row.querySelectorAll('.chip[data-nm], .chip.ph')].map(c=>c===s0.ph?b.dataset.nm:c.dataset.nm);
-      s0.ph.remove();b.remove();const nm=b.dataset.nm;const full=preset().dmg.filter(v=>v!==nm);
+      s0.ph.remove();b.remove();
       /* 보이는 목록(선/면적 중 하나)의 새 순서를 전체 목록에 반영 */
       const shown=new Set(order);const slots=[];preset().dmg.forEach((v,i)=>{if(shown.has(v))slots.push(i);});
       const a=preset().dmg.slice();slots.forEach((ix,k)=>a[ix]=order[k]);savePresetDmg(a);setTimeout(()=>openMarkMenu(m,q),0);};
