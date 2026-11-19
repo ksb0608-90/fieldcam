@@ -79,6 +79,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MainActivity extends Activity {
 
     private static final int REQ_CAMERA = 1001;
+    private static final int REQ_SYSCAM = 1005;
+    private ArrayList<String> sysPending = null;
+    private String sysName = null;
     private static final int REQ_INAPP = 1002;
     private static final int REQ_PDF = 1003;
     private static final int REQ_PDF_TREE = 1004;
@@ -145,6 +148,8 @@ public class MainActivity extends Activity {
 
         if (savedInstanceState != null) {
             cameraUri = savedInstanceState.getParcelable("cameraUri");
+            sysPending = savedInstanceState.getStringArrayList("sysPending");
+            sysName = savedInstanceState.getString("sysName");
             web.restoreState(savedInstanceState);
         } else {
             web.loadUrl(START_URL);
@@ -155,6 +160,8 @@ public class MainActivity extends Activity {
     protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
         if (cameraUri != null) out.putParcelable("cameraUri", cameraUri);
+        if (sysPending != null) out.putStringArrayList("sysPending", sysPending);
+        if (sysName != null) out.putString("sysName", sysName);
         web.saveState(out);
     }
 
@@ -194,6 +201,38 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_INAPP && data != null && data.getBooleanExtra(CameraActivity.RESULT_SYS, false)) {
+            ArrayList<String> got = data.getStringArrayListExtra(CameraActivity.RESULT_FILES);
+            sysPending = got == null ? new ArrayList<>() : got;
+            try {
+                File dir = new File(getCacheDir(), "cam");
+                if (!dir.exists()) dir.mkdirs();
+                sysName = "sys_" + System.currentTimeMillis() + ".jpg";
+                Uri u = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", new File(dir, sysName));
+                Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                intent.putExtra(MediaStore.EXTRA_OUTPUT, u);
+                intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                startActivityForResult(intent, REQ_SYSCAM);
+                return;
+            } catch (Exception e) {
+                Toast.makeText(this, "기본 카메라 실행 실패: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                data = new Intent().putStringArrayListExtra(CameraActivity.RESULT_FILES, sysPending);
+                sysPending = null;
+            }
+        }
+        if (requestCode == REQ_SYSCAM) {
+            ArrayList<String> all = sysPending == null ? new ArrayList<>() : sysPending;
+            if (resultCode == RESULT_OK && sysName != null) {
+                File f = new File(new File(getCacheDir(), "cam"), sysName);
+                if (f.exists() && f.length() > 0) all.add(sysName);
+            }
+            sysPending = null;
+            sysName = null;
+            JSONArray arr = new JSONArray();
+            for (String f : all) arr.put(f);
+            callJs("window.onCameraResult && window.onCameraResult(" + arr.toString() + ")");
+            return;
+        }
         if (requestCode == REQ_INAPP) {
             ArrayList<String> files = data == null ? null : data.getStringArrayListExtra(CameraActivity.RESULT_FILES);
             JSONArray arr = new JSONArray();

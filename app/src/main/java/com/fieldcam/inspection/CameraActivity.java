@@ -51,6 +51,7 @@ public class CameraActivity extends ComponentActivity {
     public static final String EXTRA_DIGITS = "digits";
     public static final String EXTRA_INFO = "info";
     public static final String RESULT_FILES = "files";
+    public static final String RESULT_SYS = "sys";
     private static final int REQ_PERM = 11;
     private static final String[] FLASH_LABEL = {"플래시 끔", "플래시 자동", "플래시 켬", "라이트 켬"};
 
@@ -175,6 +176,19 @@ public class CameraActivity extends ComponentActivity {
             applyFlash();
         });
         side.addView(flashBtn, new LinearLayout.LayoutParams(dp(120), dp(52)));
+
+        // 기본(삼성) 카메라로 전환: 지금까지 찍은 사진은 그대로 넘기고 기본 카메라를 엶
+        TextView sysBtn = makeButton("기본 카메라", 0xCC333333);
+        sysBtn.setOnClickListener(v -> {
+            Intent out = new Intent();
+            out.putStringArrayListExtra(RESULT_FILES, files);
+            out.putExtra(RESULT_SYS, true);
+            setResult(RESULT_OK, out);
+            finish();
+        });
+        LinearLayout.LayoutParams sblp = new LinearLayout.LayoutParams(dp(120), dp(52));
+        sblp.topMargin = dp(10);
+        side.addView(sysBtn, sblp);
 
         View spacer1 = new View(this);
         side.addView(spacer1, new LinearLayout.LayoutParams(1, 0, 1f));
