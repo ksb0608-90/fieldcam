@@ -63,7 +63,7 @@ tr.click{cursor:pointer}
 .sess .info{flex:1}.sess .info b{font-size:18px}
 .sess .info div{color:var(--sub);font-size:14px;margin-top:2px}
 .sess.cur{border-color:var(--pri);box-shadow:0 0 0 2px var(--pri) inset}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px}
 .modal.on{display:flex}
 .modal .box{background:#fff;border-radius:14px;padding:16px;width:100%;max-width:640px}
 .modal h3{margin:0 0 10px}
@@ -314,7 +314,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
     <div class="muted" style="margin-top:8px">손상 사진은 [망도]에서 표시를 길게 누르거나 기존 손상 글자를 탭해 촬영하세요. 여기 촬영 버튼은 전경·일반 사진용입니다.</div>
   </div>
   <div class="row" style="margin-bottom:10px">
-    <span class="navbk"><button class="btn" id="pBack" title="뒤로">←</button><button class="btn" id="pFwd" title="앞으로">→</button></span><div class="crumb" id="listCrumb"></div>
+    <span class="navbk"><button class="btn" id="pBack" title="상위 단계">←</button></span><div class="crumb" id="listCrumb"></div>
     <select id="listFilter"><option value="">전체 구분</option></select>
     <span class="muted" id="listCount"></span>
     <span style="flex:1"></span>
@@ -514,7 +514,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 
 <script>
 'use strict';
-const VERSION = '1.28.0';
+const VERSION = '1.29.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -602,7 +602,12 @@ function mkHist(apply,ids){const h={st:[],i:-1,busy:false,
   async go(d){const j=h.i+d;if(j<0||j>=h.st.length)return false;h.i=j;h.busy=true;try{await apply(JSON.parse(JSON.stringify(h.st[j])));}finally{h.busy=false;}h.ui();return true;},
   ui(){ids.forEach(([b,f])=>{const eb=document.getElementById(b),ef=document.getElementById(f);if(eb)eb.disabled=h.i<=0;if(ef)ef.disabled=h.i>=h.st.length-1;});}};
   ids.forEach(([b,f])=>{const eb=document.getElementById(b),ef=document.getElementById(f);if(eb)eb.onclick=()=>h.go(-1);if(ef)ef.onclick=()=>h.go(1);});h.ui();return h;}
-const histP=mkHist(async x=>{listSel=x;await renderList();},[['pBack','pFwd']]);
+const histP=mkHist0();
+/* 사진 탭 ← : 상위 단계(페이지 → 망도 → 시설물 → 현장 → 전체) */
+function listUpSel(){const L=listSel;if(L.page)return {site:L.site,sid:L.sid,did:L.did,page:null};if(L.did)return {site:L.site,sid:L.sid,did:null,page:null};
+  if(L.sid){const s=sessions.find(x=>x.id===L.sid);return {site:L.site||(s&&s.site)||null,sid:null,did:null,page:null};}if(L.site)return {site:null,sid:null,did:null,page:null};return null;}
+async function listUp(){const u=listUpSel();if(!u)return;listSel=u;await renderList();}
+{const b=document.getElementById('pBack');if(b)b.onclick=()=>listUp();}
 const histM=mkHist0(async x=>{if(x.d){if(curDid!==x.d)await openDrawing(x.d);}else{if(curD){flushInk();hideQMenu();closeMarkSheet(true);curDid=null;curD=null;LS.set('map.open',null);}curFolder=x.f;LS.set('map.folder',curFolder);await renderMap();}},[['mBack','mFwd']]);
 /* 망도 탭 ← : 상위 폴더로 */
 function mkHist0(){return {i:0,push(){},go(){},ui(){}};}
@@ -736,7 +741,7 @@ async function nativeSavePhoto(s,r,blob){if(!NATIVE)return;
   catch(e){console.error(e);toast('⚠ 폴더 저장 실패: '+e.message+'\n(앱 안에는 저장됨 · 내보내기로 받으세요)',6000);}}
 window.onAndroidBack=()=>{if($('#pv').classList.contains('on')){pvClose();return true;}if(kpT){kpClose();return true;}if($('#mk-sheet').classList.contains('on')){closeMarkSheet();return true;}const m=document.querySelector('.modal.on');if(m){if(m.id!=='m-prog')m.classList.remove('on');return true;}
   if($('#qmenu').classList.contains('on')){hideQMenu();return true;}
-  if(view==='list'&&histP.i>0){histP.go(-1);return true;}if(view==='map'&&!curD&&curFolder){folderUp();return true;}
+  if(view==='list'&&listUpSel()){listUp();return true;}if(view==='map'&&!curD&&curFolder){folderUp();return true;}
   if(view!=='shot'){show('shot');return true;}return false;};
 
 async function saveCapture(file,ctx,quiet){ctx=ctx||form;const s=curSess();
@@ -771,7 +776,7 @@ async function renderList(){await loadFolders();const sel=$('#listFilter');if(se
     $('#listBody').innerHTML='<div class="empty">아직 사진이 없습니다. [망도] 탭에서 구조물 망도를 여세요.</div>';$('#listCount').textContent='';$('#shutter').style.display='none';return;}
   if(listSel.sid===null&&listSel.site===undefined){const c=sessions.find(x=>x.id===curId);listSel=c?{site:c.site,sid:c.id,did:curD&&recIn({did:curD.id},curD)&&drawingKey(curD).fac===c.facility?curD.id:null,page:null}:{site:null,sid:null,did:null,page:null};}
   if(listSel.sid&&!sessions.find(x=>x.id===listSel.sid))listSel={site:null,sid:null,did:null,page:null};
-  const L=listSel;const s=L.sid?sessions.find(x=>x.id===L.sid):null;histP.push({site:L.site??null,sid:L.sid??null,did:L.did??null,page:L.page??null});
+  const L=listSel;const s=L.sid?sessions.find(x=>x.id===L.sid):null;{const b=document.getElementById('pBack');if(b)b.disabled=!listUpSel();}
   /* 촬영 대상: 시설물을 고르면 그 시설물, 아니면 현재 조사 */
   if(s&&curId!==s.id){curId=s.id;LS.set('cur',curId);loadDraft();renderHeader();}
   const cs=s||curSess();
@@ -1660,7 +1665,7 @@ function readInk(en,ko,shp){let p=null,raw=(en&&en[0])||'';for(const c of en||[]
   const nk=nameFromKo(ko);const strongSize=p&&!p.weak&&(p.w!==undefined||p.n||p.l);
   if(nk&&(nk.name||nk.raw.length)&&!strongSize)return {name:nk.name,alts:nk.alts,raw:nk.raw,size:sizeFromKo(ko,shp),text:(ko&&ko[0])||''};
   return {size:p,text:raw};}
-function setDmgName(m,name){m.content=name;m.contentManual=true;addCustomDmg(name);
+function setDmgName(m,name){m.content=name;m.contentManual=true;addCustomDmg(name,m.shape);
   document.querySelectorAll('#qmenu .dmgrow:not(.wsrow) .chip[data-nm]').forEach(b=>b.classList.toggle('on',b.dataset.nm===name));}
 /* 손상명 버튼 편집: 오른쪽 위 ×로 삭제(15초 안에 복구 가능), 길게 눌러 끌어서 순서 이동. 설정의 손상내용 목록과 같은 목록 */
 function savePresetWs(arr){const p=preset();presets.all={mem:p.mem.join(','),dmg:p.dmg.join(','),ws:arr.join(',')};LS.set('presets',presets);}
@@ -1713,7 +1718,11 @@ function chipEdit(row,m,q,L){L=L||{get:()=>preset().dmg,save:savePresetDmg,what:
       const shown=new Set(order);const slots=[];L.get().forEach((v,i)=>{if(shown.has(v))slots.push(i);});
       const a=L.get().slice();slots.forEach((ix,k)=>a[ix]=order[k]);L.save(a);setTimeout(()=>openMarkMenu(m,q),0);};
     b.addEventListener('pointerup',end);b.addEventListener('pointercancel',end);});}
-function addCustomDmg(name){const p=preset();if(p.dmg.includes(name))return;p.dmg.push(name);presets.all={mem:p.mem.join(','),dmg:p.dmg.join(','),ws:p.ws.join(',')};LS.set('presets',presets);}
+function addCustomDmg(name,shape){const crack=/균열/.test(name);
+  if(shape==='line'&&!crack){const a=new Set(presets.lineOnly||[]);a.add(name);presets.lineOnly=[...a];LS.set('presets',presets);}
+  if(shape==='area'&&crack){const a=new Set(presets.areaOnly||['망상균열']);a.add(name);presets.areaOnly=[...a];LS.set('presets',presets);}
+  addCustomDmg0(name);}
+function addCustomDmg0(name){const p=preset();if(p.dmg.includes(name))return;p.dmg.push(name);presets.all={mem:p.mem.join(','),dmg:p.dmg.join(','),ws:p.ws.join(',')};LS.set('presets',presets);}
 function makeNamePad(m,q){koPrepare();const box=document.createElement('div');box.className='qpad npad';
   box.innerHTML=`<div class="qpad-h">손상명 손글씨 <span class="muted">예: 누수흔적, 도장박리</span></div>
     <canvas></canvas><div class="cands qrow" style="min-height:0"></div><div class="qpad-r"><span class="res"></span><span style="flex:1"></span><button class="btn" data-a="clr">지우기</button><button class="btn" data-a="kb">키보드</button></div>`;
@@ -1727,7 +1736,7 @@ function makeNamePad(m,q){koPrepare();const box=document.createElement('div');bo
   const up=e=>{if(!cur)return;cur=null;if(e.pointerType==='pen')penOn=false;clearTimeout(timer);timer=setTimeout(recog,1500);};
   cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
   g.save();g.strokeStyle='#d0d5dd';g.setLineDash([6,6]);g.lineWidth=1;g.beginPath();g.moveTo(10,H*0.78);g.lineTo(W-10,H*0.78);g.stroke();g.restore();g.lineWidth=3;
-  const pick=async name=>{name=String(name||'').replace(/\s+/g,'').trim();if(!name)return;m.content=name;m.contentManual=true;addCustomDmg(name);await saveMarkObj(m);namePadOpen=false;openMarkMenu(m,q);toast(`손상명 "${name}" – 다음부터 목록에서 선택`,2500);};
+  const pick=async name=>{name=String(name||'').replace(/\s+/g,'').trim();if(!name)return;m.content=name;m.contentManual=true;addCustomDmg(name,m.shape);await saveMarkObj(m);namePadOpen=false;openMarkMenu(m,q);toast(`손상명 "${name}" – 다음부터 목록에서 선택`,2500);};
   const showC=list=>{const raw=[...new Set((list||[]).map(c=>String(c).replace(/\s+/g,'')).filter(c=>/[가-힣]/.test(c)))];const sug=dictSuggest(raw);
     const all=[...sug.map(c=>[c,1]),...raw.filter(c=>!sug.includes(c)).slice(0,Math.max(2,4-sug.length)).map(c=>[c,0])];cands.innerHTML='';
     if(!all.length){res.innerHTML='<span style="color:#d92d20">인식 못 함 – 다시 쓰거나 [키보드]</span>';return;}
@@ -1811,8 +1820,11 @@ function placeQMenu(q){const r=wrap.getBoundingClientRect(),el=$('#qmenu');el.cl
   let x=r.left+q.x+18,y=r.top+q.y-20;if(x+w>innerWidth-8)x=r.left+q.x-w-18;if(x<8)x=8;if(y+h>innerHeight-70)y=innerHeight-70-h;if(y<60)y=60;el.style.left=x+'px';el.style.top=y+'px';}
 function qbtn(lbl,cls,fn){const b=document.createElement('button');b.className='btn '+(cls||'');b.innerHTML=lbl;b.onclick=e=>{e.stopPropagation();fn();};return b;}
 function qrow(){const d=document.createElement('div');d.className='qrow';return d;}
-const AREA_DMG=()=>preset().dmg.filter(x=>!/균열/.test(x));
-const LINE_DMG=()=>preset().dmg.filter(x=>/균열/.test(x));
+/* 균열(선) 메뉴 = '균열' 들어간 이름 + 선 메뉴에서 직접 추가한 이름 − 면적 전용(망상균열 등)
+   면적 메뉴   = 나머지 + 면적 메뉴에서 직접 추가한 이름(이름에 '균열'이 있어도) */
+const dmgScope=()=>({line:new Set(presets.lineOnly||[]),area:new Set(presets.areaOnly||['망상균열'])});
+const AREA_DMG=()=>{const sc=dmgScope();return preset().dmg.filter(x=>sc.area.has(x)||(!/균열/.test(x)&&!sc.line.has(x)));};
+const LINE_DMG=()=>{const sc=dmgScope();return preset().dmg.filter(x=>sc.line.has(x)||(/균열/.test(x)&&!sc.area.has(x)));};
 async function openMenuAt(q){const m=hitMark(q);if(m)return openMarkMenu(m,q);const k=hitInk(q);if(k)return openInkMenu(k,q);
   const l=await findLabel(q);if(l)return openPdfLabelMenu(l,q);if(await manualLabel(q))return;
   const b=$('#qm-b');b.innerHTML='';$('#qm-h').textContent='여기에';const r=qrow();
