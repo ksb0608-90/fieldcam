@@ -31,7 +31,7 @@ jobs:
           MSG: ${{ github.event.head_commit.message }}
         run: |
           cp app/build/outputs/apk/release/app-release.apk FieldCam.apk
-          python3 -c "import json,os;n=int(os.environ['GITHUB_RUN_NUMBER']);msg=os.environ.get('MSG','').split('Co-Authored-By')[0].strip();json.dump({'versionCode':n,'versionName':'1.22.%d'%n,'notes':msg},open('version.json','w',encoding='utf-8'),ensure_ascii=False)"
+          python3 -c "import json,os;n=int(os.environ['GITHUB_RUN_NUMBER']);msg=os.environ.get('MSG','').split('Co-Authored-By')[0].strip();json.dump({'versionCode':n,'versionName':'1.23.%d'%n,'notes':msg},open('version.json','w',encoding='utf-8'),ensure_ascii=False)"
           cat version.json
 
       - uses: actions/upload-artifact@v4
@@ -45,8 +45,8 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.22.${{ github.run_number }}
-          name: 인스펙맵 v1.22.${{ github.run_number }}
+          tag_name: v1.23.${{ github.run_number }}
+          name: 인스펙맵 v1.23.${{ github.run_number }}
           files: |
             FieldCam.apk
             version.json
