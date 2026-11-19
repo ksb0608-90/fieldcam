@@ -514,7 +514,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 
 <script>
 'use strict';
-const VERSION = '1.31.0';
+const VERSION = '1.32.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -1592,7 +1592,7 @@ function openPdfLabelMenu(l,q){const ex=labelDone(l);if(ex&&ex.type==='변경')r
   let r=qrow();r.appendChild(qbtn('📷 촬영','acc big',async()=>{hideQMenu();const m=ex||await mk('기존');shootMarkObj(m,false);}));
   if(NATIVE)r.appendChild(qbtn(settings.camMode==='app'?'기본 카메라':'앱 카메라','',async()=>{hideQMenu();const m=ex||await mk('기존');shootMarkObj(m,true);}));b.appendChild(r);
   r=qrow();[['기존','기존(변화 없음)'],['변경','변경'],['보수','보수'],['삭제','삭제(없어짐)']].forEach(([t,lbl])=>r.appendChild(qbtn(lbl,'chip'+(cur===t?' on':''),async()=>{
-    const m=await getM(t);if(t==='변경'){openMarkMenu(m,q,true);return;}hideQMenu();toast(`기존 #${l.num} ${l.name} – ${lbl}`,1500);})));b.appendChild(r);
+    const m=await getM(t);if(t==='변경'){openMarkMenu(m,q,true);return;}openPdfLabelMenu(l,q);})));b.appendChild(r);   /* 상태만 기록, 메뉴는 사용자가 닫음(이어서 촬영 가능) */
   if(ex){r=qrow();r.appendChild(qbtn('표시 지우기','bad',async()=>{hideQMenu();if(!await confirmBox('이 기존 손상 표시를 지울까요?\n(찍은 사진·기록은 남습니다)','지우기'))return;await deleteMark(ex);}));b.appendChild(r);}
   placeQMenu(q);if(ex&&ex.photoNos&&ex.photoNos.length)addThumbRow(b,ex);}
 
@@ -1601,8 +1601,10 @@ const padPending={};
 function sizeStr(m){const a=m.w&&m.l?(m.shape==='area'?`${m.w}×${m.l}${m.b?'×'+m.b:''}`:`${m.w}/${m.l}`):(m.l?`L=${m.l}`:'');return [a,m.n?m.n+'ea':''].filter(Boolean).join(' ');}
 function makePad(m,q){const box=document.createElement('div');box.className='qpad';
   box.innerHTML=`<div class="qpad-h">손글씨 <span class="muted">손상명·규모 – 예: 박리, ${m.shape==='area'?'0.3x0.2, 2ea':m.shape==='line'?'0.2/1.2, 3ea':'2ea'}</span></div>
-    <canvas></canvas><div class="qpad-r"><span class="res"></span><span style="flex:1"></span><button class="btn" data-a="clr">지우기</button><button class="btn" data-a="kb">직접 입력</button></div>`;
+    <canvas></canvas><div class="qpad-r"><span class="res"></span><span style="flex:1"></span>${sizeStr(m)?'<button class="btn bad" data-a="szdel">규모 지우기</button>':''}<button class="btn" data-a="clr">지우기</button><button class="btn" data-a="kb">직접 입력</button></div>`;
   const cv=box.querySelector('canvas'),res=box.querySelector('.res');const dpr=window.devicePixelRatio||1;const W=420,H=120;
+  {const sd=box.querySelector('[data-a=szdel]');if(sd)sd.onclick=async e=>{e.stopPropagation();pushUndo({op:'del',objs:[clone(m)]});['w','l','b','n'].forEach(k=>m[k]='');
+    await saveMarkObj(m);selMark=m;drawMarks();openMarkMenu(m,q);toast('규모 지움',1200);};}   /* 입력된 물량만 삭제(손상명·사진은 그대로) */
   cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';const g=cv.getContext('2d');g.scale(dpr,dpr);g.lineWidth=2.6;g.lineCap='round';g.lineJoin='round';g.strokeStyle='#1e3a8a';
   let strokes=[],cur=null,timer=null,penOn=false;
   const show=()=>{const s=sizeStr(m);res.innerHTML=s?`<b style="color:#027a48">✓ ${esc(s)}</b>`:'<span class="muted">여기에 펜으로 쓰세요</span>';};show();
@@ -1997,7 +1999,8 @@ window.onUpdateInfo=o=>{updInfo=o;renderUpd();
 let updBusy=false;
 function startUpd(){if(updBusy)return;updBusy=true;$('#updBar').classList.remove('on');$('#pg-msg').textContent='새 버전 내려받는 중…';$('#pg-bar').style.width='0';openModal('m-prog');
   if(Android.startUpdate2&&updInfo&&updInfo.latestName)Android.startUpdate2(String(updInfo.latestName),+updInfo.latest||0);else Android.startUpdate();}
-window.onUpdateProgress=(p,msg)=>{if(p===-2){updBusy=false;closeModal('m-prog');return;}
+window.onUpdateProgress=async(p,msg)=>{if(p===-2){updBusy=false;closeModal('m-prog');return;}
+  if(p===101){if(Android.openInstaller&&await confirmBox('설치 화면이 열리지 않았습니다.\n받아 둔 파일로 설치 화면을 열까요?','설치 화면 열기'))Android.openInstaller();return;}
   if(p===-1){updBusy=false;closeModal('m-prog');toast('업데이트 실패: '+(msg||''),5000);return;}
   $('#pg-msg').textContent=`새 버전 내려받는 중… ${p}%`;$('#pg-bar').style.width=p+'%';
   if(p>=100){updBusy=false;closeModal('m-prog');toast('설치 화면에서 [업데이트]를 누르세요',5000);}};

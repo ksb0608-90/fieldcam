@@ -455,6 +455,40 @@ public class MainActivity extends Activity {
     }
 
     /** URL 내려받기: out이 null이면 내용을 반환, 아니면 파일로 저장(진행률 JS 전달) */
+    private volatile boolean isResumed = false;
+    private File lastApk = null;
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        isResumed = true;
+    }
+
+    @Override
+    protected void onPause() {
+        isResumed = false;
+        super.onPause();
+    }
+
+    /** 설치 화면을 앱 안에서 열기(새 작업 창으로 열면 앱 뒤에 숨는 기기가 있음). 2초 뒤에도 앱이 앞에 있으면 JS에 알림 */
+    private void launchInstaller(File apk) {
+        lastApk = apk;
+        runOnUiThread(() -> {
+            try {
+                Uri uri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".fileprovider", apk);
+                Intent i = new Intent(Intent.ACTION_VIEW);
+                i.setDataAndType(uri, "application/vnd.android.package-archive");
+                i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                startActivity(i);
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                    if (isResumed) callJs("window.onUpdateProgress && window.onUpdateProgress(101)");
+                }, 2000);
+            } catch (Exception e) {
+                callJs("window.onUpdateProgress && window.onUpdateProgress(-1," + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
+            }
+        });
+    }
+
     private byte[] download(String url, File out) throws Exception {
         for (int hop = 0; hop < 6; hop++) {
             HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
@@ -688,28 +722,35 @@ public class MainActivity extends Activity {
                     File dir = new File(getCacheDir(), "apk");
                     dir.mkdirs();
                     File apk = new File(dir, "update.apk");
-                    if (apk.exists()) apk.delete();
-                    String url = (name != null && name.matches("[0-9.]+")) ? RELEASE_BASE + "v" + name + "/FieldCam.apk" : UPDATE_BASE + "FieldCam.apk";
-                    try {
-                        download(url, apk);
-                    } catch (Exception e1) {
-                        download(UPDATE_BASE + "FieldCam.apk", apk);
+                    PackageInfo have = apk.exists() ? getPackageManager().getPackageArchiveInfo(apk.getPath(), 0) : null;
+                    if (have == null || code <= 0 || have.versionCode < code) {   // 이미 받은 같은 버전 파일이 있으면 다시 받지 않음
+                        if (apk.exists()) apk.delete();
+                        String url = (name != null && name.matches("[0-9.]+")) ? RELEASE_BASE + "v" + name + "/FieldCam.apk" : UPDATE_BASE + "FieldCam.apk";
+                        try {
+                            download(url, apk);
+                        } catch (Exception e1) {
+                            download(UPDATE_BASE + "FieldCam.apk", apk);
+                        }
+                        PackageInfo pi = getPackageManager().getPackageArchiveInfo(apk.getPath(), 0);
+                        if (pi == null) throw new Exception("받은 파일을 읽을 수 없습니다. 다시 시도하세요");
+                        if (code > 0 && pi.versionCode < code)
+                            throw new Exception("받은 파일이 최신이 아닙니다(" + pi.versionName + "). 잠시 후 다시 시도하세요");
                     }
-                    PackageInfo pi = getPackageManager().getPackageArchiveInfo(apk.getPath(), 0);
-                    if (pi != null && code > 0 && pi.versionCode < code)
-                        throw new Exception("받은 파일이 최신이 아닙니다(" + pi.versionName + "). 잠시 후 다시 시도하세요");
-                    Uri uri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".fileprovider", apk);
-                    Intent i = new Intent(Intent.ACTION_VIEW);
-                    i.setDataAndType(uri, "application/vnd.android.package-archive");
-                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
                     callJs("window.onUpdateProgress && window.onUpdateProgress(100)");
-                    runOnUiThread(() -> startActivity(i));
+                    launchInstaller(apk);
                 } catch (Throwable e) {
                     callJs("window.onUpdateProgress && window.onUpdateProgress(-1," + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
                 } finally {
                     updating.set(false);
                 }
             }).start();
+        }
+
+        /** 받아 둔 설치 파일로 설치 화면 다시 열기 */
+        @JavascriptInterface
+        public void openInstaller() {
+            if (lastApk != null && lastApk.exists()) launchInstaller(lastApk);
+            else callJs("window.onUpdateProgress && window.onUpdateProgress(-1,'설치 파일이 없습니다. [업데이트]를 다시 누르세요')");
         }
 
         /** 새 버전 내려받아 설치 화면 열기 */
@@ -731,12 +772,8 @@ public class MainActivity extends Activity {
                     File apk = new File(dir, "update.apk");
                     if (apk.exists()) apk.delete();
                     download(UPDATE_BASE + "FieldCam.apk", apk);
-                    Uri uri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".fileprovider", apk);
-                    Intent i = new Intent(Intent.ACTION_VIEW);
-                    i.setDataAndType(uri, "application/vnd.android.package-archive");
-                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
                     callJs("window.onUpdateProgress && window.onUpdateProgress(100)");
-                    runOnUiThread(() -> startActivity(i));
+                    launchInstaller(apk);
                 } catch (Throwable e) {
                     callJs("window.onUpdateProgress && window.onUpdateProgress(-1," + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
                 }
