@@ -365,16 +365,6 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
     <div class="sw"><div>앱 안의 사진 기록 삭제<div class="muted">[기록] 목록에서만 지움 · 태블릿 폴더 사진과 망도 표시는 남음</div></div><button class="btn bad" onclick="delSel()">삭제</button></div>
   </div>
   <div class="card">
-    <div class="lbl" style="margin-top:0">부재 · 손상 목록 (쉼표로 구분)</div>
-    <div class="lbl">부재명</div><textarea id="s-mem"></textarea>
-    <div class="lbl">손상내용</div><textarea id="s-dmgs"></textarea>
-    <div class="lbl">폭 빠른 입력</div><input id="s-ws" style="width:100%">
-    <div class="row" style="margin-top:10px;justify-content:flex-end">
-      <button class="btn" onclick="resetPreset()">기본값으로</button>
-      <button class="btn pri" onclick="savePreset()">목록 저장</button>
-    </div>
-  </div>
-  <div class="card">
     <div class="lbl" style="margin-top:0">저장 위치 · 앱 정보</div>
     <div class="muted" id="nativeInfo"></div>
     <div class="muted" id="webInfo">사진은 이 브라우저 안에 저장됩니다. 하루 조사가 끝나면 ZIP으로 내보내 두세요.</div>
@@ -461,12 +451,12 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
   <div class="row" style="margin-top:8px">
     <span class="lbl" style="margin:0">손상번호</span>
     <div class="dmnum"><button class="btn" onclick="mkBump(-1)">−</button><input id="mk-dmg" class="kp" data-int="1" data-lbl="손상번호" readonly><button class="btn" onclick="mkBump(1)">+</button></div>
-    <span class="lbl" style="margin:0 0 0 10px">세부위치</span><input id="mk-loc" style="width:120px" autocomplete="off"><div class="hs" id="mk-locChips"></div>
+    <span class="lbl hide" style="margin:0 0 0 10px">세부위치</span><input id="mk-loc" class="hide" style="width:120px" autocomplete="off"><div class="hs hide" id="mk-locChips"></div>
   </div>
-  <div class="lbl">부재명</div><div class="hs" id="mk-mem"></div>
+  <div class="lbl hide">부재명</div><div class="hs hide" id="mk-mem"></div>
   <div class="lbl">손상내용</div><div class="hs" id="mk-content"></div>
   <div class="lbl">규모</div>
-  <div class="hs" id="mk-wChips" style="margin-bottom:6px"></div>
+  <div class="hs hide" id="mk-wChips" style="margin-bottom:6px"></div>
   <div class="sizes">
     <label class="fld"><span>폭</span><input id="mk-w" class="kp" data-lbl="폭" readonly></label>
     <label class="fld"><span>길이(m)</span><input id="mk-l" class="kp" data-lbl="길이(m)" readonly></label>
@@ -524,7 +514,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 
 <script>
 'use strict';
-const VERSION = '1.26.0';
+const VERSION = '1.27.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -992,7 +982,7 @@ async function saveDiag(){if(!curD){toast('망도를 먼저 여세요');return;}
   else downloadBlob(new Blob([data],{type:'application/json'}),name);}
 function exportSel(){const x=selSess();if(!x){toast('구조물이 없습니다');return;}exportSess(x);}
 async function delSel(){const x=selSess();if(!x)return;await delSess(x);renderSet();}
-function loadPresetFields(){const p=preset();$('#s-mem').value=p.mem.join(', ');$('#s-dmgs').value=p.dmg.join(', ');$('#s-ws').value=p.ws.join(', ');}
+function loadPresetFields(){if(!$('#s-mem'))return;const p=preset();$('#s-mem').value=p.mem.join(', ');$('#s-dmgs').value=p.dmg.join(', ');$('#s-ws').value=p.ws.join(', ');}
 function savePreset(){presets.all={mem:$('#s-mem').value,dmg:$('#s-dmgs').value,ws:$('#s-ws').value};LS.set('presets',presets);toast('목록 저장됨');}
 function resetPreset(){delete presets.all;LS.set('presets',presets);loadPresetFields();toast('기본값으로 되돌림');}
 function saveSet(){settings.autoMenu=$('#s-automenu').checked;settings.showLabels=$('#s-labels').checked;settings.showWords=$('#s-words').checked;settings.penMode=$('#s-pen').value;settings.camMode=$('#s-cam').value;settings.overlay=$('#s-overlay').checked;settings.autoDl=$('#s-dl').checked;settings.detail=$('#s-detail').checked;settings.digits=parseInt($('#s-digits').value,10);LS.set('settings',settings);}
@@ -1370,15 +1360,20 @@ async function flushInk(){clearTimeout(inkTimer);if(!inkGroup)return;const gr=in
       window.onInkResult(k.id,en);});}
   else{k.text='';await dbPut('marks',k);drawMarks();if(NATIVE&&inkState!=='ready')toast('손글씨 인식 준비 안 됨 – 글씨를 눌러 직접 입력하세요',3000);}}
 function fixW(v){return /^0\d$/.test(v)?'0.'+v[1]:v;}
-function parseInk(raw,shape){let t=String(raw||'').trim().replace(/\s+/g,'').replace(/[×xX*]/g,'x').replace(/,/g,'.').replace(/[lI|]/g,'1').replace(/[oO]/g,'0');
+function parseInk(raw,shape){
+  /* 길이만: L=3.0 · L3.0 · l=3.0 · 3.0m (+ 2ea) */
+  {const t0=String(raw||'').trim().replace(/\s+/g,'').replace(/,/g,'.').replace(/[oO]/g,'0');const mm=t0.match(/^(?:[Lℓ][=:]?|l[=:])(\d*\.?\d+)m?(?:(\d+)(?:ea|EA|Ea|개소|개))?$/)||t0.match(/^(\d*\.?\d+)m(?:(\d+)(?:ea|EA|Ea|개소|개))?$/);
+    if(mm)return {l:mm[1],n:mm[2]||'',lenOnly:true};}
+  let t=String(raw||'').trim().replace(/\s+/g,'').replace(/[×xX*]/g,'x').replace(/,/g,'.').replace(/[lI|]/g,'1').replace(/[oO]/g,'0');
   let n='',m=t.match(/(\d+)(ea|개소|개)$/i);if(m){n=m[1];t=t.slice(0,m.index);}
   const N='(\\d*\\.?\\d+)';
   if((m=t.match(new RegExp('^'+N+'/'+N+'$'))))return {w:fixW(m[1]),l:m[2],n};
   if((m=t.match(new RegExp('^'+N+'x'+N+'$'))))return {w:m[1],l:m[2],n};
   if(!t&&n)return {n};
   if((shape==='point'||shape==='nonnew')&&/^\d{1,4}$/.test(t))return {dmg:t};
+  if((m=t.match(new RegExp('^'+N+'$')))&&+m[1]>0)return {l:m[1],n,lenOnly:true,weak:true};   /* 숫자만 = 길이(손상명 글씨와 겹치면 손상명 우선) */
   return null;}
-function inkText(p){if(!p)return '';if(p.dmg)return '#'+p.dmg;return [p.w&&p.l?(p.w+(p.l?'/'+p.l:'')):'',p.n?p.n+'ea':''].filter(Boolean).join(' ');}
+function inkText(p){if(!p)return '';if(p.dmg)return '#'+p.dmg;return [p.w&&p.l?(p.w+(p.l?'/'+p.l:'')):(p.l?'L='+p.l:''),p.n?p.n+'ea':''].filter(Boolean).join(' ');}
 window.onInkResult=async(id,cands)=>{if(padPending[id]){const f=padPending[id];delete padPending[id];f(cands);return;}const k=inkPending[id];delete inkPending[id];if(!k)return;const m=marks.find(x=>x.id===k.markId);
   const shp=m?(m.shape==='point'||m.type!=='금회'?'nonnew':m.shape):'';
   let p=null,raw=(cands&&cands[0])||'';for(const c of (cands||[])){p=parseInk(c,shp);if(p){raw=c;break;}}
@@ -1388,7 +1383,7 @@ window.onInkResult=async(id,cands)=>{if(padPending[id]){const f=padPending[id];d
   k.text=raw;k.ok=!!p;await dbPut('marks',k);
   if(p&&m){applyParsed(m,p);await saveMarkObj(m);}
   drawMarks();if(!p)toast(`글씨 인식: "${raw||'?'}" – 형식 확인 필요 (글씨를 눌러 수정)`,3000);};
-function applyParsed(m,p){if(p.w!==undefined&&m.shape!=='area'&&!m.group){m.w=p.w;}if(p.w!==undefined&&m.shape==='area'){m.w=p.w;}
+function applyParsed(m,p){if(p.lenOnly){m.w='';}if(p.w!==undefined&&m.shape!=='area'&&!m.group){m.w=p.w;}if(p.w!==undefined&&m.shape==='area'){m.w=p.w;}
   if(p.l)m.l=p.l;if(p.n)m.n=p.n;if(p.dmg){m.dmg=p.dmg;}
   if(m.shape==='line'&&!m.group&&p.w&&!m.contentManual)m.content=parseFloat(p.w)>=0.3?'균열(0.3㎜이상)':'균열(0.3㎜미만)';}
 window.onInkStatus=st=>{inkState=st.startsWith('error')?'error':st;const el=$('#inkInfo');if(el)el.textContent=st==='ready'?'준비됨':st==='downloading'?'인식 모델 내려받는 중…':'실패 (인터넷 연결 후 다시 시도)';
@@ -1590,7 +1585,7 @@ function nameFromKo(ko){const hs=[...new Set((ko||[]).map(c=>(String(c).replace(
   if(!hs.length)return null;const sug=dictSuggest(hs);return {name:sug[0]||null,alts:sug.slice(1),raw:hs.slice(0,3)};}
 function sizeFromKo(ko,shp){for(const c of ko||[]){const r=normSize(c);if(r){const p=parseInk(r,shp);if(p)return p;}}return null;}
 /* C. 한글 인식기가 숫자·기호를 한글 자모 등으로 읽은 것을 바로잡기 (x→ㅅ·×, 0→ㅇ, 1→ㅣ 등) */
-function normSize(c){return String(c||'').replace(/[가-힣\s]+/g,'').replace(/[ㅅ×✕✖╳ⅹХхㄨ\*]/g,'x').replace(/[ㅇㅁ○◯◦]/g,'0').replace(/[ㅣ｜|]/g,'1').replace(/[·ㆍ。，,]/g,'.').replace(/[／∕]/g,'/').replace(/[ㄱ-ㅎㅏ-ㅣ]/g,'');}
+function normSize(c){return String(c||'').replace(/ㄴ(?=[=:]?\d)/g,'L').replace(/[가-힣\s]+/g,'').replace(/[ㅅ×✕✖╳ⅹХхㄨ\*]/g,'x').replace(/[ㅇㅁ○◯◦]/g,'0').replace(/[ㅣ｜|]/g,'1').replace(/[·ㆍ。，,]/g,'.').replace(/[／∕]/g,'/').replace(/[ㄱ-ㅎㅏ-ㅣ]/g,'');}
 /* A. 띄어 쓴 자리로 획 나누기: 가로로 가장 넓은 빈칸이 글자 높이의 0.3배 이상이면 앞·뒤로 분리 */
 function splitStrokes(sts){if(!sts||sts.length<3)return null;
   const bs=sts.map(st=>{const xs=st.map(a=>a[0]),ys=st.map(a=>a[1]);return {st,x0:Math.min(...xs),x1:Math.max(...xs),h:Math.max(...ys)-Math.min(...ys)};}).sort((a,b)=>a.x0-b.x0);
@@ -1604,25 +1599,26 @@ function strokesJson(sts){const all=sts.flat();const t0=Math.min(...all.map(a=>a
 async function smartRead(sts,shp,W,H){const sp=splitStrokes(sts);
   const jobs=[inkBoth(strokesJson(sts),W,H)];if(sp)jobs.push(inkBoth(strokesJson(sp[0]),W,H),inkBoth(strokesJson(sp[1]),W,H));
   const R=await Promise.all(jobs);const r0=readInk(R[0].en,R[0].ko,shp);
-  const sizeOf=x=>{for(const c of [...(x.en||[]),...(x.ko||[])]){const p=parseInk(c,shp)||parseInk(normSize(c),shp);if(p&&(p.w!==undefined||p.n))return p;}return null;};
+  const sizeOf=x=>{for(const c of [...(x.en||[]),...(x.ko||[])]){const p=parseInk(c,shp)||parseInk(normSize(c),shp);if(p&&(p.w!==undefined||p.n||p.l))return p;}return null;};
   if(sp){for(const [a,b] of [[R[1],R[2]],[R[2],R[1]]]){const nk=nameFromKo(a.ko);const sz=sizeOf(b);if(nk&&nk.name&&sz)return {name:nk.name,alts:nk.alts,raw:nk.raw,size:sz,text:''};}}
   if(r0.name!==undefined&&!r0.size)r0.size=sizeFromKo(R[0].ko,shp);
   if(r0.name===undefined&&!r0.size){const p=sizeOf({en:[],ko:R[0].ko||[]});if(p)r0.size=p;}
   return r0;}
 /* 인식 결과 해석: 규모 형식이면 규모, 한글 손상명이면 손상명(+ 같이 쓴 규모) */
 function readInk(en,ko,shp){let p=null,raw=(en&&en[0])||'';for(const c of en||[]){const q=parseInk(c,shp);if(q){p=q;raw=c;break;}}
-  const nk=nameFromKo(ko);const strongSize=p&&(p.w!==undefined||p.n);
+  const nk=nameFromKo(ko);const strongSize=p&&!p.weak&&(p.w!==undefined||p.n||p.l);
   if(nk&&(nk.name||nk.raw.length)&&!strongSize)return {name:nk.name,alts:nk.alts,raw:nk.raw,size:sizeFromKo(ko,shp),text:(ko&&ko[0])||''};
   return {size:p,text:raw};}
 function setDmgName(m,name){m.content=name;m.contentManual=true;addCustomDmg(name);
-  document.querySelectorAll('#qmenu .dmgrow .chip[data-nm]').forEach(b=>b.classList.toggle('on',b.dataset.nm===name));}
+  document.querySelectorAll('#qmenu .dmgrow:not(.wsrow) .chip[data-nm]').forEach(b=>b.classList.toggle('on',b.dataset.nm===name));}
 /* 손상명 버튼 편집: 오른쪽 위 ×로 삭제(15초 안에 복구 가능), 길게 눌러 끌어서 순서 이동. 설정의 손상내용 목록과 같은 목록 */
+function savePresetWs(arr){const p=preset();presets.all={mem:p.mem.join(','),dmg:p.dmg.join(','),ws:arr.join(',')};LS.set('presets',presets);}
 function savePresetDmg(arr){const p=preset();presets.all={mem:p.mem.join(','),dmg:arr.join(','),ws:p.ws.join(',')};LS.set('presets',presets);}
-function chipEdit(row,m,q){const chips=()=>[...row.querySelectorAll('.chip[data-nm]')];
+function chipEdit(row,m,q,L){L=L||{get:()=>preset().dmg,save:savePresetDmg,what:'목록'};const chips=()=>[...row.querySelectorAll('.chip[data-nm]')];
   chips().forEach(b=>{const x=document.createElement('span');x.className='cx';x.textContent='×';b.appendChild(x);
     x.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();});
-    x.addEventListener('click',e=>{e.stopPropagation();e.preventDefault();const nm=b.dataset.nm;const a=preset().dmg;const pos=a.indexOf(nm);if(pos<0)return;
-      a.splice(pos,1);savePresetDmg(a);toast(`"${nm}" 목록에서 삭제`,1800);openMarkMenu(m,q);});
+    x.addEventListener('click',e=>{e.stopPropagation();e.preventDefault();const nm=b.dataset.nm;const a=L.get();const pos=a.indexOf(nm);if(pos<0)return;
+      a.splice(pos,1);L.save(a);toast(`"${nm}" 목록에서 삭제`,1800);openMarkMenu(m,q);});
     b.addEventListener('contextmenu',e=>e.preventDefault());
     b.addEventListener('click',e=>{if(b._noClick){b._noClick=false;e.stopImmediatePropagation();e.preventDefault();}},true);
     let st=null;
@@ -1663,8 +1659,8 @@ function chipEdit(row,m,q){const chips=()=>[...row.querySelectorAll('.chip[data-
       const order=[...row.querySelectorAll('.chip[data-nm], .chip.ph')].map(c=>c===s0.ph?b.dataset.nm:c.dataset.nm);
       s0.ph.remove();b.remove();
       /* 보이는 목록(선/면적 중 하나)의 새 순서를 전체 목록에 반영 */
-      const shown=new Set(order);const slots=[];preset().dmg.forEach((v,i)=>{if(shown.has(v))slots.push(i);});
-      const a=preset().dmg.slice();slots.forEach((ix,k)=>a[ix]=order[k]);savePresetDmg(a);setTimeout(()=>openMarkMenu(m,q),0);};
+      const shown=new Set(order);const slots=[];L.get().forEach((v,i)=>{if(shown.has(v))slots.push(i);});
+      const a=L.get().slice();slots.forEach((ix,k)=>a[ix]=order[k]);L.save(a);setTimeout(()=>openMarkMenu(m,q),0);};
     b.addEventListener('pointerup',end);b.addEventListener('pointercancel',end);});}
 function addCustomDmg(name){const p=preset();if(p.dmg.includes(name))return;p.dmg.push(name);presets.all={mem:p.mem.join(','),dmg:p.dmg.join(','),ws:p.ws.join(',')};LS.set('presets',presets);}
 function makeNamePad(m,q){koPrepare();const box=document.createElement('div');box.className='qpad npad';
@@ -1782,7 +1778,11 @@ async function openMarkMenu(m,q){if(selMark!==m)namePadOpen=false;selMark=m;draw
     r.classList.add('dmgrow');    const lst=list.slice();if(m.content&&!lst.includes(m.content))lst.push(m.content);
     lst.forEach(c=>{const bt=qbtn(esc(c),'chip'+(m.content===c?' on':''),async()=>{m.content=c;m.contentManual=true;await saveMarkObj(m);openMarkMenu(m,q);});if(list.includes(c))bt.dataset.nm=c;r.appendChild(bt);});
     r.appendChild(qbtn('＋ 직접','chip'+(namePadOpen?' on':''),()=>{namePadOpen=!namePadOpen;openMarkMenu(m,q);}));b.appendChild(r);chipEdit(r,m,q);
-    if(namePadOpen)b.appendChild(makeNamePad(m,q));}
+    if(namePadOpen)b.appendChild(makeNamePad(m,q));
+    if(m.shape==='line'){const wr=qrow();wr.classList.add('dmgrow','wsrow');const lb=document.createElement('span');lb.className='muted';lb.textContent='폭';lb.style.cssText='align-self:center;margin-right:2px';wr.appendChild(lb);
+      const ws=preset().ws;ws.forEach(v=>{const bt=qbtn(esc(v),'chip'+(String(m.w)===v?' on':''),async()=>{if(String(m.w)===v){m.w='';}else applyParsed(m,{w:v});await saveMarkObj(m);openMarkMenu(m,q);});bt.dataset.nm=v;wr.appendChild(bt);});
+      wr.appendChild(qbtn('＋','chip',async()=>{const v=await inputBox('폭 버튼 추가 (예: 0.15)','');const t=String(v||'').trim();if(/^\d*\.?\d+$/.test(t)){const a=preset().ws;if(!a.includes(t)){let i=a.findIndex(x=>parseFloat(x)>parseFloat(t));if(i<0)i=a.length;a.splice(i,0,t);savePresetWs(a);}   /* 크기 순 자리에 넣음 */}openMarkMenu(m,q);}));
+      b.appendChild(wr);chipEdit(wr,m,q,{get:()=>preset().ws,save:savePresetWs});}}
   if(m.type==='기존'&&m.src!=='pdf'&&!m.group)b.appendChild(makeExistNum(m,q));
   b.appendChild(makePad(m,q));b.appendChild(shootRow);
   r=qrow();TYPES.filter(t=>t!=='일반').forEach(t=>r.appendChild(qbtn(t,'chip'+(m.type===t?' on':''),async()=>{const prev=m.type;m.type=t;if(t==='기존'&&prev!=='기존'&&m.src!=='pdf'&&m.autoDmg!==false){m.dmg='';m.autoDmg=false;}   /* 기존 손상엔 신규 #연번 안 붙임 */
