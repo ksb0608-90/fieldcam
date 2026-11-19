@@ -514,7 +514,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 
 <script>
 'use strict';
-const VERSION = '1.29.0';
+const VERSION = '1.30.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -1155,7 +1155,7 @@ window.addEventListener('resize',()=>{if(view==='map'&&curDrawing())fitView();})
 
 function nosLabel(nos){nos=[...new Set(nos||[])].sort((a,b)=>a-b);const out=[];for(let i=0;i<nos.length;){let j=i;while(j+1<nos.length&&nos[j+1]===nos[j]+1)j++;
   out.push(j>i+1?`${pad(nos[i])}~${pad(nos[j])}`:(j===i+1?`${pad(nos[i])},${pad(nos[j])}`:pad(nos[i])));i=j+1;}return out.join(',');}
-function markLabel(m){if(m.group)return `묶음${m.n?' '+m.n+'ea':''}`;const t=(m.type==='금회'||m.type==='기존')?'':m.type+' ';
+function markLabel(m){if(m.group)return `묶음${m.n?' '+m.n+'ea':''}`;if(m.shape==='line'&&!m.dmg&&m.src!=='pdf'&&!sizeStr(m)&&(m.type==='금회'||m.type==='보수'))return '';const t=(m.type==='금회'||m.type==='기존')?'':m.type+' ';
   const c=m.content&&m.content!=='균열'?m.content.replace('(0.3㎜미만)','').replace('(0.3㎜이상)','')+' ':'';
   return `${m.dmg?'#'+m.dmg+' ':''}${t}${c}${sizeStr(m)}`.trim();}
 function markLabel2(m){const n=nosLabel(m.photoNos);return n?'📷'+n:'';}
@@ -1166,7 +1166,7 @@ function drawMarks(){try{if(live.on()&&(!G||G.k!=='draw'))live.clear();}catch(_)
     if(sel&&m.shape==='area')x+=`<polyline points="${ps} ${pts[0].join(',')}" fill="none" stroke="#facc15" stroke-width="12" stroke-opacity=".6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
     if(sel&&m.shape==='line')parts(m).forEach(pt=>x+=`<polyline points="${pt.map(q=>(q[0]*W).toFixed(1)+','+(q[1]*H).toFixed(1)).join(' ')}" fill="none" stroke="#facc15" stroke-width="12" stroke-opacity=".6" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`);
     const pls=m.shape==='line'?parts(m).map(pt=>pt.map(q=>(q[0]*W).toFixed(1)+','+(q[1]*H).toFixed(1)).join(' ')):[];
-    if(m.shape==='line'&&m.group)pls.forEach(pp=>x+=`<polyline points="${pp}" fill="none" stroke="#475467" stroke-width="${sel?4:2}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-dasharray="2 4"/>`);
+    if(m.shape==='line'&&m.group)pls.forEach(pp=>x+=`<polyline points="${pp}" fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="${sel?10:7}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/><polyline points="${pp}" fill="none" stroke="#1d2939" stroke-width="${sel?5:3.2}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 6"/>`);   /* 묶음선: 흰 테두리 + 진한 점선 */
     else if(m.shape==='line')pls.forEach(pp=>x+=`<polyline points="${pp}" fill="none" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"${dash}${op}/>`);
     else if(m.shape==='area')x+=`<polygon points="${ps}" fill="url(#ht-${MK_KEY[m.type]||'n'})" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linejoin="round"${dash}/>`;
     else x+=`<circle class="pt" cx="${pts[0][0]}" cy="${pts[0][1]}" fill="${c}" stroke="${sel?'#facc15':'#fff'}" stroke-width="${sel?5:2}" vector-effect="non-scaling-stroke"/>`;
@@ -1232,7 +1232,7 @@ wrap.addEventListener('pointerdown',e=>{if(!curD)return;const isPen=e.pointerTyp
   if(ptrs.size>2)return;const q=wp(e);const canDraw=isPen||!penMode();
   const penErase=isPen&&((e.buttons&32)||(e.buttons&2)||e.button===5);
   if(canDraw&&(eraser||penErase)){G={k:'erase',pts:[toPage(q)],last:q,start:q,maxd:0,before:new Map(),changed:new Set(),gone:new Set()};eraseAt(q,G);tmpPts=G.pts;drawMarks();cancelLP();return;}
-  if(canDraw&&e.button!==1){G={k:'draw',pts:[toPage(q)],spts:[[q.x,q.y,Date.now()]],last:q,start:q,maxd:0,pen:isPen,col:penSt.c,pw:penSt.w,hl:penSt.hl};
+  if(canDraw&&e.button!==1){rectPendingOnDown(q);G={k:'draw',pts:[toPage(q)],spts:[[q.x,q.y,Date.now()]],last:q,start:q,maxd:0,pen:isPen,col:penSt.c,pw:penSt.w,hl:penSt.hl};
     live.begin(PEN_HEX[penSt.c],penSt.hl?.35:1,(PEN_W[penSt.w]||3.5)*(penSt.hl?3:1),q);}
   else G={k:'pan',start:q,t0:{x:mv.tx,y:mv.ty},moved:false,t:Date.now(),pen:isPen,canPoint:canDraw};
   startLP(q);});
@@ -1264,7 +1264,7 @@ async function endPtr(e){if(e.pointerType==='pen')penDown=false;if(!ptrs.has(e.p
     return;}
   if(g.k==='erase'){finishErase(g);return;}
   if(g.k==='draw'&&g.maxd>=6){const bb=sbb(g.spts);const l=await labelCircled(g.spts);if(l){drawMarks();openPdfLabelMenu(l,{x:(bb.x0+bb.x1)/2,y:(bb.y0+bb.y1)/2});return;}}
-  if(g.k==='draw'&&g.col!=='black'&&g.maxd>=6){g._rent=rectPush(g);if(await rectTry(g))return;}
+  if(g.k==='draw'&&g.col!=='black'&&g.maxd>=6){g._rent=rectPush(g);const rr=await rectTry(g);if(rr&&rr!=='pending')return;}
   if(g.k==='draw'&&g.col==='black'){if(g.maxd<6&&!nearInk(sbb(g.spts))){drawMarks();onMapTap(g.start,true,g.pen);return;}addInkStroke(g);return;}
   if(g.k==='draw'){const bb=sbb(g.spts),size=Math.max(bb.w,bb.h);
     if(g.maxd<6){ /* 점 찍기: 글씨 중이면 소수점 */
@@ -1309,15 +1309,28 @@ function rectPush(g){const now=Date.now();rectBuf=rectBuf.filter(e=>e.did===curD
   let keep=[],lastT=now;for(let i=rectBuf.length-1;i>=0;i--){if(lastT-rectBuf[i].t>3000)break;keep.unshift(rectBuf[i]);lastT=rectBuf[i].t;}
   const ent={pts:g.pts.map(q=>q.slice()),t:now,col:g.col,did:curDid,page:curPage,ref:null};rectBuf=[...keep.slice(-5),ent];return ent;}
 async function rectMake(ents,corners,g){const ids=new Set(ents.filter(e=>e.ref&&e.ref.mark).map(e=>e.ref.mark));const removed=marks.filter(m=>ids.has(m.id)).map(clone);
-  if(ents.some(e=>e.ref&&e.ref.ink)){clearTimeout(inkTimer);inkGroup=null;}
+  if(ents.some(e=>e.ref&&e.ref.ink)&&inkGroup){const mine=new Set(ents.map(e=>e.inkRef).filter(Boolean));const keep=[],keepS=[];
+    inkGroup.strokes.forEach((st,i)=>{if(!mine.has(st)){keep.push(st);keepS.push(inkGroup.spts[i]);}});
+    if(!keep.length){clearTimeout(inkTimer);inkGroup=null;}
+    else{inkGroup.strokes=keep;inkGroup.spts=keepS;inkGroup.x0=inkGroup.y0=1e9;inkGroup.x1=inkGroup.y1=-1e9;for(const st of keep)for(const q of st){inkGroup.x0=Math.min(inkGroup.x0,q[0]);inkGroup.y0=Math.min(inkGroup.y0,q[1]);inkGroup.x1=Math.max(inkGroup.x1,q[0]);inkGroup.y1=Math.max(inkGroup.y1,q[1]);}}}
   if(ids.size){await tx(['marks'],'readwrite',t=>ids.forEach(id=>t.objectStore('marks').delete(id)));marks=marks.filter(m=>!ids.has(m.id));}
   clearTimeout(amTimer);const nm=await newMark('area',corners,null,PEN_TYPE[g.col]||'금회',{pw:g.pw,hl:g.hl});
   const u=undoStack[undoStack.length-1];if(u&&u.op==='add'&&u.objs[0]&&u.objs[0].id===nm.id)undoStack.pop();pushUndo({op:'swap',add:[clone(nm)],del:removed});
   rectBuf=[];toast('네모(영역)로 인식',1000);const c=pg2s(corners[2]);autoMenu(nm,{x:Math.min(c.x,wrap.clientWidth-20),y:Math.min(c.y,wrap.clientHeight-20)});return nm;}
 /* 이번 획까지 포함해 최근 1~6획 중 네모가 되는 가장 짧은 묶음 찾기. 화면에서 작은 묶음(글씨 크기)은 글씨 묶음이 끝날 때 판정 */
 async function rectTry(g){for(let n=1;n<=rectBuf.length;n++){const ents=rectBuf.slice(-n);const cs=rectFit(ents.map(e=>e.pts));if(!cs)continue;
-    const a=pg2s(cs[0]),b=pg2s(cs[2]);if(Math.max(b.x-a.x,b.y-a.y)<SMALL)return null;
+    const a=pg2s(cs[0]),b=pg2s(cs[2]);
+    if(Math.max(b.x-a.x,b.y-a.y)<SMALL){   /* 작은 네모: 근처에 다른 글씨 획이 없을 때만, 0.5초 쉬거나 다음 획을 떨어진 곳에서 시작하면 확정 */
+      const mine=new Set(ents.map(e=>e.inkRef).filter(Boolean));const pd=Math.max(cs[2][0]-cs[0][0],cs[2][1]-cs[0][1])*0.3;
+      const near=st=>st.some(q=>q[0]>cs[0][0]-pd&&q[0]<cs[2][0]+pd&&q[1]>cs[0][1]-pd&&q[1]<cs[2][1]+pd);
+      if(inkGroup&&inkGroup.strokes.some(st=>!mine.has(st)&&near(st)))continue;
+      rectPending={ents,cs,g,pd,t:setTimeout(()=>rectCommit(),500)};return 'pending';}
     return await rectMake(ents,cs,g);}return null;}
+let rectPending=null;
+function rectCommit(){const r=rectPending;if(!r)return;rectPending=null;clearTimeout(r.t);if(r.g._done)return;rectMake(r.ents,r.cs,r.g);}
+function rectPendingOnDown(q){const r=rectPending;if(!r)return;const pp=toPage(q),cs=r.cs,pd=r.pd;
+  if(pp[0]>cs[0][0]-pd&&pp[0]<cs[2][0]+pd&&pp[1]>cs[0][1]-pd&&pp[1]<cs[2][1]+pd){clearTimeout(r.t);rectPending=null;}   /* 바로 옆에서 이어 씀 = 글씨 */
+  else rectCommit();}
 /* 닫힌 도형 판정: 끝점이 시작 부분(처음 25%) 근처로 돌아오면 닫힘 (덜 닫거나 지나쳐도 인정) */
 function isClosed(sp){if(sp.length<6)return false;const bb=sbb(sp),size=Math.max(bb.w,bb.h);if(size<20)return false;
   let len=0;for(let i=1;i<sp.length;i++)len+=Math.hypot(sp[i][0]-sp[i-1][0],sp[i][1]-sp[i-1][1]);if(len<size*1.8)return false;
@@ -1388,7 +1401,7 @@ function onMapTap(q,canPoint,pen){const m=hitMark(q);if(m){openMarkMenu(m,q);ret
   findLabel(q).then(async l=>{if(l)openPdfLabelMenu(l,q);else await manualLabel(q);});}
 
 /* ---------- 손글씨 ---------- */
-function addInkStroke(g){const p=curD.pages[curPage];if(g._rent)g._rent.ref={ink:true};
+function addInkStroke(g){const p=curD.pages[curPage];if(g._rent){g._rent.ref={ink:true};g._rent.inkRef=g.pts;}
   if(inkGroup&&(inkGroup.col!==g.col||inkGroup.page!==curPage||inkGroup.did!==curDid))flushInk();
   if(!inkGroup)inkGroup={did:curDid,page:curPage,strokes:[],spts:[],x0:1e9,y0:1e9,x1:-1e9,y1:-1e9,col:g.col||'red',pw:g.pw,hl:g.hl};
   inkGroup.strokes.push(g.pts);inkGroup.spts.push(g.spts);for(const q of g.pts){inkGroup.x0=Math.min(inkGroup.x0,q[0]);inkGroup.y0=Math.min(inkGroup.y0,q[1]);inkGroup.x1=Math.max(inkGroup.x1,q[0]);inkGroup.y1=Math.max(inkGroup.y1,q[1]);}
@@ -1424,12 +1437,13 @@ function parseInk(raw,shape){
   let n='',m=t.match(/(\d+)(ea|개소|개)$/i);if(m){n=m[1];t=t.slice(0,m.index);}
   const N='(\\d*\\.?\\d+)';
   if((m=t.match(new RegExp('^'+N+'/'+N+'$'))))return {w:fixW(m[1]),l:m[2],n};
+  if((m=t.match(new RegExp('^'+N+'x'+N+'x'+N+'$')))||(m=t.match(new RegExp('^'+N+'x'+N+'\\(?[tT][=:]?'+N+'\\)?$'))))return {w:m[1],l:m[2],b:m[3],n};
   if((m=t.match(new RegExp('^'+N+'x'+N+'$'))))return {w:m[1],l:m[2],n};
   if(!t&&n)return {n};
   if((shape==='point'||shape==='nonnew')&&/^\d{1,4}$/.test(t))return {dmg:t};
   if((m=t.match(new RegExp('^'+N+'$')))&&+m[1]>0)return {l:m[1],n,lenOnly:true,weak:true};   /* 숫자만 = 길이(손상명 글씨와 겹치면 손상명 우선) */
   return null;}
-function inkText(p){if(!p)return '';if(p.dmg)return '#'+p.dmg;return [p.w&&p.l?(p.w+(p.l?'/'+p.l:'')):(p.l?'L='+p.l:''),p.n?p.n+'ea':''].filter(Boolean).join(' ');}
+function inkText(p){if(!p)return '';if(p.dmg)return '#'+p.dmg;return [p.w&&p.l?(p.b?p.w+'x'+p.l+'x'+p.b:p.w+'/'+p.l):(p.l?'L='+p.l:''),p.n?p.n+'ea':''].filter(Boolean).join(' ');}
 window.onInkResult=async(id,cands)=>{if(padPending[id]){const f=padPending[id];delete padPending[id];f(cands);return;}const k=inkPending[id];delete inkPending[id];if(!k)return;const m=marks.find(x=>x.id===k.markId);
   const shp=m?(m.shape==='point'||m.type!=='금회'?'nonnew':m.shape):'';
   let p=null,raw=(cands&&cands[0])||'';for(const c of (cands||[])){p=parseInk(c,shp);if(p){raw=c;break;}}
@@ -1439,7 +1453,7 @@ window.onInkResult=async(id,cands)=>{if(padPending[id]){const f=padPending[id];d
   k.text=raw;k.ok=!!p;await dbPut('marks',k);
   if(p&&m){applyParsed(m,p);await saveMarkObj(m);}
   drawMarks();if(!p)toast(`글씨 인식: "${raw||'?'}" – 형식 확인 필요 (글씨를 눌러 수정)`,3000);};
-function applyParsed(m,p){if(p.lenOnly&&m.shape!=='line'){m.w='';}   /* 선(균열)은 폭 버튼으로 고른 폭 유지 → 0.2/0.3 */if(p.w!==undefined&&m.shape!=='area'&&!m.group){m.w=p.w;}if(p.w!==undefined&&m.shape==='area'){m.w=p.w;}
+function applyParsed(m,p){if(p.b!==undefined)m.b=p.b;else if(p.w!==undefined&&p.l!==undefined&&m.shape==='area')m.b='';if(p.lenOnly&&m.shape!=='line'){m.w='';}   /* 선(균열)은 폭 버튼으로 고른 폭 유지 → 0.2/0.3 */if(p.w!==undefined&&m.shape!=='area'&&!m.group){m.w=p.w;}if(p.w!==undefined&&m.shape==='area'){m.w=p.w;}
   if(p.l)m.l=p.l;if(p.n)m.n=p.n;if(p.dmg){m.dmg=p.dmg;}
   if(m.shape==='line'&&!m.group&&p.w&&!m.contentManual)m.content=parseFloat(p.w)>=0.3?'균열(0.3㎜이상)':'균열(0.3㎜미만)';}
 window.onInkStatus=st=>{inkState=st.startsWith('error')?'error':st;const el=$('#inkInfo');if(el)el.textContent=st==='ready'?'준비됨':st==='downloading'?'인식 모델 내려받는 중…':'실패 (인터넷 연결 후 다시 시도)';
@@ -1578,7 +1592,7 @@ function openPdfLabelMenu(l,q){const ex=labelDone(l);if(ex)return openMarkMenu(e
 
 /* ---------- 메뉴 안 규모 손글씨 칸 ---------- */
 const padPending={};
-function sizeStr(m){const a=m.w&&m.l?(m.shape==='area'?`${m.w}×${m.l}`:`${m.w}/${m.l}`):(m.l?`L=${m.l}`:'');return [a,m.n?m.n+'ea':''].filter(Boolean).join(' ');}
+function sizeStr(m){const a=m.w&&m.l?(m.shape==='area'?`${m.w}×${m.l}${m.b?'×'+m.b:''}`:`${m.w}/${m.l}`):(m.l?`L=${m.l}`:'');return [a,m.n?m.n+'ea':''].filter(Boolean).join(' ');}
 function makePad(m,q){const box=document.createElement('div');box.className='qpad';
   box.innerHTML=`<div class="qpad-h">손글씨 <span class="muted">손상명·규모 – 예: 박리, ${m.shape==='area'?'0.3x0.2, 2ea':m.shape==='line'?'0.2/1.2, 3ea':'2ea'}</span></div>
     <canvas></canvas><div class="qpad-r"><span class="res"></span><span style="flex:1"></span><button class="btn" data-a="clr">지우기</button><button class="btn" data-a="kb">직접 입력</button></div>`;
@@ -1851,7 +1865,8 @@ async function openMarkMenu(m,q){if(selMark!==m)namePadOpen=false;selMark=m;draw
   r=qrow();TYPES.filter(t=>t!=='일반').forEach(t=>r.appendChild(qbtn(t,'chip'+(m.type===t?' on':''),async()=>{const prev=m.type;m.type=t;if(t==='기존'&&prev!=='기존'&&m.src!=='pdf'&&m.autoDmg!==false){m.dmg='';m.autoDmg=false;}   /* 기존 손상엔 신규 #연번 안 붙임 */
     if(t==='금회'&&!m.dmg){m.dmg=String(await nextDmgFor(curD,m.page));m.autoDmg=true;}await saveMarkObj(m);openMarkMenu(m,q);})));b.appendChild(r);
   r=qrow();
-  r.appendChild(qbtn('상세 입력','',()=>{hideQMenu();openMarkSheet(m);}));
+  if(m.shape==='line'&&!m.group&&m.src!=='pdf')r.appendChild(m.dmg?qbtn('번호 지우기','',async()=>{m.dmg='';m.autoDmg=false;await saveMarkObj(m);toast('번호 지움 – 앞 균열과 한 손상으로 표시',1600);openMarkMenu(m,q);})
+      :qbtn('번호 붙이기','',async()=>{m.dmg=String(await nextDmgFor(curD,m.page));m.autoDmg=true;await saveMarkObj(m);openMarkMenu(m,q);}));
   if(m.shape==='line')r.appendChild(qbtn(m.group?'균열로 바꾸기':'묶음선으로','',async()=>{const ss=curSess();m.group=!m.group;
     if(m.group)m.dmg='';else if(m.type==='금회'&&!m.dmg){m.dmg=String(await nextDmgFor(curD,m.page));m.autoDmg=true;}
     await saveMarkObj(m);openMarkMenu(m,q);}));
