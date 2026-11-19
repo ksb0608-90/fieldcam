@@ -523,7 +523,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 
 <script>
 'use strict';
-const VERSION = '1.24.0';
+const VERSION = '1.25.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -1593,7 +1593,7 @@ function chipEdit(row,m,q){const chips=()=>[...row.querySelectorAll('.chip[data-
       const mr=menu.getBoundingClientRect();let scrolled=false;   /* 메뉴 위·아래 끝에 가면 자동 스크롤 */
       if(y<mr.top+36&&menu.scrollTop>0){menu.scrollTop-=10;scrolled=true;}else if(y>mr.bottom-36&&menu.scrollTop<menu.scrollHeight-menu.clientHeight){menu.scrollTop+=10;scrolled=true;}
       if(scrolled)st.raf=requestAnimationFrame(frame);
-      if(performance.now()<st.lock)return;
+      if(performance.now()<st.lock){if(!st.pend)st.pend=setTimeout(()=>{if(st){st.pend=0;frame();}},st.lock-performance.now()+10);return;}   /* 멈춘 자리도 잠금 후 다시 확인 */
       let tgt=null;for(const c of row.querySelectorAll('.chip[data-nm]')){const r=layRect(c);const w=r.r-r.l;
         if(x>=r.l+w*0.12&&x<=r.r-w*0.12&&y>=r.t-5&&y<=r.b+5){tgt=c;break;}}
       if(!tgt)return;const r=layRect(tgt);const after=x>(r.l+r.r)/2;const ref=after?tgt.nextSibling:tgt;
@@ -1614,7 +1614,7 @@ function chipEdit(row,m,q){const chips=()=>[...row.querySelectorAll('.chip[data-
     b.addEventListener('pointermove',e=>{if(!st)return;
       if(!st.drag){if(Math.hypot(e.clientX-st.x,e.clientY-st.y)>14){cancelPress();st=null;}return;}
       e.preventDefault();st.px=e.clientX;st.py=e.clientY;if(!st.raf)st.raf=requestAnimationFrame(frame);});
-    const end=e=>{if(!st)return;cancelPress();const s0=st;st=null;if(s0.raf)cancelAnimationFrame(s0.raf);if(!s0.drag)return;
+    const end=e=>{if(!st)return;cancelPress();const s0=st;st=null;if(s0.raf)cancelAnimationFrame(s0.raf);if(s0.pend)clearTimeout(s0.pend);if(!s0.drag)return;
       const order=[...row.querySelectorAll('.chip[data-nm], .chip.ph')].map(c=>c===s0.ph?b.dataset.nm:c.dataset.nm);
       s0.ph.remove();b.remove();
       /* 보이는 목록(선/면적 중 하나)의 새 순서를 전체 목록에 반영 */
