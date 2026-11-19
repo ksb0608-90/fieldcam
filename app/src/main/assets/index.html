@@ -137,6 +137,12 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 .qmenu.on{display:block}
 .qmenu .qh{font-weight:700;font-size:15px;color:var(--pri);margin-bottom:6px}
 .qmenu .qrow{display:flex;flex-wrap:wrap;gap:6px;padding:6px 0;border-top:1px solid #eef0f3}
+.qmenu .dmgrow{gap:10px 9px;padding-top:12px}
+.dmgrow .chip[data-nm]{position:relative;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.dmgrow .chip .cx{position:absolute;top:-8px;right:-8px;width:22px;height:22px;border-radius:50%;background:#98a2b3;color:#fff;font-size:15px;line-height:21px;text-align:center;font-weight:700}
+.dmgrow .chip .cx:active{background:#d92d20}
+.dmgrow .chip.drag{opacity:.9;z-index:20;box-shadow:0 6px 16px rgba(0,0,0,.25);transition:none}
+.dmgrow .chip.dropL{box-shadow:-5px 0 0 #2563eb}.dmgrow .chip.dropR{box-shadow:5px 0 0 #2563eb}
 .qmenu .qrow:first-of-type{border-top:0}
 .qmenu .btn{padding:10px 14px;font-size:16px}
 .qmenu .btn.big{padding:14px 24px;font-size:19px}
@@ -513,7 +519,7 @@ input.kp.act{outline:3px solid var(--acc);outline-offset:1px}
 
 <script>
 'use strict';
-const VERSION = '1.21.0';
+const VERSION = '1.22.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -1560,7 +1566,32 @@ function readInk(en,ko,shp){let p=null,raw=(en&&en[0])||'';for(const c of en||[]
   if(nk&&(nk.name||nk.raw.length)&&!strongSize)return {name:nk.name,alts:nk.alts,raw:nk.raw,size:sizeFromKo(ko,shp),text:(ko&&ko[0])||''};
   return {size:p,text:raw};}
 function setDmgName(m,name){m.content=name;m.contentManual=true;addCustomDmg(name);
-  document.querySelectorAll('#qmenu .dmgrow .chip').forEach(b=>{if(b.textContent==='＋ 직접')return;b.classList.toggle('on',b.textContent===name);});}
+  document.querySelectorAll('#qmenu .dmgrow .chip[data-nm]').forEach(b=>b.classList.toggle('on',b.dataset.nm===name));}
+/* 손상명 버튼 편집: 오른쪽 위 ×로 삭제(15초 안에 복구 가능), 길게 눌러 끌어서 순서 이동. 설정의 손상내용 목록과 같은 목록 */
+let dmgUndo=null;
+function savePresetDmg(arr){const p=preset();presets.all={mem:p.mem.join(','),dmg:arr.join(','),ws:p.ws.join(',')};LS.set('presets',presets);}
+function chipEdit(row,m,q){const chips=()=>[...row.querySelectorAll('.chip[data-nm]')];
+  chips().forEach(b=>{const x=document.createElement('span');x.className='cx';x.textContent='×';b.appendChild(x);
+    x.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();});
+    x.addEventListener('click',e=>{e.stopPropagation();e.preventDefault();const nm=b.dataset.nm;const a=preset().dmg;const pos=a.indexOf(nm);if(pos<0)return;
+      a.splice(pos,1);savePresetDmg(a);dmgUndo={nm,pos,t:Date.now()};toast(`"${nm}" 목록에서 삭제 – [↶ 복구]로 되돌리기`,2500);openMarkMenu(m,q);});
+    b.addEventListener('contextmenu',e=>e.preventDefault());
+    b.addEventListener('click',e=>{if(b._noClick){b._noClick=false;e.stopImmediatePropagation();e.preventDefault();}},true);
+    let st=null;
+    b.addEventListener('pointerdown',e=>{if(e.target.classList.contains('cx'))return;st={x:e.clientX,y:e.clientY,id:e.pointerId,drag:false};
+      st.timer=setTimeout(()=>{if(!st)return;st.drag=true;b._noClick=true;b.classList.add('drag');try{b.setPointerCapture(st.id)}catch(_){}
+        if(navigator.vibrate)try{navigator.vibrate(20)}catch(_){}},450);});
+    b.addEventListener('pointermove',e=>{if(!st)return;const dx=e.clientX-st.x,dy=e.clientY-st.y;
+      if(!st.drag){if(Math.hypot(dx,dy)>10){clearTimeout(st.timer);st=null;}return;}
+      e.preventDefault();b.style.transform=`translate(${dx}px,${dy}px)`;
+      let best=null,bd=1e9,side='L';for(const c of chips()){if(c===b)continue;const r=c.getBoundingClientRect();const cx=(r.left+r.right)/2,cy=(r.top+r.bottom)/2;
+        const d=Math.hypot((e.clientX-cx)*0.6,e.clientY-cy);if(d<bd){bd=d;best=c;side=e.clientX<cx?'L':'R';}}
+      chips().forEach(c=>c.classList.remove('dropL','dropR'));if(best)best.classList.add('drop'+side);st.tgt=best;st.side=side;});
+    const end=e=>{if(!st)return;clearTimeout(st.timer);const s0=st;st=null;if(!s0.drag)return;
+      b.classList.remove('drag');b.style.transform='';chips().forEach(c=>c.classList.remove('dropL','dropR'));
+      if(!s0.tgt)return;const nm=b.dataset.nm,tn=s0.tgt.dataset.nm;const a=preset().dmg.filter(v=>v!==nm);let i=a.indexOf(tn);if(i<0)return;if(s0.side==='R')i++;
+      a.splice(i,0,nm);savePresetDmg(a);setTimeout(()=>openMarkMenu(m,q),0);};
+    b.addEventListener('pointerup',end);b.addEventListener('pointercancel',end);});}
 function addCustomDmg(name){const p=preset();if(p.dmg.includes(name))return;p.dmg.push(name);presets.all={mem:p.mem.join(','),dmg:p.dmg.join(','),ws:p.ws.join(',')};LS.set('presets',presets);}
 function makeNamePad(m,q){koPrepare();const box=document.createElement('div');box.className='qpad npad';
   box.innerHTML=`<div class="qpad-h">손상명 손글씨 <span class="muted">예: 누수흔적, 도장박리</span></div>
@@ -1675,8 +1706,9 @@ async function openMarkMenu(m,q){if(selMark!==m)namePadOpen=false;selMark=m;draw
   let r;
   if(!m.group){r=qrow();const list=m.shape==='line'?LINE_DMG():m.shape==='area'?AREA_DMG():preset().dmg;
     r.classList.add('dmgrow');    const lst=list.slice();if(m.content&&!lst.includes(m.content))lst.push(m.content);
-    lst.forEach(c=>r.appendChild(qbtn(esc(c),'chip'+(m.content===c?' on':''),async()=>{m.content=c;m.contentManual=true;await saveMarkObj(m);openMarkMenu(m,q);})));
-    r.appendChild(qbtn('＋ 직접','chip'+(namePadOpen?' on':''),()=>{namePadOpen=!namePadOpen;openMarkMenu(m,q);}));b.appendChild(r);
+    lst.forEach(c=>{const bt=qbtn(esc(c),'chip'+(m.content===c?' on':''),async()=>{m.content=c;m.contentManual=true;await saveMarkObj(m);openMarkMenu(m,q);});if(list.includes(c))bt.dataset.nm=c;r.appendChild(bt);});
+    if(dmgUndo&&Date.now()-dmgUndo.t<15000)r.appendChild(qbtn('↶ '+esc(dmgUndo.nm)+' 복구','chip',()=>{const a=preset().dmg;if(!a.includes(dmgUndo.nm))a.splice(Math.min(dmgUndo.pos,a.length),0,dmgUndo.nm);savePresetDmg(a);dmgUndo=null;openMarkMenu(m,q);}));
+    r.appendChild(qbtn('＋ 직접','chip'+(namePadOpen?' on':''),()=>{namePadOpen=!namePadOpen;openMarkMenu(m,q);}));b.appendChild(r);chipEdit(r,m,q);
     if(namePadOpen)b.appendChild(makeNamePad(m,q));}
   if(m.type==='기존'&&m.src!=='pdf'&&!m.group)b.appendChild(makeExistNum(m,q));
   b.appendChild(makePad(m,q));b.appendChild(shootRow);
