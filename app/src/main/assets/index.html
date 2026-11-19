@@ -514,7 +514,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 
 <script>
 'use strict';
-const VERSION = '1.30.0';
+const VERSION = '1.31.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -1581,14 +1581,20 @@ async function existingMax(d,i){const k=d.id+':'+i;if(exMaxCache[k]!==undefined)
   return exMaxCache[k]=ls.reduce((m,l)=>Math.max(m,+l.num),0);}
 /* 신규 손상번호: 그 페이지의 기존 손상 마지막 번호와 이미 표시한 번호 다음 */
 async function nextDmgFor(d,i){const ex=await existingMax(d,i);let mx=ex;for(const m of marks)if(m.did===d.id&&m.page===i&&m.shape!=='ink'&&m.type!=='기존'&&/^\d+$/.test(m.dmg||''))mx=Math.max(mx,+m.dmg);return mx+1;}
-function openPdfLabelMenu(l,q){const ex=labelDone(l);if(ex)return openMarkMenu(ex,q);
-  const b=$('#qm-b');b.innerHTML='';$('#qm-h').textContent=`기존 손상 #${l.num} ${l.name}${l.size?' · '+l.size:''}${l.dno?'  (도면 '+l.dno+')':''}`;
+/* 기존 손상(초록 상자) 메뉴: 기존(변화 없음)이 기본 선택. 기존·보수·삭제는 상태만 기록하고 닫음, 변경만 전체 메뉴 */
+function openPdfLabelMenu(l,q){const ex=labelDone(l);if(ex&&ex.type==='변경')return openMarkMenu(ex,q,true);
+  if(ex){selMark=ex;drawMarks();}
+  const b=$('#qm-b');b.innerHTML='';$('#qm-h').textContent=`기존 손상 #${l.num} ${l.name}${l.size?' · '+l.size:''}${l.dno?'  (도면 '+l.dno+')':''}${ex&&ex.photoNos&&ex.photoNos.length?' · 사진 '+nosLabel(ex.photoNos):''}`;
   const mk=async type=>{const p=curD.pages[curPage];const sz=parseSize(l.size);
     return await newMark('point',[[l.box[0]*p.w-6,(l.box[1]+l.box[3])/2*p.h]],null,type,{extra:Object.assign({dmg:l.num,content:l.name,note:l.size,src:'pdf',dno:l.dno,lbox:l.box.slice()},sz)});};
-  let r=qrow();r.appendChild(qbtn('📷 촬영','acc big',async()=>{hideQMenu();const m=await mk('기존');shootMarkObj(m,false);}));
-  if(NATIVE)r.appendChild(qbtn(settings.camMode==='app'?'기본 카메라':'앱 카메라','',async()=>{hideQMenu();const m=await mk('기존');shootMarkObj(m,true);}));b.appendChild(r);
-  r=qrow();[['기존','기존(변화 없음)'],['변경','변경'],['보수','보수'],['삭제','삭제(없어짐)']].forEach(([t,lbl])=>r.appendChild(qbtn(lbl,'chip',async()=>{const m=await mk(t);openMarkMenu(m,q);})));b.appendChild(r);
-  placeQMenu(q);}
+  const getM=async t=>{if(ex){if(ex.type!==t){pushUndo({op:'del',objs:[clone(ex)]});ex.type=t;await saveMarkObj(ex);}drawMarks();return ex;}return await mk(t);};
+  const cur=ex?ex.type:'기존';
+  let r=qrow();r.appendChild(qbtn('📷 촬영','acc big',async()=>{hideQMenu();const m=ex||await mk('기존');shootMarkObj(m,false);}));
+  if(NATIVE)r.appendChild(qbtn(settings.camMode==='app'?'기본 카메라':'앱 카메라','',async()=>{hideQMenu();const m=ex||await mk('기존');shootMarkObj(m,true);}));b.appendChild(r);
+  r=qrow();[['기존','기존(변화 없음)'],['변경','변경'],['보수','보수'],['삭제','삭제(없어짐)']].forEach(([t,lbl])=>r.appendChild(qbtn(lbl,'chip'+(cur===t?' on':''),async()=>{
+    const m=await getM(t);if(t==='변경'){openMarkMenu(m,q,true);return;}hideQMenu();toast(`기존 #${l.num} ${l.name} – ${lbl}`,1500);})));b.appendChild(r);
+  if(ex){r=qrow();r.appendChild(qbtn('표시 지우기','bad',async()=>{hideQMenu();if(!await confirmBox('이 기존 손상 표시를 지울까요?\n(찍은 사진·기록은 남습니다)','지우기'))return;await deleteMark(ex);}));b.appendChild(r);}
+  placeQMenu(q);if(ex&&ex.photoNos&&ex.photoNos.length)addThumbRow(b,ex);}
 
 /* ---------- 메뉴 안 규모 손글씨 칸 ---------- */
 const padPending={};
@@ -1845,7 +1851,8 @@ async function openMenuAt(q){const m=hitMark(q);if(m)return openMarkMenu(m,q);co
   r.appendChild(qbtn('● 기존 손상 점','',()=>{hideQMenu();newMark('point',[toPage(q)],q,'기존');}));
   r.appendChild(qbtn('📷 일반 사진','',()=>{hideQMenu();shoot({type:'일반',did:curDid,dname:curD.name,page:curPage+1});}));
   b.appendChild(r);placeQMenu(q);}
-async function openMarkMenu(m,q){if(selMark!==m)namePadOpen=false;selMark=m;drawMarks();const b=$('#qm-b');b.innerHTML='';
+async function openMarkMenu(m,q,full){if(!full&&m.src==='pdf'&&m.lbox&&m.type!=='변경'){openPdfLabelMenu({num:m.dmg,name:m.content||'',size:m.note||'',box:m.lbox,dno:m.dno||''},q);return;}
+  if(selMark!==m)namePadOpen=false;selMark=m;drawMarks();const b=$('#qm-b');b.innerHTML='';
   $('#qm-h').textContent=menuHead(m);
   const shootRow=qrow();
   shootRow.appendChild(qbtn('📷 촬영','acc big',()=>{hideQMenu();shootMarkObj(m,false);}));
