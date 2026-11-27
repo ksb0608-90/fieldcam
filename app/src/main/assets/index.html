@@ -378,7 +378,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 
 <script>
 'use strict';
-const VERSION = '1.38.0';
+const VERSION = '1.38.1';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -1077,6 +1077,8 @@ function onStruct(pts){const p=curD&&curD.pages[curPage];if(!p)return false;cons
     for(let dy=-2;dy<=2&&!f;dy++)for(let dx=-2;dx<=2;dx++){const xx=x+dx,yy=y+dy;if(xx>=0&&yy>=0&&xx<S.W&&yy<S.H&&S.m[yy*S.W+xx]){f=1;break;}}hit+=f;}
   return tot>0&&hit>=tot*0.6;}
 /* 한 번에 그은 매끄러운 선: 길이 ≥ 60px(약 9mm), 꺾임 합 < 160°, 15px 안에서 60° 넘게 꺾이는 모서리 없음, 시작–끝 거리 ≥ 길이의 55% */
+/* v1.38: 곧은 한 획(현 길이/획 길이 ≥ 0.9) */
+function straightStroke(sp){if(!sp||sp.length<2)return false;let L=0;for(let i=1;i<sp.length;i++)L+=Math.hypot(sp[i][0]-sp[i-1][0],sp[i][1]-sp[i-1][1]);const d=Math.hypot(sp[sp.length-1][0]-sp[0][0],sp[sp.length-1][1]-sp[0][1]);return L>0&&d/L>=0.9;}
 function smoothStroke(sp){if(!sp||sp.length<4)return false;const P=[sp[0]];for(const q of sp){const l=P[P.length-1];if(Math.hypot(q[0]-l[0],q[1]-l[1])>=7)P.push(q);}
   let len=0,turn=0;const ang=[];for(let i=1;i<P.length;i++){const dx=P[i][0]-P[i-1][0],dy=P[i][1]-P[i-1][1];len+=Math.hypot(dx,dy);ang.push(Math.atan2(dy,dx));}
   const da=(a,b)=>{let d=Math.abs(a-b);return d>Math.PI?2*Math.PI-d:d;};for(let i=1;i<ang.length;i++){turn+=da(ang[i],ang[i-1]);if(i>=2&&da(ang[i],ang[i-2])>Math.PI/3)return false;if(da(ang[i],ang[i-1])>Math.PI/3)return false;}
@@ -1439,8 +1441,8 @@ async function flushInk(){clearTimeout(inkTimer);if(!inkGroup)return;const gr=in
   if(gr.col!=='black'&&gr.page===curPage){const cs=rectFit(gr.strokes);if(cs){const g0={col:gr.col,pw:gr.pw,hl:gr.hl};await rectMake([],cs,g0);return;}}   /* 작은 네모(글씨 크기 획들) */
   const p=curD.pages[gr.page],s=curSess();const note=gr.col==='black';
   if(!note&&gr.strokes.length===1&&isClosed(gr.spts[0])){const pts=gr.strokes[0];newMark('area',snapRect(pts),null,PEN_TYPE[gr.col]||'금회',{pw:gr.pw,hl:gr.hl});return;}
-  if(!note&&gr.page===curPage&&gr.strokes.length===1&&(()=>{const sp=gr.spts[0],b=sbb(sp);if(onStruct(gr.strokes[0])&&Math.max(b.w,b.h)>=26&&!nearDamage(b))return true;return smoothStroke(sp);})()&&!(()=>{const e=rectBuf.find(r=>r.inkRef===gr.strokes[0]);if(!e)return false;const b0=sbb(e.pts),R=Math.max(b0.w,b0.h)*1.5;return rectBuf.some(r=>{if(r===e||Math.abs(r.t-e.t)>3000)return false;const b=sbb(r.pts);return b.x1>b0.x0-R&&b.x0<b0.x1+R&&b.y1>b0.y0-R&&b.y0<b0.y1+R;});})()){   /* 네모를 그리는 중인 획은 제외 */   /* 혼자 그은 매끄러운 한 획 = 짧은 균열 */
-    const nm=await newMark('line',gr.strokes[0],null,PEN_TYPE[gr.col]||'금회',{pw:gr.pw,hl:gr.hl});if(nm){const e=gr.spts[0][gr.spts[0].length-1];autoMenu(nm,{x:e[0],y:e[1]},200);}return;}
+  if(!note&&gr.page===curPage&&gr.strokes.length===1&&(()=>{const sp=gr.spts[0],b=sbb(sp);if(onStruct(gr.strokes[0])&&Math.max(b.w,b.h)>=26&&!nearDamage(b))return true;if(Math.max(b.w,b.h)>=26&&straightStroke(sp)&&nearDamage(b))return true;   /* v1.38: 손상 옆에 혼자 그은 곧은 한 획(4mm↑) = 균열('1'로 읽지 않음) */return smoothStroke(sp);})()&&!(()=>{const e=rectBuf.find(r=>r.inkRef===gr.strokes[0]);if(!e)return false;const b0=sbb(e.pts),R=Math.max(b0.w,b0.h)*1.5;return rectBuf.some(r=>{if(r===e||Math.abs(r.t-e.t)>3000)return false;if(r.t<e.t&&r.ref&&r.ref.mark)return false;   /* v1.38: 앞서 이미 손상이 된 획(옆 균열)은 네모 그리는 중으로 보지 않음 */const b=sbb(r.pts);return b.x1>b0.x0-R&&b.x0<b0.x1+R&&b.y1>b0.y0-R&&b.y0<b0.y1+R;});})()){   /* 네모를 그리는 중인 획은 제외 */   /* 혼자 그은 매끄러운 한 획 = 짧은 균열 */
+    const nm=await newMark('line',gr.strokes[0],null,PEN_TYPE[gr.col]||'금회',{pw:gr.pw,hl:gr.hl});{const re=rectBuf.find(r=>r.inkRef===gr.strokes[0]);if(re&&nm)re.ref={mark:nm.id};}if(nm){const e=gr.spts[0][gr.spts[0].length-1];autoMenu(nm,{x:e[0],y:e[1]},200);}return;}
   const tgt=note?null:inkTarget(gr);
   const k={id:uid(),sid:s.id,did:gr.did,page:gr.page,shape:'ink',kind:note?'note':'text',color:gr.col,pw:gr.pw,hl:gr.hl,pts:[[0,0]],strokes:gr.strokes.map(st=>st.map(q=>[+(q[0]/p.w).toFixed(5),+(q[1]/p.h).toFixed(5)])),
     bb:[gr.x0/p.w,gr.y0/p.h,gr.x1/p.w,gr.y1/p.h],text:'',ok:false,markId:tgt?tgt.id:'',photoNos:[],created:nowStr(),ts:Date.now()};
@@ -1451,7 +1453,9 @@ async function flushInk(){clearTimeout(inkTimer);if(!inkGroup)return;const gr=in
   if((NATIVE&&(inkState==='ready'||koState==='ready'))||(!NATIVE&&(window.__mockInk||window.__mockInkKo))){inkPending[k.id]=k;
     const save=null;
     const shp0=(()=>{const m=marks.find(x=>x.id===k.markId);return m?(m.shape==='point'||m.type!=='금회'?'nonnew':m.shape):'';})();
-    smartRead(gr.spts.map(st=>st.slice()),shp0,bw,bh).then(async r=>{if(save)window.__mockInk=save;const m=marks.find(x=>x.id===k.markId);const en=r.size?[inkText(r.size)]:[r.text||''];
+    smartRead(gr.spts.map(st=>st.slice()),shp0,bw,bh).then(async r=>{if(save)window.__mockInk=save;
+      if(gr.strokes.length===1&&!r.name&&/^[1lI|!]$/.test(String(r.size?inkText(r.size):r.text||'').replace(/^L=/,'').trim())&&k.markId){k.markId='';}   /* v1.38: 숫자 '1' 하나만 → 규모로 안 넣음 */
+      const m=marks.find(x=>x.id===k.markId);const en=r.size?[inkText(r.size)]:[r.text||''];
       if(r.name&&m){delete inkPending[k.id];setDmgName(m,r.name);if(r.size)applyParsed(m,r.size);k.text=r.name+(r.size?' '+inkText(r.size):'');k.ok=true;
         await dbPut('marks',k);await saveMarkObj(m);drawMarks();toast(`손상명: ${r.name}${r.size?' · '+inkText(r.size):''}`,2500);return;}
       window.onInkResult(k.id,en);});}
