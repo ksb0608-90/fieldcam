@@ -378,7 +378,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 
 <script>
 'use strict';
-const VERSION = '1.38.2';
+const VERSION = '1.38.3';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -1771,8 +1771,10 @@ function savePresetDmg(arr){const p=preset();presets.all={mem:p.mem.join(','),dm
 function chipEdit(row,m,q,L){L=L||{get:()=>preset().dmg,save:savePresetDmg,what:'목록'};const chips=()=>[...row.querySelectorAll('.chip[data-nm]')];
   chips().forEach(b=>{if(chipEditOn){const x=document.createElement('span');x.className='cx';x.textContent='×';b.appendChild(x);
     x.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();});
-    x.addEventListener('click',e=>{e.stopPropagation();e.preventDefault();const nm=b.dataset.nm;const a=L.get();const pos=a.indexOf(nm);if(pos<0)return;
-      a.splice(pos,1);L.save(a);toast(`"${nm}" 목록에서 삭제`,1800);openMarkMenu(m,q);});}
+    x.addEventListener('click',async e=>{e.stopPropagation();e.preventDefault();const nm=b.dataset.nm;const a=L.get();const pos=a.indexOf(nm);if(pos<0)return;
+      a.splice(pos,1);L.save(a);toast(`"${nm}" 목록에서 삭제`,1800);
+      if(L.what==='목록'&&m&&m.content===nm){m.content='';m.contentManual=false;await saveMarkObj(m);}   /* v1.38: 지금 고른 이름을 지우면 바로 사라지게 */
+      openMarkMenu(m,q);});}
     b.addEventListener('contextmenu',e=>e.preventDefault());
     b.addEventListener('click',e=>{if(b._noClick){b._noClick=false;e.stopImmediatePropagation();e.preventDefault();}},true);
     let st=null;
@@ -1817,6 +1819,9 @@ function chipEdit(row,m,q,L){L=L||{get:()=>preset().dmg,save:savePresetDmg,what:
       const a=L.get().slice();slots.forEach((ix,k)=>a[ix]=order[k]);L.save(a);setTimeout(()=>openMarkMenu(m,q),0);};
     b.addEventListener('pointerup',end);b.addEventListener('pointercancel',end);});}
 function addCustomDmg(name,shape){const crack=/균열/.test(name);
+  /* v1.38: 다른 메뉴 전용으로 잡혀 있던 이름(예: 선 메뉴에서 넣은 '박리')을 이 메뉴에서 다시 넣으면 이 메뉴에도 보이게 */
+  {const sc=dmgScope();const also=k=>{const a=new Set(presets[k]||[]);a.add(name);presets[k]=[...a];LS.set('presets',presets);};
+   if(shape==='area'&&!crack&&sc.line.has(name))also('areaAlso');if(shape==='line'&&crack&&sc.area.has(name))also('lineAlso');}
   if(shape==='line'&&!crack){const a=new Set(presets.lineOnly||[]);a.add(name);presets.lineOnly=[...a];LS.set('presets',presets);}
   if(shape==='area'&&crack){const a=new Set(presets.areaOnly||['망상균열']);a.add(name);presets.areaOnly=[...a];LS.set('presets',presets);}
   addCustomDmg0(name);}
@@ -1936,8 +1941,8 @@ function qrow(){const d=document.createElement('div');d.className='qrow';return 
 /* 균열(선) 메뉴 = '균열' 들어간 이름 + 선 메뉴에서 직접 추가한 이름 − 면적 전용(망상균열 등)
    면적 메뉴   = 나머지 + 면적 메뉴에서 직접 추가한 이름(이름에 '균열'이 있어도) */
 const dmgScope=()=>({line:new Set(presets.lineOnly||[]),area:new Set(presets.areaOnly||['망상균열'])});
-const AREA_DMG=()=>{const sc=dmgScope();return preset().dmg.filter(x=>sc.area.has(x)||(!/균열/.test(x)&&!sc.line.has(x)));};
-const LINE_DMG=()=>{const sc=dmgScope();return preset().dmg.filter(x=>sc.line.has(x)||(/균열/.test(x)&&!sc.area.has(x)));};
+const AREA_DMG=()=>{const sc=dmgScope(),al=new Set(presets.areaAlso||[]);return preset().dmg.filter(x=>sc.area.has(x)||al.has(x)||(!/균열/.test(x)&&!sc.line.has(x)));};
+const LINE_DMG=()=>{const sc=dmgScope(),al=new Set(presets.lineAlso||[]);return preset().dmg.filter(x=>sc.line.has(x)||al.has(x)||(/균열/.test(x)&&!sc.area.has(x)));};
 async function openMenuAt(q){const m=hitMark(q);if(m)return openMarkMenu(m,q);const k=hitInk(q);if(k)return openInkMenu(k,q);
   const l=await findLabel(q);if(l)return openPdfLabelMenu(l,q);if(await manualLabel(q))return;
   const b=$('#qm-b');b.innerHTML='';$('#qm-h').textContent='여기에';const r=qrow();
