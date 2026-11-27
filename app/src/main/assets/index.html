@@ -138,6 +138,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 .side .sp.lift{border-color:var(--pri);box-shadow:0 4px 14px rgba(0,0,0,.25);transform:scale(.97)}
 .spghost{position:fixed;z-index:60;pointer-events:none;opacity:.9;box-shadow:0 8px 24px rgba(0,0,0,.35);border:2px solid var(--pri);border-radius:8px;background:#fff;padding:3px}
 .spghost img{width:100%;display:block}.spghost span{display:block;font-size:13px}
+.qmenu .pgrow{flex-wrap:nowrap;gap:6px;align-items:center}.qmenu .pgrow .btn.tpm{font-size:22px;min-width:48px;padding:0 8px}.qmenu .pgrow .btn{font-size:14px;padding:4px 11px;white-space:nowrap}
 .spbar{height:5px;border-radius:3px;background:var(--pri);margin:2px 0 8px}
 .side .sph{display:flex;align-items:center;gap:6px;padding:4px;font-size:14px;color:var(--sub)}.side .sph span{flex:1}.side .sph .btn{min-height:40px;padding:4px 10px;font-size:14px}
 .pcol{border:2px solid transparent;background:#f2f4f7;border-radius:10px;padding:0 10px;min-height:44px;font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px}
@@ -208,7 +209,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
       <button class="btn tbtn" id="hlBtn">형광펜</button>
       <button class="btn tbtn" id="eraseBtn">지우개</button>
       <button class="btn" onclick="undo()" title="되돌리기">↶</button>
-      <button class="btn" id="tblBtn" onclick="tableNew()" title="받침 표 넣기">표</button>
+      <button class="btn" id="tblBtn" onclick="tableNew()" title="받침 연단·이동량 표 넣기">연단/이동량</button>
     </div>
     <span class="sep"></span>
     <button class="btn" onclick="fitView()" title="전체 보기">⤢</button>
@@ -373,7 +374,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 
 <script>
 'use strict';
-const VERSION = '1.35.0';
+const VERSION = '1.36.0';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -931,12 +932,12 @@ async function movePage(from,to){const d=curD;if(to===from||to===from+1)return;p
   const map=[];order.forEach((old,nw)=>map[old]=nw);const pages=order.map(k=>d.pages[k]);d.pages.splice(0,n,...pages);
   const cur=map[curPage];await pagesChanged(d,map,cur);toast(`${pageNo(d,ins)}페이지 이동`,1200);}
 function pageMenu(x,i){const d=curD;$('#qm-h').textContent=`${pageNo(d,i)}페이지${d.pages[i].blank?' (빈 페이지)':d.pages[i].added?' (복사한 페이지)':''}`;
-  const b=$('#qm-b');b.innerHTML='';const r=qrow();
-  r.appendChild(qbtn('＋ 뒤에 빈 페이지','acc',()=>{hideQMenu();addBlankPage(i);}));
-  r.appendChild(qbtn('⧉ 복사 (배경만)','',()=>{hideQMenu();copyPage(i,false);}));
-  r.appendChild(qbtn('⧉ 복사 (표시까지)','',()=>{hideQMenu();copyPage(i,true);}));
-  r.appendChild(qbtn(d.pages[i].added?'🗑 페이지 삭제':'🗑 페이지 숨기기','bad',()=>{hideQMenu();deletePage(i);}));b.appendChild(r);
-  const h=document.createElement('div');h.className='muted';h.style.cssText='font-size:14px;margin-top:8px';h.textContent='이동: 썸네일을 길게 누른 채 위아래로 끌기';b.appendChild(h);
+  const b=$('#qm-b');b.innerHTML='';const r=qrow();r.classList.add('pgrow');
+  r.appendChild(qbtn('＋ 빈 페이지','acc',()=>{hideQMenu();addBlankPage(i);}));
+  r.appendChild(qbtn('복사','',()=>{hideQMenu();copyPage(i,false);}));
+  r.appendChild(qbtn('표시까지 복사','',()=>{hideQMenu();copyPage(i,true);}));
+  r.appendChild(qbtn(d.pages[i].added?'삭제':'숨기기','bad',()=>{hideQMenu();deletePage(i);}));b.appendChild(r);
+  const h=document.createElement('div');h.className='muted';h.style.cssText='font-size:12.5px;margin-top:6px;white-space:nowrap';h.textContent='복사 = 배경만 · 순서 이동: 썸네일을 길게 누른 채 끌기';b.appendChild(h);
   const R=x.getBoundingClientRect();placeQMenu({x:0,y:0},{l:R.left,t:R.top,r:R.right,b:R.bottom},'pg'+i);}
 let spDragOn=false;
 function spGesture(x,el){let st=null;const di=()=>+x.dataset.i;
@@ -962,10 +963,10 @@ function spGesture(x,el){let st=null;const di=()=>+x.dataset.i;
   if(!el._tmv){el._tmv=true;el.addEventListener('touchmove',e=>{if(spDragOn)e.preventDefault();},{passive:false});}}
 /* ---------- 받침 표 (v1.35): 교대형 Br1~5 × 연단·이동량 / 교각형 A1측 Br1~5 + A2측 Br6~10 × 연단·이동량(A1)·이동량(A2)
    [표] 버튼 → 앞에서 쓴 표 틀(받침 수·위치·크기) 그대로 생성. 칸 위에 펜으로 숫자 쓰기(− = 미측정). 표를 손가락으로 누르면 선택 → 끌어 이동, ◢ 모서리로 크기 */
-const TBL_DEF={abut:[{x:.06,y:.66,w:.30,n:5,c0:1,rows:['연단','이동량'],sfx:''}],
-  pier:[{x:.05,y:.66,w:.27,n:5,c0:1,rows:['연단(A1)','이동량(A1)','이동량(A2)'],sfx:' · A1측'},{x:.35,y:.66,w:.27,n:5,c0:6,rows:['연단(A2)','이동량(A1)','이동량(A2)'],sfx:' · A2측'}]};
-function tblTpl(kind){const t=LS.get('tbl.tpl',{});return (t[kind]&&t[kind].length===TBL_DEF[kind].length)?clone(t[kind]):clone(TBL_DEF[kind]);}
-function tblSaveTpl(t){const all=LS.get('tbl.tpl',{});const arr=tblTpl(t.kind);arr[t.side]={x:t.x,y:t.y,w:t.w,n:t.n,c0:t.c0,rows:t.rows,sfx:t.sfx};all[t.kind]=arr;LS.set('tbl.tpl',all);}
+/* v1.36: 교대·교각 구분 없이 표 하나 – 받침 수만 −/+. 줄 = 연단 / 이동량(A1) / 이동량(A2) */
+const TBL_DEF={x:.06,y:.66,w:.30,n:5,c0:1,rows:['연단','이동량(A1)','이동량(A2)']};
+function tblTpl(){const t=LS.get('tbl.tpl2',null);return Object.assign(clone(TBL_DEF),t||{},{rows:TBL_DEF.rows.slice()});}
+function tblSaveTpl(t){if(t.kind)return;LS.set('tbl.tpl2',{x:t.x,y:t.y,w:t.w,n:t.n});}
 async function pageLoc(d,i){try{const ws=await pageWords(d,i);const txt=ws.map(w=>w[4]).join(' ');const m=txt.match(/(교대|교각)\s*\/\s*([A-Za-z]{0,2}\d+)/);
   return m?{kind:m[1]==='교대'?'abut':'pier',loc:m[2].toUpperCase()}:null;}catch(_){return null;}}
 const tblsOf=()=>(curD&&curD.pages[curPage]&&curD.pages[curPage].tables)||[];
@@ -989,15 +990,15 @@ function tablesSvg(p){const ts=p.tables||[];let h='';
         h+=v?tx(cx,yy+g.rh*0.74,esc(v),'text-anchor="middle" font-weight="700" fill="#1d4ed8"'):tx(cx,yy+g.rh*0.72,'—','text-anchor="middle" fill="#d0d5dd"');}}
     if(tblW&&tblW.id===t.id){const yy=g.gy+g.rh*(tblW.r+1),cx=g.x+g.cw0+g.cw*tblW.c;h+=`<rect x="${X(cx)}" y="${X(yy)}" width="${X(g.cw)}" height="${X(g.rh)}" fill="#fde68a" fill-opacity=".55"/>`;
       h+=tblW.strokes.map(st=>`<polyline points="${st.map(q=>X(q[0])+','+X(q[1])).join(' ')}" fill="none" stroke="#1d4ed8" stroke-width="2.4" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`).join('');}
-    if(sel){const hr=22/mv.s;h+=`<rect x="${X(g.x-4)}" y="${X(g.y-4)}" width="${X(g.wpx+8)}" height="${X(g.hpx+8)}" fill="none" stroke="#f79009" stroke-width="2.5" stroke-dasharray="7 4" vector-effect="non-scaling-stroke"/>`;
-      h+=`<circle cx="${X(gx1+4)}" cy="${X(gy1+4)}" r="${X(hr)}" fill="#f79009" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke"/><text x="${X(gx1+4)}" y="${X(gy1+4+hr*0.42)}" font-size="${X(hr*1.2)}" text-anchor="middle" fill="#fff">◢</text>`;}}
+    if(sel){const hs=11/mv.s;h+=`<rect x="${X(g.x-4)}" y="${X(g.y-4)}" width="${X(g.wpx+8)}" height="${X(g.hpx+8)}" fill="none" stroke="#f79009" stroke-width="2" stroke-dasharray="6 4" vector-effect="non-scaling-stroke"/>`;
+      h+=`<rect x="${X(gx1+4-hs/2)}" y="${X(gy1+4-hs/2)}" width="${X(hs)}" height="${X(hs)}" rx="${X(hs*0.2)}" fill="#f79009" stroke="#fff" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;}}
   return h;}
 /* 화면 좌표 → 표 칸 */
 function tblAt(q){const p=curD&&curD.pages[curPage];if(!p)return null;const pp=toPage(q);const ts=tblsOf();
   for(let i=ts.length-1;i>=0;i--){const t=ts[i],g=tblGeom(t,p);if(pp[0]<g.x-4||pp[0]>g.x+g.wpx+4||pp[1]<g.y-4||pp[1]>g.y+g.hpx+4)continue;
     const r=Math.floor((pp[1]-g.gy)/g.rh)-1,c=Math.floor((pp[0]-g.x-g.cw0)/g.cw);return {t,g,r,c,cell:r>=0&&r<t.rows.length&&c>=0&&c<t.n};}return null;}
 function tblHandle(q){if(!tblSel)return null;const p=curD.pages[curPage];const t=tblsOf().find(x=>x.id===tblSel.id);if(!t)return null;const g=tblGeom(t,p);
-  const c=pg2s([g.x+g.wpx+4,g.gy+g.rh*(t.rows.length+1)+4]);return Math.hypot(q.x-c.x,q.y-c.y)<34?t:null;}
+  const c=pg2s([g.x+g.wpx+4,g.gy+g.rh*(t.rows.length+1)+4]);return Math.hypot(q.x-c.x,q.y-c.y)<28?t:null;}   /* 보이는 손잡이는 작게, 잡히는 범위는 넓게 */
 /* 선택된 표 잡기: ◢ = 크기, 손가락(또는 펜으로 제목줄) = 이동 */
 function tblGrab(q,isPen){const th=tblHandle(q);if(th)return {k:'tres',t:th,start:q,w0:th.w};const h=tblAt(q);if(!h||!tblSel||h.t.id!==tblSel.id)return null;
   if(isPen&&h.r>=0)return null;return {k:'tmove',t:h.t,start:q,x0:h.t.x,y0:h.t.y,moved:false};}
@@ -1025,31 +1026,26 @@ async function tblFlush(){clearTimeout(tblWT);const w=tblW;tblW=null;if(!w)retur
   await dbPut('drawings',curD);drawMarks();}
 /* 표 메뉴: 받침 수 −/+, 표 지우기 */
 function tblMenu(t,avAll){tblSel={id:t.id};drawMarks();const p=curD.pages[curPage],b=$('#qm-b');b.innerHTML='';$('#qm-h').textContent=t.title||'받침 표';
-  const r=qrow();const setN=async dn=>{const n=clamp(t.n+dn,1,16);if(n===t.n)return;pushUndo({op:'tbl',did:curDid,page:curPage,before:clone(p.tables)});
+  const r=qrow();r.classList.add('pgrow');const setN=async dn=>{const n=clamp(t.n+dn,1,20);if(n===t.n)return;pushUndo({op:'tbl',did:curDid,page:curPage,before:clone(p.tables)});
       t.w=t.w*(3.1+n)/(3.1+t.n);t.n=n;   /* 칸 크기 유지 */
-      if(t.kind==='pier'&&t.side===0){const o=(p.tables||[]).find(x=>x.kind==='pier'&&x.side===1&&x.set===t.set);if(o)o.c0=t.n+1;}
+      if(t.kind==='pier'&&t.side===0){   /* v1.35에서 만든 교각형 표 */const o=(p.tables||[]).find(x=>x.kind==='pier'&&x.side===1&&x.set===t.set);if(o)o.c0=t.n+1;}
       for(const k of Object.keys(t.v||{}))if(+k.split(',')[1]>=n)delete t.v[k];tblSaveTpl(t);await dbPut('drawings',curD);tblMenu(t);};
-  r.appendChild(qbtn('받침 −','',()=>setN(-1)));const lb=document.createElement('b');lb.style.cssText='font-size:17px;padding:0 6px';lb.textContent=`${t.n}개`;r.appendChild(lb);r.appendChild(qbtn('받침 +','',()=>setN(1)));
-  r.appendChild(qbtn('표 지우기','bad',async()=>{if(!await confirmBox(`"${t.title}" 표를 지울까요?`,'지우기'))return;pushUndo({op:'tbl',did:curDid,page:curPage,before:clone(p.tables)});
+  r.appendChild(qbtn('−','tpm',()=>setN(-1)));const lb=document.createElement('b');lb.style.cssText='font-size:16px;padding:0 4px;white-space:nowrap';lb.textContent=`받침 ${t.n}개`;r.appendChild(lb);r.appendChild(qbtn('+','tpm',()=>setN(1)));
+  r.appendChild(qbtn('지우기','bad',async()=>{if(!await confirmBox(`"${t.title}" 표를 지울까요?`,'지우기'))return;pushUndo({op:'tbl',did:curDid,page:curPage,before:clone(p.tables)});
     p.tables=p.tables.filter(x=>x.id!==t.id);tblSel=null;hideQMenu();await dbPut('drawings',curD);drawMarks();}));
   r.appendChild(qbtn('닫기','',()=>hideQMenu()));b.appendChild(r);
   const hn=document.createElement('div');hn.className='muted';hn.style.cssText='font-size:14px;margin-top:8px;line-height:1.5';
-  hn.innerHTML='손가락으로 표를 끌어 옮기기 · 주황 ◢를 끌어 크기 조절<br>칸 위에 펜으로 숫자 쓰기 · <b>−</b>를 쓰면 지움(미측정)';b.appendChild(hn);
+  hn.style.fontSize='12.5px';hn.innerHTML='손가락으로 끌어 옮기기 · 모서리 ■ 끌어 크기<br>칸 위에 펜으로 숫자 · <b>−</b> 쓰면 지움(미측정)';b.appendChild(hn);
   const W=wrap.getBoundingClientRect();let L=1e9,T=1e9,Rr=-1e9,B=-1e9;
   for(const x of (avAll?(p.tables||[]).filter(z=>z.set===t.set):[t])){const g=tblGeom(x,p),a=pg2s([g.x,g.y]),c=pg2s([g.x+g.wpx,g.y+g.hpx]);L=Math.min(L,a.x);T=Math.min(T,a.y);Rr=Math.max(Rr,c.x+30);B=Math.max(B,c.y+30);}
   placeQMenu({x:0,y:0},{l:W.left+L,t:W.top+T,r:W.left+Rr,b:W.top+B},'t'+t.id);}
-/* [표] 버튼: 교대형/교각형 – 앞에서 쓴 틀 그대로 */
-async function tableNew(){if(!curD){return;}flushInk();const loc=await pageLoc(curD,curPage);const b=$('#qm-b');b.innerHTML='';
-  $('#qm-h').textContent='받침 표 넣기'+(loc?` – ${loc.loc} (${loc.kind==='abut'?'교대':'교각'})`:'');const r=qrow();
-  const ta=tblTpl('abut'),tp=tblTpl('pier');
-  r.appendChild(qbtn(`교대형 (Br1~${ta[0].n})`,loc&&loc.kind==='abut'?'acc':'',()=>{hideQMenu();tableAdd('abut',loc);}));
-  r.appendChild(qbtn(`교각형 (A1측 ${tp[0].n} · A2측 ${tp[1].n})`,loc&&loc.kind==='pier'?'acc':'',()=>{hideQMenu();tableAdd('pier',loc);}));b.appendChild(r);
-  const hn=document.createElement('div');hn.className='muted';hn.style.cssText='font-size:14px;margin-top:8px';hn.textContent='받침 수·위치·크기는 마지막에 쓴 표를 따릅니다';b.appendChild(hn);
-  const R=$('#tblBtn').getBoundingClientRect();placeQMenu({x:0,y:0},{l:R.left,t:R.top,r:R.right,b:R.bottom},'tnew');}
-async function tableAdd(kind,loc){const p=curD.pages[curPage];const set=uid();pushUndo({op:'tbl',did:curDid,page:curPage,before:clone(p.tables||[])});
-  const nm=loc&&loc.loc?loc.loc+' 받침':'받침';const ts=tblTpl(kind).map((s,k)=>Object.assign({id:uid(),kind,side:k,set,title:nm+(s.sfx||''),v:{}},clone(s)));
-  if(kind==='pier'&&ts[1])ts[1].c0=ts[0].n+1;p.tables=[...(p.tables||[]),...ts];await dbPut('drawings',curD);
-  toast('표 넣음 – 칸에 펜으로 쓰고, 손가락으로 끌어 옮기세요',2400);tblMenu(ts[0],true);}
+/* [연단/이동량] 버튼: 마지막에 쓴 표 틀(받침 수·위치·크기) 그대로 바로 생성 */
+async function tableNew(){if(!curD)return;flushInk();const loc=await pageLoc(curD,curPage);const p=curD.pages[curPage];
+  pushUndo({op:'tbl',did:curDid,page:curPage,before:clone(p.tables||[])});
+  const t=Object.assign({id:uid(),title:(loc&&loc.loc?loc.loc+' ':'')+'받침',v:{}},tblTpl());
+  for(let k=0;k<8&&(p.tables||[]).some(o=>Math.abs(o.x-t.x)<0.02&&Math.abs(o.y-t.y)<0.02);k++){t.x=Math.min(t.x+0.03,0.7);t.y=Math.min(t.y+0.05,0.9);}   /* 같은 자리에 겹치지 않게 */
+  p.tables=[...(p.tables||[]),t];await dbPut('drawings',curD);
+  toast('칸에 펜으로 숫자를 쓰세요 · 표를 손가락으로 끌어 옮기기',2400);tblMenu(t);}
 function byNDone(l,all){for(const o of all)if(o.num===l.num){const d=labelDone(o,all);if(d)return d;}return null;}
 async function renderLabelList(){const old=$('#lblList');if(old)old.remove();return;   /* v1.16: 왼쪽 창 기존 손상 목록 삭제(사용자 요청) */
   const el=$('#mapSide');if(!sideOn||!curD||!el)return;let box=$('#lblList');
@@ -1066,7 +1062,8 @@ async function renderLabelList(){const old=$('#lblList');if(old)old.remove();ret
     setTimeout(async()=>openPdfLabelMenu(Object.assign({},l,{dno:dnoOf(await pageWords(curD,curPage))}),{x:W/2,y:H/2}),60);});}
 function fitView(){const d=curDrawing();if(!d)return;const p=d.pages[curPage];const W=$('#mapWrap').clientWidth,H=$('#mapWrap').clientHeight;if(!W||!H)return;
   const s=Math.min(W/p.w,H/p.h)*0.98;Object.assign(mv,{s,fit:s,tx:(W-p.w*s)/2,ty:(H-p.h*s)/2});applyView();}
-function applyView(){$('#mapStage').style.transform=`translate(${mv.tx}px,${mv.ty}px) scale(${mv.s})`;$('#mapSvg').style.setProperty('--fs',(16/mv.s).toFixed(3));}
+function applyView(){$('#mapStage').style.transform=`translate(${mv.tx}px,${mv.ty}px) scale(${mv.s})`;$('#mapSvg').style.setProperty('--fs',(16/mv.s).toFixed(3));
+  if(labScale&&Math.abs(mv.s/labScale-1)>0.08){clearTimeout(labT);labT=setTimeout(()=>{if(!G||G.k==='pan'||G.k==='pinch')drawMarks();},140);}}
 function goPage(d){const dr=curDrawing();if(!dr)return;flushInk();hideQMenu();const n=clamp(curPage+d,0,dr.pages.length-1);if(n===curPage){toast(d>0?'마지막 페이지입니다':'첫 페이지입니다',1200);return;}
   curPage=n;selMark=null;const st=$('#mapStage');st.style.opacity='0.2';renderMap().then(()=>setTimeout(()=>st.style.opacity='',60));toast(`${pageNo(dr,n)}페이지 (${n+1} / ${dr.pages.length})`,900);}
 window.addEventListener('resize',()=>{const so=LS.get(sideK(),innerHeight<=innerWidth);if(so!==sideOn){sideOn=so;sideKey='';renderSide();}if(view==='map'&&curDrawing())fitView();});
@@ -1089,15 +1086,15 @@ function drawMarks(){try{if(live.on()&&(!G||G.k!=='draw'))live.clear();}catch(_)
     else if(m.shape==='area')x+=`<polygon points="${ps}" fill="url(#ht-${MK_KEY[m.type]||'n'})" stroke="${c}" stroke-width="${sw}" vector-effect="non-scaling-stroke" stroke-linejoin="round"${dash}/>`;
     else x+=`<circle class="pt" cx="${pts[0][0]}" cy="${pts[0][1]}" fill="${c}" stroke="${sel?'#facc15':'#fff'}" stroke-width="${sel?5:2}" vector-effect="non-scaling-stroke"/>`;
     if(!temp&&!(m.src==='pdf'&&settings.showLabels!==false)){const lab=markLabel(m)||(markLabel2(m)?' ':'');if(lab){let lx,ly;if(m.shape==='area'){lx=Math.max(...pts.map(q=>q[0]));ly=Math.min(...pts.map(q=>q[1]));}else{const lp=parts(m)[parts(m).length-1];[lx,ly]=[lp[lp.length-1][0]*W,lp[lp.length-1][1]*H];}
-      const l2=markLabel2(m);x+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" dy="${l2?'-1.4em':'-0.35em'}" fill="${c}"><tspan x="${lx.toFixed(1)}" dx="0.5em">${esc(lab)}</tspan>${l2?`<tspan x="${lx.toFixed(1)}" dx="0.5em" dy="1.15em">${esc(l2)}</tspan>`:''}</text>`;}}
+      labs.push({m,lab,l2:markLabel2(m),c,ax:lx,ay:ly});}}
     return x;};
+  const labs=[];
   const ink=(strokes,col,op,w)=>strokes.map(st=>`<polyline points="${st.map(q=>(q[0]*W).toFixed(1)+','+(q[1]*H).toFixed(1)).join(' ')}" fill="none" stroke="${col}" stroke-opacity="${op||1}" stroke-width="${w||2.4}" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
   for(const m of marks){if(m.did!==curDid||m.page!==curPage)continue;
     if(m.shape==='ink'){const sel=selMark&&selMark.id===m.id;const kw=(PEN_W[m.pw]||2.4)*(m.hl?3:1);
       if(sel)h+=ink(m.strokes,'#facc15',.6,kw+8);h+=ink(m.strokes,PEN_HEX[m.color]||'#1e3a8a',m.hl?.35:1,kw);
       if(m.kind==='note'){const nl=nosLabel(m.photoNos);if(nl)h+=`<text x="${(m.bb[2]*W).toFixed(1)}" y="${(m.bb[1]*H).toFixed(1)}" dx="0.3em" dy="0.8em" fill="#7c3aed">📷${esc(nl)}</text>`;continue;}
-      const tm=marks.find(x=>x.id===m.markId);const ok=m.ok&&tm;
-      h+=`<text x="${(m.bb[2]*W).toFixed(1)}" y="${(m.bb[3]*H).toFixed(1)}" dx="0.3em" style="font-size:calc(var(--fs) * .8px)" fill="${ok?'#027a48':'#d92d20'}">${ok?'✓':'? '+esc(m.text||'')}</text>`;continue;}
+      continue;}   /* v1.36: 글씨 옆 분석 표시(✓ / ? 글자) 없음 – 인식되면 손상에 조용히 반영, 아니면 그림·설명 그대로 */
     h+=one(m);}
   if(inkGroup&&inkGroup.did===curDid&&inkGroup.page===curPage)h+=ink(inkGroup.strokes.map(st=>st.map(q=>[q[0]/W,q[1]/H])),PEN_HEX[inkGroup.col]||'#2563eb',inkGroup.hl?.35:.85,(PEN_W[inkGroup.pw]||2.4)*(inkGroup.hl?3:1));
   if(selMark&&selMark.isNew&&selMark.did===curDid&&selMark.page===curPage)h+=one(selMark);
@@ -1110,8 +1107,41 @@ function drawMarks(){try{if(live.on()&&(!G||G.k!=='draw'))live.clear();}catch(_)
         if(done&&done.photoNos&&done.photoNos.length)h+=`<text x="${(x+w).toFixed(1)}" y="${(y+hh).toFixed(1)}" dx="0.2em" style="font-size:calc(var(--fs) * .8px)" fill="#15803d">✓${esc(nosLabel(done.photoNos))}</text>`;}}
     else scanLabels(d,curPage).then(()=>drawMarks());}
   if(settings.showWords){const k=curDid+':'+curPage;const ws=wordCache[k];if(ws)h+=ws.map(w=>`<rect x="${(w[0]*W).toFixed(1)}" y="${(w[1]*H).toFixed(1)}" width="${((w[2]-w[0])*W).toFixed(1)}" height="${((w[3]-w[1])*H).toFixed(1)}" fill="#2563eb" fill-opacity=".12" stroke="#2563eb" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join('');else pageWords(d,curPage).then(()=>drawMarks());}
+  h+=layoutLabels(labs,W,H);
   {const pp=d.pages[curPage];if(pp.tables&&pp.tables.length)h+=tablesSvg(pp);}
   $('#mapSvg').innerHTML=h;}
+/* 손상 글자(#번호 손상명 규모) 자리 잡기 (v1.36): 화면 크기 기준으로 다른 글자·손상선과 겹치지 않는 자리(오른쪽 위 → 오른쪽 아래 → 왼쪽 … → 조금 떨어진 자리+연결선).
+   연결선은 다른 손상 선을 가로지르지 않는 쪽을 고름. 확대·축소가 끝나면 다시 배치 */
+let labScale=0,labT=null,_mctx=null;
+function txtW(t){if(!_mctx){_mctx=document.createElement('canvas').getContext('2d');}_mctx.font='700 16px '+getComputedStyle(document.body).fontFamily;return _mctx.measureText(t).width;}
+function layoutLabels(labs,W,H){if(!labs.length)return '';const s=mv.s,FS=16,G=6,LH=FS*1.2;labScale=s;
+  const obs=[],obx=[];for(const m of marks){if(m.did!==curDid||m.page!==curPage||m.shape==='ink')continue;
+    if(m.shape==='area'){const xs=m.pts.map(q=>q[0]*W*s),ys=m.pts.map(q=>q[1]*H*s);obx.push([Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)]);}
+    for(const pt of (m.shape==='line'?parts(m):[m.pts]))for(let i=0;i<pt.length;i++){const a=pt[i],b=pt[Math.min(i+1,pt.length-1)];const n=Math.max(1,Math.ceil(Math.hypot((b[0]-a[0])*W,(b[1]-a[1])*H)*s/6));
+      for(let k=0;k<n;k++)obs.push([(a[0]+(b[0]-a[0])*k/n)*W*s,(a[1]+(b[1]-a[1])*k/n)*H*s]);}}
+  const placed=[];const inter=(A,B)=>Math.max(0,Math.min(A[2],B[2])-Math.max(A[0],B[0]))*Math.max(0,Math.min(A[3],B[3])-Math.max(A[1],B[1]));
+  const GS=32,grid=new Map();for(const q of obs){const k=Math.floor(q[0]/GS)+','+Math.floor(q[1]/GS);let a=grid.get(k);if(!a)grid.set(k,a=[]);a.push(q);}   /* 빠른 검색용 격자 */
+  const near=(x0,y0,x1,y1)=>{const out=[];for(let gx=Math.floor(Math.min(x0,x1)/GS);gx<=Math.floor(Math.max(x0,x1)/GS);gx++)for(let gy=Math.floor(Math.min(y0,y1)/GS);gy<=Math.floor(Math.max(y0,y1)/GS);gy++){const a=grid.get(gx+','+gy);if(a)out.push(...a);}return out;};
+  const ptsIn=bx=>{let n=0;for(const q of near(bx[0],bx[1],bx[2],bx[3]))if(q[0]>bx[0]&&q[0]<bx[2]&&q[1]>bx[1]&&q[1]<bx[3])n++;return n;};
+  /* 연결선이 다른 손상 선을 가로지르는지: 선 위(3px 안)에 있는 손상 점 수 (손상 끝 근처 10px는 제외) */
+  const cross=(ax,ay,cx,cy)=>{const L=Math.hypot(cx-ax,cy-ay);if(L<1)return 0;let n=0;for(const q of near(ax-6,ay-6,cx+6,cy+6)){const t=((q[0]-ax)*(cx-ax)+(q[1]-ay)*(cy-ay))/(L*L);if(t<=0||t>=1)continue;
+      if(Math.hypot(q[0]-ax,q[1]-ay)<10)continue;const px=ax+(cx-ax)*t,py=ay+(cy-ay)*t;if(Math.hypot(q[0]-px,q[1]-py)<5)n++;}
+    for(const P of placed){/* 다른 글자 위를 지나가도 감점 */const mx=(ax+cx)/2,my=(ay+cy)/2;if(mx>P[0]&&mx<P[2]&&my>P[1]&&my<P[3])n+=3;}return n;};
+  let out='';labs.sort((a,b)=>a.ay-b.ay||a.ax-b.ax);
+  for(const L of labs){const ax=L.ax*s,ay=L.ay*s;const lines=[L.lab,L.l2].filter(x=>x&&x.trim());if(!lines.length)continue;
+    const w=Math.max(...lines.map(txtW))+4,h=LH*lines.length;
+    const C=[[ax+G,ay-h-2,0],[ax+G,ay+4,0],[ax-G-w,ay-h-2,0],[ax-G-w,ay+4,0],[ax-w/2,ay-h-G,0],[ax-w/2,ay+G,0]];
+    for(const D of [FS*2.4,FS*4,FS*6]){C.push([ax+D,ay-h-D*0.6,1],[ax+D,ay+D*0.6,1],[ax-D-w,ay-h-D*0.6,1],[ax-D-w,ay+D*0.6,1],[ax+D,ay-h/2,1],[ax-D-w,ay-h/2,1],[ax-w/2,ay-h-D,1],[ax-w/2,ay+D,1]);}
+    let best=null;for(const [x,y,far] of C){const bx=[x,y,x+w,y+h];let ov=0;for(const P of placed)ov+=inter(bx,P);let oa=0;for(const P of obx)oa+=inter(bx,P);
+      let sc=ov*10+oa*2+ptsIn(bx)*90+(far?60:0);let cxy=null;
+      if(far){const cx=clamp(ax,bx[0],bx[2]),cy=clamp(ay,bx[1],bx[3]);cxy=[cx,cy];sc+=cross(ax,ay,cx,cy)*150+Math.hypot(cx-ax,cy-ay)*0.5;}
+      if(!best||sc<best.sc)best={bx,sc,far,cxy,ov};if(sc===0)break;}
+    if(best.far&&best.ov>0){const [x,y]=C[0];best={bx:[x,y,x+w,y+h],far:0};}   /* 너무 빽빽해 어디도 안 되면 연결선 없이 기본 자리(확대하면 다시 배치) */
+    placed.push(best.bx);const X=v=>(v/s).toFixed(1);
+    if(best.far){const [cx,cy]=best.cxy;   /* 연결선: 가는 회색 점선 + 손상 쪽 작은 점 – 균열선과 헷갈리지 않게 */
+      out+=`<line x1="${X(ax)}" y1="${X(ay)}" x2="${X(cx)}" y2="${X(cy)}" stroke="#667085" stroke-width="1.2" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/><circle cx="${X(ax)}" cy="${X(ay)}" r="${X(2.6)}" fill="#667085"/>`;}
+    out+=`<text fill="${L.c}">`+lines.map((t,k)=>`<tspan x="${X(best.bx[0]+2)}" y="${X(best.bx[1]+LH*(k+0.8))}">${esc(t)}</tspan>`).join('')+`</text>`;}
+  return out;}
 
 /* 포인터: 한 손가락=그리기/이동, 두 손가락=확대·이동 */
 const wrap=$('#mapWrap'),ptrs=new Map();let G=null;
