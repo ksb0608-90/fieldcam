@@ -1,6 +1,20 @@
 package com.fieldcam.inspection;
 
 import android.app.Activity;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import androidx.security.crypto.EncryptedSharedPreferences;
+import androidx.security.crypto.MasterKeys;
+import okhttp3.Credentials;
+import okhttp3.HttpUrl;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
 import android.content.ContentUris;
@@ -96,6 +110,77 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> fileCallback;
     private Uri cameraUri;
     private final Map<String, OutputStream> openFiles = new ConcurrentHashMap<>();
+    /* v1.38: NAS(WebDAV) 사진 보내기 */
+    private OkHttpClient http;
+    private final java.util.concurrent.ExecutorService davExec = java.util.concurrent.Executors.newSingleThreadExecutor();
+    private final java.util.Set<String> davDirs = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
+    private volatile boolean lastWifi = false;
+    private SharedPreferences davPrefs;
+
+    private SharedPreferences prefsNas() {
+        if (davPrefs != null) return davPrefs;
+        try {
+            String mk = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC);
+            davPrefs = EncryptedSharedPreferences.create("nas", mk, this,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM);
+        } catch (Exception e) {
+            davPrefs = getSharedPreferences("nas_plain", Context.MODE_PRIVATE);
+        }
+        return davPrefs;
+    }
+
+    private OkHttpClient httpc() {
+        if (http == null) http = new OkHttpClient.Builder()
+                .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                .writeTimeout(180, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS).build();
+        return http;
+    }
+
+    private boolean wifiNow() {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            Network n = cm.getActiveNetwork();
+            NetworkCapabilities c = n == null ? null : cm.getNetworkCapabilities(n);
+            return c != null && (c.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || c.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** 기본 주소 + 폴더 + 하위 경로 조각 → URL (한글 이름은 자동 인코딩) */
+    private HttpUrl davUrl(String extra, int upto) {
+        SharedPreferences p = prefsNas();
+        HttpUrl base = HttpUrl.parse(p.getString("url", "").trim());
+        if (base == null) return null;
+        HttpUrl.Builder b = base.newBuilder();
+        java.util.List<String> segs = new java.util.ArrayList<>();
+        for (String x : (p.getString("folder", "") + "/" + (extra == null ? "" : extra)).split("/")) if (!x.trim().isEmpty()) segs.add(x.trim());
+        int n = upto < 0 ? segs.size() : Math.min(upto, segs.size());
+        for (int i = 0; i < n; i++) b.addPathSegment(segs.get(i));
+        return b.build();
+    }
+
+    private int davSegCount(String extra) {
+        int k = 0;
+        for (String x : (prefsNas().getString("folder", "") + "/" + (extra == null ? "" : extra)).split("/")) if (!x.trim().isEmpty()) k++;
+        return k;
+    }
+
+    private Request.Builder davReq(HttpUrl u) {
+        SharedPreferences p = prefsNas();
+        return new Request.Builder().url(u).header("Authorization",
+                Credentials.basic(p.getString("user", ""), p.getString("pass", ""), java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private String davErr(Response r) {
+        int c = r.code();
+        if (c == 401) return "ERR:로그인 실패(계정·비밀번호 확인)";
+        if (c == 403) return "ERR:권한 없음(폴더 쓰기 권한 확인)";
+        if (c == 404 || c == 409) return "ERR:폴더를 찾을 수 없음(보낼 폴더 확인)";
+        return "ERR:NAS 응답 " + c;
+    }
     private DigitalInkRecognitionModel inkModel;
     private DigitalInkRecognizer inkRec;
     private final Map<String, DigitalInkRecognitionModel> langModels = new ConcurrentHashMap<>();
@@ -145,6 +230,22 @@ public class MainActivity extends Activity {
         });
 
         web.addJavascriptInterface(new Bridge(), "Android");
+        try {   /* v1.38: 와이파이 연결되면 웹 쪽에 알림 → 자동 보내기 */
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            lastWifi = wifiNow();
+            cm.registerDefaultNetworkCallback(new ConnectivityManager.NetworkCallback() {
+                @Override
+                public void onCapabilitiesChanged(Network network, NetworkCapabilities caps) {
+                    boolean w = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET);
+                    if (w != lastWifi) { lastWifi = w; callJs("window.onNetChange && window.onNetChange(" + w + ")"); }
+                }
+                @Override
+                public void onLost(Network network) {
+                    if (lastWifi) { lastWifi = false; callJs("window.onNetChange && window.onNetChange(false)"); }
+                }
+            });
+        } catch (Exception ignored) {
+        }
 
         if (savedInstanceState != null) {
             cameraUri = savedInstanceState.getParcelable("cameraUri");
@@ -944,6 +1045,102 @@ public class MainActivity extends Activity {
                 } catch (Exception e) {
                     callJs("window.onInkResult && window.onInkResult(" + q + ",[])");
                 }
+            });
+        }
+
+        /* ---------- v1.38 NAS(WebDAV) ---------- */
+        @JavascriptInterface
+        public boolean isWifi() { return wifiNow(); }
+
+        @JavascriptInterface
+        public String davGetConfig() {
+            try {
+                SharedPreferences p = prefsNas();
+                JSONObject o = new JSONObject();
+                o.put("url", p.getString("url", ""));
+                o.put("folder", p.getString("folder", ""));
+                o.put("user", p.getString("user", ""));
+                o.put("hasPass", !p.getString("pass", "").isEmpty());
+                return o.toString();
+            } catch (Exception e) {
+                return "{}";
+            }
+        }
+
+        /** 비밀번호를 비워 보내면 기존 비밀번호 유지 */
+        @JavascriptInterface
+        public String davSetConfig(String url, String folder, String user, String pass) {
+            SharedPreferences.Editor e = prefsNas().edit().putString("url", url == null ? "" : url.trim())
+                    .putString("folder", folder == null ? "" : folder.trim()).putString("user", user == null ? "" : user.trim());
+            if (pass != null && !pass.isEmpty()) e.putString("pass", pass);
+            e.apply();
+            davDirs.clear();
+            return HttpUrl.parse(url == null ? "" : url.trim()) == null ? "ERR:주소 형식 확인 (예: https://○○.synology.me:3383)" : "OK";
+        }
+
+        /** 연결 확인: 보낼 폴더 PROPFIND → window.onDav(id,'OK'|'ERR:…') */
+        @JavascriptInterface
+        public void davTest(final String reqId) {
+            final String q = JSONObject.quote(reqId);
+            davExec.execute(() -> {
+                String res;
+                try {
+                    HttpUrl u = davUrl("", -1);
+                    if (u == null) res = "ERR:주소 형식 확인";
+                    else try (Response r = httpc().newCall(davReq(u).header("Depth", "0")
+                            .method("PROPFIND", RequestBody.create(new byte[0], null)).build()).execute()) {
+                        res = r.isSuccessful() || r.code() == 207 ? "OK" : davErr(r);
+                    }
+                } catch (java.net.UnknownHostException e) {
+                    res = "ERR:NAS 주소를 찾을 수 없음(인터넷·주소 확인)";
+                } catch (Exception e) {
+                    res = "ERR:" + e.getMessage();
+                }
+                callJs("window.onDav && window.onDav(" + q + "," + JSONObject.quote(res) + ")");
+            });
+        }
+
+        /** 다운로드/인스펙맵/{dir}/{name} 파일을 NAS 보낼 폴더/{dir}/{name} 로 올림 (폴더는 없으면 만듦) */
+        @JavascriptInterface
+        public void davUpload(final String reqId, final String dir, final String name) {
+            final String q = JSONObject.quote(reqId);
+            davExec.execute(() -> {
+                String res;
+                try {
+                    Uri src = findFile(relPath(dir), name);
+                    if (src == null) throw new Exception("태블릿 폴더에 사진 파일 없음");
+                    byte[] data;
+                    try (InputStream in = getContentResolver().openInputStream(src)) {
+                        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                        byte[] buf = new byte[65536];
+                        int k;
+                        while ((k = in.read(buf)) > 0) bo.write(buf, 0, k);
+                        data = bo.toByteArray();
+                    }
+                    int n = davSegCount(dir);
+                    for (int i = 1; i <= n; i++) {
+                        HttpUrl d = davUrl(dir, i);
+                        if (d == null) throw new Exception("주소 형식 확인");
+                        String key = d.toString();
+                        if (davDirs.contains(key)) continue;
+                        try (Response r = httpc().newCall(davReq(d).method("MKCOL", null).build()).execute()) {
+                            if (r.code() == 201 || r.code() == 405 || r.isSuccessful()) davDirs.add(key);
+                            else if (r.code() == 401 || r.code() == 403) { res = davErr(r); throw new Exception(res.substring(4)); }
+                            else davDirs.add(key);   /* 이미 있는 폴더 등 – PUT 결과로 판단 */
+                        }
+                    }
+                    HttpUrl u = davUrl(dir + "/" + name, -1);
+                    try (Response r = httpc().newCall(davReq(u).put(RequestBody.create(data, MediaType.parse("image/jpeg"))).build()).execute()) {
+                        res = r.isSuccessful() ? "OK" : davErr(r);
+                    }
+                } catch (java.net.UnknownHostException e) {
+                    res = "ERR:NAS 주소를 찾을 수 없음(인터넷·주소 확인)";
+                } catch (java.net.SocketTimeoutException e) {
+                    res = "ERR:연결 시간 초과";
+                } catch (Exception e) {
+                    res = "ERR:" + e.getMessage();
+                }
+                callJs("window.onDav && window.onDav(" + q + "," + JSONObject.quote(res) + ")");
             });
         }
 

@@ -243,7 +243,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
     <select id="listFilter"><option value="">전체 구분</option></select>
     <span class="muted" id="listCount"></span>
     <span style="flex:1"></span>
-    <button class="btn pri" onclick="exportSess(curSess())">내보내기(ZIP)</button>
+    <button class="btn" id="nasBtn" onclick="nasSend(true)">NAS로 보내기</button><button class="btn pri" onclick="exportSess(curSess())">내보내기(ZIP)</button>
   </div>
   <div id="listBody"></div>
 </section>
@@ -257,7 +257,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
   <div class="card">
     <div class="lbl" style="margin-top:0">망도 · 펜</div>
     <div class="sw"><div>손글씨 인식<div class="muted">빨강·파랑 펜으로 쓴 0.2/1.2, 0.3x0.2, 2ea, 손상번호 자동 입력 (처음 1번 인터넷 필요)</div></div><div class="row"><span id="inkInfo" class="muted">-</span><button class="btn" onclick="if(NATIVE&&Android.inkPrepare)Android.inkPrepare();else toast('앱에서만 사용')">다시 시도</button></div></div>
-    <div class="sw"><div>그린 뒤 메뉴 자동 열기<div class="muted">선·영역을 그리고 0.8초 지나면 손상 메뉴가 열림 · 이어서 그리면 취소</div></div><input type="checkbox" id="s-automenu"></div>
+    <div class="sw"><div>그린 뒤 메뉴 자동 열기<div class="muted">선·영역을 그리고 0.5초(곧은 선 1초) 지나면 손상 메뉴가 열림 · 이어서 그리면 취소</div></div><input type="checkbox" id="s-automenu"></div>
     <div class="sw"><div>기존 손상 표시 (초록 상자)<div class="muted">망도에서 인식한 기존 손상을 초록 점선 상자로 표시 · 촬영하면 채워지고 ✓사진번호 표시</div></div><input type="checkbox" id="s-labels"></div>
     <div class="muted" style="padding-top:6px">펜 색: 빨강=신규 손상, 파랑=보수, 검정=메모(전경·특이사항) · S펜 버튼을 누른 채 그으면 지우개</div>
   </div>
@@ -275,6 +275,17 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
     <div class="sw"><div>다음 사진번호 <b id="s-np">-</b><div class="muted">태블릿 2대로 같은 구조물을 찍을 때는 한 대의 사진번호를 5001부터 시작 · 신규 손상번호는 도면(페이지)별로 기존 손상 다음 번호가 자동 부여됨</div></div><button class="btn" onclick="editNums()">번호 변경</button></div>
     <div class="sw"><div>사진 ZIP 내보내기<div class="muted">카톡·메일 전송용 (사진은 이미 태블릿 폴더에 저장되어 있음)</div></div><div class="row"><button class="btn" onclick="exportSel()">이 구조물</button><button class="btn" onclick="exportAll()">전체</button></div></div>
     <div class="sw"><div>앱 안의 사진 기록 삭제<div class="muted">[기록] 목록에서만 지움 · 태블릿 폴더 사진과 망도 표시는 남음</div></div><button class="btn bad" onclick="delSel()">삭제</button></div>
+  </div>
+  <div class="card" id="nasCard">
+    <div class="lbl" style="margin-top:0">NAS로 사진 보내기 (WebDAV)</div>
+    <div class="muted">사진을 NAS 폴더로 보냄: 보낼 폴더/현장/시설물/조사자/사진/파일. 촬영기록 CSV·망도는 보내지 않음</div>
+    <div class="sw"><div>NAS 주소</div><input id="nas-url" style="width:60%" placeholder="https://○○○.synology.me:3383" autocomplete="off"></div>
+    <div class="sw"><div>보낼 폴더<div class="muted">NAS 안 공유 폴더 경로 (예: /팀공유/인스펙맵)</div></div><input id="nas-folder" style="width:60%" placeholder="/공유폴더/인스펙맵" autocomplete="off"></div>
+    <div class="sw"><div>계정</div><input id="nas-user" style="width:60%" autocomplete="off"></div>
+    <div class="sw"><div>비밀번호<div class="muted" id="nas-passinfo">태블릿 안에 암호화해서 저장</div></div><input id="nas-pass" type="password" style="width:60%" autocomplete="new-password"></div>
+    <div class="sw"><div id="nas-test-msg" class="muted"></div><button class="btn" onclick="nasSaveTest()">저장 · 연결 확인</button></div>
+    <div class="sw"><div>와이파이 연결되면 자동으로 보내기<div class="muted">앱을 켤 때·와이파이에 연결될 때·촬영할 때 아직 안 보낸 사진을 보냄</div></div><input type="checkbox" id="s-nasauto"></div>
+    <div class="sw"><div>안 보낸 사진 <b id="nas-pend">-</b>장<div class="muted" id="nas-last"></div></div><button class="btn pri" onclick="nasSend(true)">지금 보내기</button></div>
   </div>
   <details class="card" id="advCard">
     <summary class="lbl" style="margin:0;cursor:pointer;min-height:32px;display:flex;align-items:center">고급 · 확인용 (평소엔 건드리지 않음)</summary>
@@ -381,7 +392,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 
 <script>
 'use strict';
-const VERSION = '1.38.5';
+const VERSION = '1.38.6';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -550,7 +561,7 @@ async function nativeWrite(dir,name,blob,mime){
 async function writeCsv(s){if(!NATIVE||!s)return;const recs=(await recsOf(s.id)).sort((a,b)=>a.no-b.no);
   await nativeWrite(sessDir(s),`촬영기록_${safe(s.facility)}_${safe(s.inspector)}.csv`,new Blob([csvOf(s,recs)],{type:'text/csv'}),'text/csv');}
 async function nativeSavePhoto(s,r,blob){if(!NATIVE)return;
-  try{await nativeWrite(sessDir(s)+'/사진',r.file,blob,'image/jpeg');await writeCsv(s);}
+  try{await nativeWrite(sessDir(s)+'/사진',r.file,blob,'image/jpeg');await writeCsv(s);if(typeof nasKick==='function')nasKick(5000);}
   catch(e){console.error(e);toast('⚠ 폴더 저장 실패: '+e.message+'\n(앱 안에는 저장됨 · 내보내기로 받으세요)',6000);}}
 window.onAndroidBack=()=>{if($('#pv').classList.contains('on')){pvClose();return true;}if(kpT){kpClose();return true;}const m=document.querySelector('.modal.on');if(m){if(m.id!=='m-prog')m.classList.remove('on');return true;}
   if($('#qmenu').classList.contains('on')){hideQMenu();return true;}
@@ -577,7 +588,7 @@ async function saveCapture(file,ctx,quiet){ctx=ctx||form;const s=curSess();
 let listSel={sid:null,did:null};
 function drawingKey(d){const path=fPath(d.folderId);return {site:path.length?path[0].name:'미분류',fac:path.length>=2?path[path.length-1].name:d.name};}
 /* 사진 탭: 폴더 단계 보기 – 전체 › 현장 › 시설물 › 망도 › 페이지 */
-async function renderList(){await loadFolders();const sel=$('#listFilter');if(sel.options.length===1) TYPES.forEach(t=>sel.add(new Option(t,t)));
+async function renderList(){if(typeof renderNas==='function')renderNas();await loadFolders();const sel=$('#listFilter');if(sel.options.length===1) TYPES.forEach(t=>sel.add(new Option(t,t)));
   const ko=(a,b)=>String(a).localeCompare(String(b),'ko',{numeric:true});
   if(!sessions.length){$('#listCrumb').innerHTML='';$('#pNext').textContent='-';$('#pCtx').textContent='망도를 먼저 여세요';
     $('#listBody').innerHTML='<div class="empty">아직 사진이 없습니다. [망도] 탭에서 구조물 망도를 여세요.</div>';$('#listCount').textContent='';$('#shutter').style.display='none';return;}
@@ -723,7 +734,7 @@ function exportSess(s){if(!s){toast('조사를 먼저 선택하세요');return;}
 function exportAll(){runExport(sessions,`인스펙맵_전체_${stampName()}`);}
 
 /* ---------- 설정 ---------- */
-function renderSet(){$('#s-automenu').checked=settings.autoMenu!==false;$('#s-labels').checked=settings.showLabels!==false;$('#s-words').checked=!!settings.showWords;$('#s-pen').value=settings.penMode||'auto';$('#s-insp').textContent=settings.inspector||'-';$('#ver2').textContent=VERSION+(NATIVE?' (앱)':' (웹)');renderUpd();$('#s-cam').value=settings.camMode;$('#row-cam').classList.toggle('hide',!NATIVE);$('#s-overlay').checked=settings.overlay;$('#s-dl').checked=settings.autoDl;$('#s-detail').checked=settings.detail;$('#s-digits').value=String(settings.digits);
+function renderSet(){renderNas();$('#s-automenu').checked=settings.autoMenu!==false;$('#s-labels').checked=settings.showLabels!==false;$('#s-words').checked=!!settings.showWords;$('#s-pen').value=settings.penMode||'auto';$('#s-insp').textContent=settings.inspector||'-';$('#ver2').textContent=VERSION+(NATIVE?' (앱)':' (웹)');renderUpd();$('#s-cam').value=settings.camMode;$('#row-cam').classList.toggle('hide',!NATIVE);$('#s-overlay').checked=settings.overlay;$('#s-dl').checked=settings.autoDl;$('#s-detail').checked=settings.detail;$('#s-digits').value=String(settings.digits);
   loadPresetFields();
   $('#ver').textContent=VERSION+(NATIVE?' (앱)':' (웹)');
   $('#row-dl').classList.toggle('hide',NATIVE);$('#webInfo').classList.toggle('hide',NATIVE);
@@ -755,6 +766,40 @@ function savePreset(){presets.all={mem:$('#s-mem').value,dmg:$('#s-dmgs').value,
 function resetPreset(){delete presets.all;LS.set('presets',presets);loadPresetFields();toast('기본값으로 되돌림');}
 function saveSet(){settings.autoMenu=$('#s-automenu').checked;settings.showLabels=$('#s-labels').checked;settings.showWords=$('#s-words').checked;settings.penMode=$('#s-pen').value;settings.camMode=$('#s-cam').value;settings.overlay=$('#s-overlay').checked;settings.autoDl=$('#s-dl').checked;settings.detail=$('#s-detail').checked;settings.digits=parseInt($('#s-digits').value,10);LS.set('settings',settings);}
 ['s-automenu','s-labels','s-words','s-pen','s-cam','s-overlay','s-dl','s-detail','s-digits'].forEach(id=>$('#'+id).onchange=saveSet);
+/* ---------- v1.38 NAS(WebDAV)로 사진 보내기: 자동(와이파이) + 버튼. 보낸 기록은 record.nas(보낸 시각) ---------- */
+const davWait={};window.onDav=(id,res)=>{const f=davWait[id];delete davWait[id];if(f)f(res);};
+const davCall=(fn,...a)=>new Promise(res=>{const id='dv'+uid();davWait[id]=res;try{Android[fn](id,...a);}catch(e){delete davWait[id];res('ERR:'+e.message);}setTimeout(()=>{if(davWait[id]){delete davWait[id];res('ERR:응답 없음');}},240000);});
+const nasOk=()=>(NATIVE||window.__nasTest)&&!!(window.Android&&Android.davUpload);
+function nasCfg(){try{return JSON.parse(Android.davGetConfig()||'{}');}catch(_){return {};}}
+let nasBusy=false,nasTimer=null;
+async function nasPending(){return (await dbAll('records')).filter(r=>!r.nas&&r.file&&sessions.some(x=>x.id===r.sid));}
+async function renderNas(){const card=$('#nasCard');if(!nasOk()){card.style.display='none';$('#nasBtn').style.display='none';return;}
+  const c=nasCfg();$('#nas-url').value=c.url||'';$('#nas-folder').value=c.folder||'';$('#nas-user').value=c.user||'';$('#nas-pass').value='';
+  $('#nas-pass').placeholder=c.hasPass?'저장됨 (바꿀 때만 입력)':'';$('#s-nasauto').checked=!!settings.nasAuto;
+  const n=(await nasPending()).length;$('#nas-pend').textContent=n;$('#nasBtn').textContent=`NAS로 보내기${n?' ('+n+')':''}`;$('#nasBtn').style.display=c.url?'':'none';
+  $('#nas-last').textContent=settings.nasLast?'마지막 보냄: '+settings.nasLast:'';}
+async function nasSaveTest(){if(!nasOk())return toast('앱에서만 됩니다');
+  const r0=Android.davSetConfig($('#nas-url').value,$('#nas-folder').value,$('#nas-user').value,$('#nas-pass').value);
+  const msg=$('#nas-test-msg');if(r0!=='OK'){msg.textContent=r0.slice(4);msg.style.color='#d92d20';return;}
+  msg.textContent='연결 확인 중…';msg.style.color='';const r=await davCall('davTest');
+  if(r==='OK'){msg.textContent='✓ 연결됨';msg.style.color='#079455';}else{msg.textContent=r.replace(/^ERR:/,'');msg.style.color='#d92d20';}renderNas();}
+/* manual: 버튼(와이파이 아니면 물어봄) / 자동: 설정 켜짐 + 와이파이일 때만 */
+async function nasSend(manual){if(!nasOk()){if(manual)toast('앱에서만 됩니다');return;}if(nasBusy){if(manual)toast('보내는 중입니다');return;}
+  const c=nasCfg();if(!c.url){if(manual){toast('설정에서 NAS 주소·계정을 먼저 넣으세요',2500);show('set');}return;}
+  if(!manual&&!(settings.nasAuto&&Android.isWifi()))return;
+  if(manual&&!Android.isWifi()&&!await confirmBox('와이파이에 연결되어 있지 않습니다.\n모바일 데이터로 보낼까요?','보내기'))return;
+  const list=(await nasPending()).sort((a,b)=>a.no-b.no);if(!list.length){if(manual)toast('보낼 사진이 없습니다 (모두 보냄)',1800);return;}
+  nasBusy=true;let ok=0,err='';
+  try{for(const r of list){const s=sessions.find(x=>x.id===r.sid);const res=await davCall('davUpload',sessDir(s)+'/사진',r.file);
+      if(res==='OK'){const cur=await dbGet('records',r.id);if(cur){cur.nas=Date.now();await dbPut('records',cur);}ok++;if(manual||ok%5===0)toast(`NAS로 보내는 중 ${ok}/${list.length}`,1500);}
+      else{err=res.replace(/^ERR:/,'');if(!/파일 없음/.test(err))break;}}}
+  finally{nasBusy=false;}
+  if(ok){settings.nasLast=`${nowStr()} · ${ok}장`;LS.set('settings',settings);}
+  if(err)toast(`NAS 보내기 ${ok}장 완료, 중단: ${err}`,5000);else if(ok)toast(`NAS로 사진 ${ok}장 보냄`,2200);
+  renderNas();}
+function nasKick(ms){if(!nasOk()||!settings.nasAuto)return;clearTimeout(nasTimer);nasTimer=setTimeout(()=>nasSend(false),ms||3000);}
+window.onNetChange=w=>{if(w)nasKick(4000);};
+$('#s-nasauto').onchange=()=>{settings.nasAuto=$('#s-nasauto').checked;LS.set('settings',settings);if(settings.nasAuto)nasKick(1000);};
 
 /* ---------- 숫자패드 ---------- */
 let kpT=null;
@@ -2093,7 +2138,7 @@ async function migrateDrawings(){const ds=await dbAll('drawings');let n=0;await 
   await migrateDrawings();
   renderHeader();show('map');
   askInspector();
-  if(NATIVE)setTimeout(()=>checkUpd(false),1500);
+  if(NATIVE)setTimeout(()=>checkUpd(false),1500);if(NATIVE)setTimeout(()=>nasKick(1),8000);   /* v1.38: 앱 켤 때 안 보낸 사진 NAS로 */
   if(NATIVE&&Android.inkPrepare)setTimeout(()=>Android.inkPrepare(),800);
   if(!NATIVE&&'serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
