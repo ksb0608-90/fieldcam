@@ -280,10 +280,10 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
     <div class="lbl" style="margin-top:0">NAS로 사진 보내기 (WebDAV)</div>
     <div class="muted">사진을 NAS 폴더로 보냄: 보낼 폴더/현장/시설물/조사자/사진/파일. 촬영기록 CSV·망도는 보내지 않음</div>
     <div class="sw"><div>NAS 주소</div><input id="nas-url" style="width:60%" placeholder="https://○○○.synology.me:3383" autocomplete="off"></div>
-    <div class="sw"><div>보낼 폴더<div class="muted">NAS 안 공유 폴더 경로 (예: /팀공유/인스펙맵)</div></div><input id="nas-folder" style="width:60%" placeholder="/공유폴더/인스펙맵" autocomplete="off"></div>
+    <div class="sw"><div>보낼 폴더<div class="muted"><span id="nas-folder-t">아직 안 고름</span></div></div><button class="btn" onclick="nasPick()">폴더 고르기</button><input id="nas-folder" type="hidden"></div>
     <div class="sw"><div>계정</div><input id="nas-user" style="width:60%" autocomplete="off"></div>
     <div class="sw"><div>비밀번호<div class="muted" id="nas-passinfo">태블릿 안에 암호화해서 저장</div></div><input id="nas-pass" type="password" style="width:60%" autocomplete="new-password"></div>
-    <div class="sw"><div id="nas-test-msg" class="muted"></div><button class="btn" onclick="nasSaveTest()">저장 · 연결 확인</button></div>
+    <div class="sw"><div id="nas-test-msg" class="muted">주소·계정·비밀번호를 넣고 [폴더 고르기] → 폴더를 눌러 들어가 [여기로 보내기]</div><button class="btn" onclick="nasSaveTest()">연결 확인</button></div>
     <div class="sw"><div>와이파이 연결되면 자동으로 보내기<div class="muted">앱을 켤 때·와이파이에 연결될 때·촬영할 때 아직 안 보낸 사진을 보냄</div></div><input type="checkbox" id="s-nasauto"></div>
     <div class="sw"><div>안 보낸 사진 <b id="nas-pend">-</b>장<div class="muted" id="nas-last"></div></div><button class="btn pri" onclick="nasSend(true)">지금 보내기</button></div>
   </div>
@@ -369,6 +369,11 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 <div class="updbar" id="updBar"><span class="t" id="upd-txt"></span><button class="btn" onclick="startUpd()" style="background:#fff;color:#027a48">업데이트</button><button class="btn" onclick="$('#updBar').classList.remove('on')" style="background:transparent;color:#fff">나중에</button></div>
 
 <!-- 입력창 -->
+<div class="modal" id="m-nasdir"><div class="box" style="max-width:520px">
+  <h3>보낼 폴더 고르기</h3><div id="nd-crumb" class="muted" style="margin-bottom:6px"></div>
+  <div id="nd-list" style="max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:10px"></div>
+  <div class="acts"><button class="btn" onclick="closeModal('m-nasdir')">닫기</button><span style="flex:1"></span><button class="btn" id="nd-new">＋ 새 폴더</button><button class="btn pri" id="nd-ok">여기로 보내기</button></div>
+</div></div>
 <div class="modal" id="m-in"><div class="box" style="max-width:460px">
   <h3 id="ib-title"></h3><input id="ib-in" style="width:100%" autocomplete="off">
   <div class="acts"><button class="btn" id="ib-no">취소</button><button class="btn pri" id="ib-ok">확인</button></div>
@@ -392,7 +397,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 
 <script>
 'use strict';
-const VERSION = '1.38.6';
+const VERSION = '1.38.7';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -774,10 +779,32 @@ function nasCfg(){try{return JSON.parse(Android.davGetConfig()||'{}');}catch(_){
 let nasBusy=false,nasTimer=null;
 async function nasPending(){return (await dbAll('records')).filter(r=>!r.nas&&r.file&&sessions.some(x=>x.id===r.sid));}
 async function renderNas(){const card=$('#nasCard');if(!nasOk()){card.style.display='none';$('#nasBtn').style.display='none';return;}
-  const c=nasCfg();$('#nas-url').value=c.url||'';$('#nas-folder').value=c.folder||'';$('#nas-user').value=c.user||'';$('#nas-pass').value='';
+  const c=nasCfg();$('#nas-url').value=c.url||'';$('#nas-folder').value=c.folder||'';$('#nas-folder-t').textContent=c.folder?'NAS › '+c.folder.split('/').filter(Boolean).join(' › '):'아직 안 고름';$('#nas-user').value=c.user||'';$('#nas-pass').value='';
   $('#nas-pass').placeholder=c.hasPass?'저장됨 (바꿀 때만 입력)':'';$('#s-nasauto').checked=!!settings.nasAuto;
   const n=(await nasPending()).length;$('#nas-pend').textContent=n;$('#nasBtn').textContent=`NAS로 보내기${n?' ('+n+')':''}`;$('#nasBtn').style.display=c.url?'':'none';
   $('#nas-last').textContent=settings.nasLast?'마지막 보냄: '+settings.nasLast:'';}
+/* v1.38: 보낼 폴더 고르기 – NAS 폴더를 눌러 들어가서 [여기로 보내기] */
+let ndPath=[];
+async function nasPick(){if(!nasOk())return toast('앱에서만 됩니다');
+  const r0=Android.davSetConfig($('#nas-url').value,$('#nas-folder').value,$('#nas-user').value,$('#nas-pass').value);
+  if(r0!=='OK'){toast(r0.slice(4),2500);return;}if(!$('#nas-user').value.trim()){toast('계정을 먼저 넣으세요',2000);return;}
+  ndPath=($('#nas-folder').value||'').split('/').filter(Boolean);openModal('m-nasdir');await ndLoad();}
+async function ndLoad(){const L=$('#nd-list');
+  $('#nd-crumb').innerHTML=['NAS',...ndPath].map((x,i)=>`<a data-i="${i}" style="cursor:pointer;font-weight:700">${esc(x)}</a>`).join(' › ');
+  $('#nd-crumb').querySelectorAll('a').forEach(a=>a.onclick=()=>{ndPath=ndPath.slice(0,+a.dataset.i);ndLoad();});
+  L.innerHTML='<div class="empty">불러오는 중…</div>';const r=await davCall('davList','/'+ndPath.join('/'));
+  if(r.startsWith('ERR')){L.innerHTML=`<div class="empty" style="color:#d92d20">${esc(r.slice(4))}</div>`;return;}
+  let d=[];try{d=JSON.parse(r).dirs||[];}catch(_){}
+  const row=(t,f)=>{const b=document.createElement('button');b.className='btn';b.style.cssText='display:flex;width:100%;justify-content:flex-start;border:0;border-bottom:1px solid var(--line);border-radius:0;min-height:48px;font-size:16px';b.textContent=t;b.onclick=f;return b;};
+  L.innerHTML='';if(ndPath.length)L.appendChild(row('← 위로',()=>{ndPath.pop();ndLoad();}));
+  d.forEach(n=>L.appendChild(row('📁 '+n,()=>{ndPath.push(n);ndLoad();})));
+  if(!d.length)L.insertAdjacentHTML('beforeend','<div class="empty">하위 폴더 없음 – [여기로 보내기] 또는 [＋ 새 폴더]</div>');
+  $('#nd-ok').disabled=!ndPath.length;}
+$('#nd-new').onclick=async()=>{const v=String(await inputBox('새 폴더 이름','')||'').trim().replace(/[\\/]/g,'');if(!v)return;
+  const r=await davCall('davMkdir','/'+[...ndPath,v].join('/'));if(r!=='OK'){toast(r.slice(4),2500);return;}ndPath.push(v);ndLoad();};
+$('#nd-ok').onclick=async()=>{if(!ndPath.length){toast('맨 위에는 보낼 수 없습니다 – 공유 폴더를 고르세요',2200);return;}const f='/'+ndPath.join('/');$('#nas-folder').value=f;
+  Android.davSetConfig($('#nas-url').value,f,$('#nas-user').value,$('#nas-pass').value);closeModal('m-nasdir');
+  const msg=$('#nas-test-msg');msg.textContent='✓ 보낼 폴더 저장됨';msg.style.color='#079455';renderNas();};
 async function nasSaveTest(){if(!nasOk())return toast('앱에서만 됩니다');
   const r0=Android.davSetConfig($('#nas-url').value,$('#nas-folder').value,$('#nas-user').value,$('#nas-pass').value);
   const msg=$('#nas-test-msg');if(r0!=='OK'){msg.textContent=r0.slice(4);msg.style.color='#d92d20';return;}

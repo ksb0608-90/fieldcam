@@ -1144,6 +1144,79 @@ public class MainActivity extends Activity {
             });
         }
 
+        /** v1.38: NAS 폴더 목록 (path = NAS 맨 위부터의 경로, "" = 맨 위) → window.onDav(id, '{"ok":true,"dirs":[..]}' 또는 'ERR:…') */
+        @JavascriptInterface
+        public void davList(final String reqId, final String path) {
+            final String q = JSONObject.quote(reqId);
+            davExec.execute(() -> {
+                String res;
+                try {
+                    HttpUrl base = HttpUrl.parse(prefsNas().getString("url", "").trim());
+                    if (base == null) throw new Exception("주소 형식 확인");
+                    HttpUrl.Builder b = base.newBuilder();
+                    for (String x : (path == null ? "" : path).split("/")) if (!x.trim().isEmpty()) b.addPathSegment(x.trim());
+                    HttpUrl u = b.build();
+                    String body;
+                    try (Response r = httpc().newCall(davReq(u).header("Depth", "1")
+                            .method("PROPFIND", RequestBody.create("<?xml version=\"1.0\"?><d:propfind xmlns:d=\"DAV:\"><d:prop><d:resourcetype/></d:prop></d:propfind>", MediaType.parse("application/xml"))).build()).execute()) {
+                        if (!(r.isSuccessful() || r.code() == 207)) throw new Exception(davErr(r).substring(4));
+                        body = r.body() != null ? r.body().string() : "";
+                    }
+                    String self = u.encodedPath().replaceAll("/+$", "");
+                    JSONArray dirs = new JSONArray();
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("<(?:[\\w-]+:)?response\\b.*?</(?:[\\w-]+:)?response>", java.util.regex.Pattern.DOTALL | java.util.regex.Pattern.CASE_INSENSITIVE).matcher(body);
+                    java.util.regex.Pattern hp = java.util.regex.Pattern.compile("<(?:[\\w-]+:)?href>(.*?)</(?:[\\w-]+:)?href>", java.util.regex.Pattern.DOTALL | java.util.regex.Pattern.CASE_INSENSITIVE);
+                    java.util.regex.Pattern cp = java.util.regex.Pattern.compile("<(?:[\\w-]+:)?collection\\b", java.util.regex.Pattern.CASE_INSENSITIVE);
+                    java.util.TreeSet<String> names = new java.util.TreeSet<>();
+                    while (m.find()) {
+                        String blk = m.group();
+                        if (!cp.matcher(blk).find()) continue;
+                        java.util.regex.Matcher h = hp.matcher(blk);
+                        if (!h.find()) continue;
+                        String href = h.group(1).trim().replace("&amp;", "&");
+                        HttpUrl hu = href.startsWith("http") ? HttpUrl.parse(href) : u.resolve(href);
+                        String ep = hu == null ? href : hu.encodedPath();
+                        ep = ep.replaceAll("/+$", "");
+                        if (ep.isEmpty() || Uri.decode(ep).equals(Uri.decode(self))) continue;
+                        String name = Uri.decode(ep.substring(ep.lastIndexOf('/') + 1));
+                        if (name.isEmpty() || name.startsWith("#") || name.startsWith("@") || name.startsWith(".")) continue;
+                        names.add(name);
+                    }
+                    for (String n : names) dirs.put(n);
+                    JSONObject o = new JSONObject();
+                    o.put("ok", true);
+                    o.put("dirs", dirs);
+                    res = o.toString();
+                } catch (java.net.UnknownHostException e) {
+                    res = "ERR:NAS 주소를 찾을 수 없음(인터넷·주소 확인)";
+                } catch (Exception e) {
+                    res = "ERR:" + e.getMessage();
+                }
+                callJs("window.onDav && window.onDav(" + q + "," + JSONObject.quote(res) + ")");
+            });
+        }
+
+        /** v1.38: NAS에 새 폴더 (path = 맨 위부터의 전체 경로) */
+        @JavascriptInterface
+        public void davMkdir(final String reqId, final String path) {
+            final String q = JSONObject.quote(reqId);
+            davExec.execute(() -> {
+                String res;
+                try {
+                    HttpUrl base = HttpUrl.parse(prefsNas().getString("url", "").trim());
+                    if (base == null) throw new Exception("주소 형식 확인");
+                    HttpUrl.Builder b = base.newBuilder();
+                    for (String x : (path == null ? "" : path).split("/")) if (!x.trim().isEmpty()) b.addPathSegment(x.trim());
+                    try (Response r = httpc().newCall(davReq(b.build()).method("MKCOL", null).build()).execute()) {
+                        res = r.code() == 201 || r.isSuccessful() ? "OK" : r.code() == 405 ? "ERR:같은 이름의 폴더가 있음" : davErr(r);
+                    }
+                } catch (Exception e) {
+                    res = "ERR:" + e.getMessage();
+                }
+                callJs("window.onDav && window.onDav(" + q + "," + JSONObject.quote(res) + ")");
+            });
+        }
+
         @JavascriptInterface
         public String version() {
             try {
