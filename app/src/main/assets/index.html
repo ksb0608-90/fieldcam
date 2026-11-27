@@ -169,6 +169,8 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 .fcard .n{color:var(--acc);font-weight:800;font-size:16px}
 .fcard img{width:100%;aspect-ratio:1.414;object-fit:contain;background:#f9fafb;border-radius:6px;border:1px solid #eef0f3}
 .fcard.all{background:#f9fafb;border-style:dashed}
+#shutter,#shutter2{display:none!important}   /* v1.38: 사진 탭 촬영·기본 카메라 버튼 없앰 */
+.fcard .fall{align-self:flex-start;font-size:14px;min-height:40px;padding:4px 12px;margin-top:2px}
 .qthumbs{display:flex;gap:6px;overflow-x:auto;padding:6px 0;border-top:1px solid #eef0f3}
 .qthumbs .th{flex:0 0 auto;width:86px;text-align:center;font-size:12px;color:var(--mut);cursor:pointer}
 .qthumbs img{width:86px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line);display:block}
@@ -379,7 +381,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 
 <script>
 'use strict';
-const VERSION = '1.38.4';
+const VERSION = '1.38.5';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -602,8 +604,8 @@ async function renderList(){await loadFolders();const sel=$('#listFilter');if(se
   if(L.page)cr.push([L.page==='*'?'전체 페이지':L.page==='?'?'페이지 미지정':L.page+'페이지',{site:L.site,sid:L.sid,did:L.did,page:L.page}]);
   $('#listCrumb').innerHTML=cr.map((c,i)=>`<a class="${i===cr.length-1?'cur':''}" data-i="${i}">${esc(c[0])}</a>`).join('<i>›</i>');
   $('#listCrumb').querySelectorAll('a').forEach(a=>a.onclick=()=>go(cr[+a.dataset.i][1]));
-  const body=$('#listBody');const cards=list=>`<div class="fgrid">${list.map((c,i)=>`<div class="fcard${c.all?' all':''}" data-i="${i}">${c.img!==undefined?`<img data-th="${i}" src="${c.img||''}" alt="">`:''}<b>${c.all?'':'📁 '}${esc(c.name)}</b>${c.sub?`<span class="muted">${esc(c.sub)}</span>`:''}${cnt(c.rs)}</div>`).join('')}</div>`;
-  const showCards=list=>{body.innerHTML=list.length?cards(list):'<div class="empty">없음</div>';body.querySelectorAll('.fcard').forEach(el=>el.onclick=()=>go(list[+el.dataset.i].to));
+  const body=$('#listBody');const cards=list=>`<div class="fgrid">${list.map((c,i)=>`<div class="fcard${c.all?' all':''}" data-i="${i}">${c.img!==undefined?`<img data-th="${i}" src="${c.img||''}" alt="">`:''}<b>${c.all?'':'📁 '}${esc(c.name)}</b>${c.sub?`<span class="muted">${esc(c.sub)}</span>`:''}${cnt(c.rs)}${c.allTo&&c.rs.length?`<button class="btn fall" data-a="${i}">이 망도 사진 전체 보기</button>`:''}</div>`).join('')}</div>`;
+  const showCards=list=>{body.innerHTML=list.length?cards(list):'<div class="empty">없음</div>';body.querySelectorAll('.fcard').forEach(el=>el.onclick=()=>go(list[+el.dataset.i].to));body.querySelectorAll('.fcard .fall').forEach(b=>b.onclick=e=>{e.stopPropagation();go(list[+b.dataset.a].allTo);});
     $('#listCount').textContent=`${list.filter(c=>!c.all).reduce((n,c)=>n+c.rs.length,0)}장`;};
   /* 단계 1: 현장 */
   if(!L.site&&!s){const sites=[...new Set(sessions.map(x=>x.site))].sort(ko);
@@ -613,9 +615,9 @@ async function renderList(){await loadFolders();const sel=$('#listFilter');if(se
     return showCards(facs.map(x=>{const many=facs.filter(z=>z.facility===x.facility).length>1;return {name:x.facility,sub:many||x.inspector!==settings.inspector?'조사자 '+x.inspector:'',rs:bySid.get(x.id)||[],to:{site:L.site,sid:x.id}};}));}
   const rsS=bySid.get(s.id)||[];
   /* 단계 3: 망도 */
-  if(!L.did){const list=dws.map(d=>({name:d.name,sub:`${d.pages.length}페이지`,rs:rsS.filter(r=>recIn(r,d)),to:{site:L.site,sid:s.id,did:d.id}}));
+  if(!L.did){const list=dws.map(d=>({name:d.name,sub:`${d.pages.length}페이지`,rs:rsS.filter(r=>recIn(r,d)),to:{site:L.site,sid:s.id,did:d.id},allTo:{site:L.site,sid:s.id,did:d.id,page:'*'}}));
     const none=rsS.filter(r=>!r.did&&!r.dname);if(none.length)list.push({name:'망도 없이 촬영',sub:'전경·일반 사진',rs:none,to:{site:L.site,sid:s.id,did:'-'}});
-    list.push({name:'이 시설물 사진 전체 보기',rs:rsS,all:true,to:{site:L.site,sid:s.id,did:'*'}});return showCards(list);}
+    return showCards(list);}   /* v1.38: 시설물 전체 보기 없앰 – 망도 카드마다 [이 망도 사진 전체 보기] */
   /* 단계 4: 페이지 */
   if(dsel&&!L.page){const rsD=rsS.filter(r=>recIn(r,dsel));const list=dsel.pages.map((pg,i)=>({name:`${pageNo(dsel,i)}페이지`,sub:'',img:'',ix:i,rs:rsD.filter(r=>recPno(r)===pageNo(dsel,i)),to:{site:L.site,sid:s.id,did:dsel.id,page:pageNo(dsel,i)}}));
     {const have=new Set(dsel.pages.map((_,i)=>pageNo(dsel,i)));const gone=[...new Set(rsD.map(recPno).filter(x=>x&&!have.has(x)))];
