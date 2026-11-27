@@ -378,7 +378,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 
 <script>
 'use strict';
-const VERSION = '1.38.1';
+const VERSION = '1.38.2';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -1227,7 +1227,7 @@ const live=(()=>{const cv=$('#liveCv');let g=null,raf=0,pts=[],pred=[],sty=null,
 /* 1. 그린 뒤 메뉴 자동 열기(0.8초) – 다시 그리기 시작하면 취소 */
 let amTimer=null;
 function autoMenu(m,q,ms){if(settings.autoMenu===false||!m)return;clearTimeout(amTimer);
-  amTimer=setTimeout(()=>{amTimer=null;if(G||penDown||!marks.includes(m)||$('#qmenu').classList.contains('on'))return;openMarkMenu(m,{x:q.x,y:q.y});},ms||800);}
+  amTimer=setTimeout(()=>{amTimer=null;if(G||penDown||!marks.includes(m)||$('#qmenu').classList.contains('on'))return;openMarkMenu(m,{x:q.x,y:q.y});},ms!=null?ms:500);}   /* v1.38: 0.8 → 0.5초 */
 const wp=e=>{const r=wrap.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};};
 const toPage=q=>[(q.x-mv.tx)/mv.s,(q.y-mv.ty)/mv.s];
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
@@ -1298,10 +1298,10 @@ async function endPtr(e){if(e.pointerType==='pen')penDown=false;if(!ptrs.has(e.p
     flushInk();
     let pts=g.pts;if(pts.length>400){const st=Math.ceil(pts.length/400);pts=pts.filter((_,i)=>i%st===0||i===pts.length-1);}
     let len=0;for(let i=1;i<g.spts.length;i++)len+=Math.hypot(g.spts[i][0]-g.spts[i-1][0],g.spts[i][1]-g.spts[i-1][1]);
-    {const jm=await tryJoin(g,pts);if(jm){if(g._rent)g._rent.ref={mark:jm.id};autoMenu(jm,g.last,jm.shape==='line'?1500:800);return;}}
+    {const jm=await tryJoin(g,pts);if(jm){if(g._rent)g._rent.ref={mark:jm.id};autoMenu(jm,g.last,jm.shape==='line'?1000:500);return;}}
     const nm=await newMark(isClosed(g.spts)?'area':'line',isClosed(g.spts)?snapRect(pts):pts,null,PEN_TYPE[g.col]||'금회',{pw:g.pw,hl:g.hl});if(g._rent&&nm)g._rent.ref={mark:nm.id};
     const straight=nm&&nm.shape==='line'&&Math.hypot(g.spts[g.spts.length-1][0]-g.spts[0][0],g.spts[g.spts.length-1][1]-g.spts[0][1])>len*0.9;   /* 곧은 선 = 네모의 한 변일 수 있어 1.5초 */
-    autoMenu(nm,g.last,straight?1500:800);}}
+    autoMenu(nm,g.last,straight?1000:500);}}
 /* 네모 판정(모양 기준): 획들의 가로 부분·세로 부분으로 위·아래·왼쪽·오른쪽 변 위치를 잡고,
    네 변을 각각 70% 이상 덮고 변에서 벗어난 점이 15% 이하면 네모. 그리는 순서·획 수·모서리 교차/틈 무관,
    허용 범위는 네모 크기 비율(확대·축소와 무관). 결과는 반듯한 네모 꼭짓점(페이지 좌표) */
@@ -1433,7 +1433,7 @@ function addInkStroke(g){const p=curD.pages[curPage];if(g._rent){g._rent.ref={in
   if(inkGroup&&(inkGroup.col!==g.col||inkGroup.page!==curPage||inkGroup.did!==curDid))flushInk();
   if(!inkGroup)inkGroup={did:curDid,page:curPage,strokes:[],spts:[],x0:1e9,y0:1e9,x1:-1e9,y1:-1e9,col:g.col||'red',pw:g.pw,hl:g.hl};
   inkGroup.strokes.push(g.pts);inkGroup.spts.push(g.spts);for(const q of g.pts){inkGroup.x0=Math.min(inkGroup.x0,q[0]);inkGroup.y0=Math.min(inkGroup.y0,q[1]);inkGroup.x1=Math.max(inkGroup.x1,q[0]);inkGroup.y1=Math.max(inkGroup.y1,q[1]);}
-  clearTimeout(inkTimer);inkTimer=setTimeout(flushInk,inkGroup.col==='black'?1800:1100);drawMarks();}
+  clearTimeout(inkTimer);inkTimer=setTimeout(flushInk,inkGroup.col==='black'?1800:900);   /* v1.38: 작은 획 판정 1.1 → 0.9초 */drawMarks();}
 function inkTarget(gr){const p=curD.pages[curPage];const c=pg2s([(gr.x0+gr.x1)/2,(gr.y0+gr.y1)/2]);const lnk=new Set(marks.filter(k=>k.shape==='ink'&&k.markId).map(k=>k.markId));
   let best=null,bs=230;for(const m of marks){if(m.shape==='ink'||m.did!==gr.did||m.page!==gr.page)continue;
     let sc=markDist(m,c);const age=(Date.now()-(m.ts||0))/1000;if(age<90)sc-=40;if(lnk.has(m.id))sc+=90;if(sc<bs){bs=sc;best=m;}}return best;}
@@ -1441,8 +1441,13 @@ async function flushInk(){clearTimeout(inkTimer);if(!inkGroup)return;const gr=in
   if(gr.col!=='black'&&gr.page===curPage){const cs=rectFit(gr.strokes);if(cs){const g0={col:gr.col,pw:gr.pw,hl:gr.hl};await rectMake([],cs,g0);return;}}   /* 작은 네모(글씨 크기 획들) */
   const p=curD.pages[gr.page],s=curSess();const note=gr.col==='black';
   if(!note&&gr.strokes.length===1&&isClosed(gr.spts[0])){const pts=gr.strokes[0];newMark('area',snapRect(pts),null,PEN_TYPE[gr.col]||'금회',{pw:gr.pw,hl:gr.hl});return;}
+  /* v1.38: 물량 입력 후 5초 지났거나 사진을 찍은 손상 옆의 작은 획(1~3획) = 획마다 균열('1'·'11'로 물량 덮어쓰기 방지). 4획 이상은 글씨 */
+  if(!note&&gr.page===curPage&&gr.strokes.length<=3){const t=inkTarget(gr);const hasSize=t&&(t.w||t.l||t.n);
+    if(t&&t.shape!=='point'&&((t.photoNos&&t.photoNos.length)||(hasSize&&Date.now()-(t.sizeTs||0)>=5000))){const ok=gr.spts.map((sp,i)=>{const b=sbb(sp);return Math.max(b.w,b.h)>=12?i:-1;}).filter(i=>i>=0);
+      if(ok.length){let nm=null;for(const i of ok){nm=await newMark('line',gr.strokes[i],null,PEN_TYPE[gr.col]||'금회',{pw:gr.pw,hl:gr.hl})||nm;const re=rectBuf.find(r=>r.inkRef===gr.strokes[i]);if(re&&nm)re.ref={mark:nm.id};}
+        if(nm){const sp=gr.spts[ok[ok.length-1]],e=sp[sp.length-1];autoMenu(nm,{x:e[0],y:e[1]},0);}return;}}}
   if(!note&&gr.page===curPage&&gr.strokes.length===1&&(()=>{const sp=gr.spts[0],b=sbb(sp);if(onStruct(gr.strokes[0])&&Math.max(b.w,b.h)>=26&&!nearDamage(b))return true;if(Math.max(b.w,b.h)>=26&&straightStroke(sp)&&nearDamage(b))return true;   /* v1.38: 손상 옆에 혼자 그은 곧은 한 획(4mm↑) = 균열('1'로 읽지 않음) */return smoothStroke(sp);})()&&!(()=>{const e=rectBuf.find(r=>r.inkRef===gr.strokes[0]);if(!e)return false;const b0=sbb(e.pts),R=Math.max(b0.w,b0.h)*1.5;return rectBuf.some(r=>{if(r===e||Math.abs(r.t-e.t)>3000)return false;if(r.t<e.t&&r.ref&&r.ref.mark)return false;   /* v1.38: 앞서 이미 손상이 된 획(옆 균열)은 네모 그리는 중으로 보지 않음 */const b=sbb(r.pts);return b.x1>b0.x0-R&&b.x0<b0.x1+R&&b.y1>b0.y0-R&&b.y0<b0.y1+R;});})()){   /* 네모를 그리는 중인 획은 제외 */   /* 혼자 그은 매끄러운 한 획 = 짧은 균열 */
-    const nm=await newMark('line',gr.strokes[0],null,PEN_TYPE[gr.col]||'금회',{pw:gr.pw,hl:gr.hl});{const re=rectBuf.find(r=>r.inkRef===gr.strokes[0]);if(re&&nm)re.ref={mark:nm.id};}if(nm){const e=gr.spts[0][gr.spts[0].length-1];autoMenu(nm,{x:e[0],y:e[1]},200);}return;}
+    const nm=await newMark('line',gr.strokes[0],null,PEN_TYPE[gr.col]||'금회',{pw:gr.pw,hl:gr.hl});{const re=rectBuf.find(r=>r.inkRef===gr.strokes[0]);if(re&&nm)re.ref={mark:nm.id};}if(nm){const e=gr.spts[0][gr.spts[0].length-1];autoMenu(nm,{x:e[0],y:e[1]},0);}return;}
   const tgt=note?null:inkTarget(gr);
   const k={id:uid(),sid:s.id,did:gr.did,page:gr.page,shape:'ink',kind:note?'note':'text',color:gr.col,pw:gr.pw,hl:gr.hl,pts:[[0,0]],strokes:gr.strokes.map(st=>st.map(q=>[+(q[0]/p.w).toFixed(5),+(q[1]/p.h).toFixed(5)])),
     bb:[gr.x0/p.w,gr.y0/p.h,gr.x1/p.w,gr.y1/p.h],text:'',ok:false,markId:tgt?tgt.id:'',photoNos:[],created:nowStr(),ts:Date.now()};
@@ -1498,7 +1503,7 @@ window.onInkResult=async(id,cands)=>{if(padPending[id]){const f=padPending[id];d
   drawMarks();if(!p)toast(`글씨 인식: "${raw||'?'}" – 형식 확인 필요 (글씨를 눌러 수정)`,3000);};
 /* 단위 없이 숫자만 쓴 규모(박리 2): 기본 길이, 손상명별로 마지막에 고른 쪽(개소/길이)을 기억해서 적용. 선(균열)은 항상 길이 */
 const numMode=nm=>(LS.get('nmode',{})[nm||'']||'l');
-function applyParsed(m,p){if(p.weak&&p.lenOnly&&!p.n&&m.shape!=='line'){const v=p.l;m.numOnly=v;
+function applyParsed(m,p){m.sizeTs=Date.now();if(p.weak&&p.lenOnly&&!p.n&&m.shape!=='line'){const v=p.l;m.numOnly=v;
     if(numMode(m.content)==='n'){m.n=v;m.l='';m.w='';m.b='';return;}m.n='';}
   else if(p.w!==undefined||p.l||p.n)delete m.numOnly;
   if(p.b!==undefined)m.b=p.b;else if(p.w!==undefined&&p.l!==undefined&&m.shape==='area')m.b='';if(p.lenOnly&&m.shape!=='line'){m.w='';}   /* 선(균열)은 폭 버튼으로 고른 폭 유지 → 0.2/0.3 */if(p.w!==undefined&&m.shape!=='area'&&(!m.group||isGrp(m))){m.w=p.w;}if(p.w!==undefined&&m.shape==='area'){m.w=p.w;}
@@ -1687,7 +1692,8 @@ function makePad(m,q){const box=document.createElement('div');box.className='qpa
   const updHead=()=>{$('#qm-h').textContent=menuHead(m);};
   return box;}
 /* 목록에 없는 손상명: 한글 손글씨로 써서 후보 중 선택 → 손상명 목록에도 추가 */
-let namePadOpen=false,koState='none';const koWait=[];
+let namePadOpen=false,koState='none',padPick=null;   /* v1.38: 손상명 손글씨 후보 중 고르기 전 첫 후보(다른 버튼 눌러도 사라지지 않게 자동 반영) */
+async function applyPadPick(){const pp=padPick;padPick=null;if(!pp||!marks.includes(pp.m))return;pp.m.content=pp.name;pp.m.contentManual=true;addCustomDmg(pp.name,pp.m.shape);await saveMarkObj(pp.m);namePadOpen=false;toast(`손상명 "${pp.name}" 반영`,1500);}const koWait=[];
 window.onInkLangStatus=(lang,st)=>{if(lang!=='ko')return;koState=st.startsWith('error')?'error':st;if(st==='ready')koWait.splice(0).forEach(f=>f());
   document.querySelectorAll('.npad .res').forEach(el=>{if(koState==='downloading')el.innerHTML='<span class="muted">한글 인식 모델 내려받는 중… (처음 1번, 인터넷 필요)</span>';
     else if(koState==='error')el.innerHTML='<span style="color:#d92d20">한글 인식 준비 실패 (인터넷 연결 확인) – [키보드]</span>';else if(koState==='ready'&&/내려받는/.test(el.textContent))el.innerHTML='<span class="muted">손상명을 펜으로 쓰세요</span>';});};
@@ -1702,7 +1708,22 @@ function dictSuggest(cands){const dict=[...new Set([...preset().dmg,...DMG_DICT]
     for(const w of dict){const jw=jamo(w);const d=lev(jc,jw)/Math.max(jc.length,jw.length)+ci*0.01;if(d<=0.34&&(!sc.has(w)||d<sc.get(w)))sc.set(w,d);}});
   return [...sc.entries()].sort((a,b)=>a[1]-b[1]).map(e=>e[0]).slice(0,3);}
 /* 펜 글씨 한 번에 숫자·규모(영문 모델)와 한글 손상명(한국어 모델)을 함께 인식 */
-function inkBoth(json,W,H){return new Promise(res=>{const out={en:null,ko:null};let fin=false;const done=()=>{if(!fin&&out.en!==null&&out.ko!==null){fin=true;res(out);}};
+/* v1.38 숫자 1·7 구분: 획 모양으로 1/7 판정(7 = 위 가로획 → 아래로 내려감, 1 = 좁고 곧게 세운 획) → 인식 후보 중 1·7 자리만 다른 것이면 획 모양과 맞는 쪽으로 */
+function shape17(sts){let mh=0;const info=sts.map(st=>{const b=sbb(st);mh=Math.max(mh,b.h);return b;});const out=[];
+  sts.forEach((st,i)=>{const b=info[i],h=b.h;if(h<8||h<mh*0.55)return;let it=0;for(let k=1;k<st.length;k++)if(st[k][1]<st[it][1])it=k;
+    /* 위 가로획: 시작부터 (맨 위+30% 높이) 아래로 내려가기 전까지 오른쪽으로 간 거리 */
+    let bx=st[0][0],bi=0;for(let k=0;k<st.length;k++){if(st[k][1]>b.y0+h*0.3)break;if(st[k][0]>bx){bx=st[k][0];bi=k;}}const bar=bx-st[0][0];
+    let reb=0,mn=1e9;for(let k=bi;k<st.length;k++){mn=Math.min(mn,st[k][0]);reb=Math.max(reb,st[k][0]-mn);}
+    const e=st[st.length-1];const is7=bar>=h*0.3&&e[1]-b.y0>=h*0.6&&reb<=h*0.25&&st[0][1]<=b.y0+h*0.3;
+    const bot=st.reduce((a,q)=>q[1]>a[1]?q:a,st[0]);const is1=!is7&&b.w<=h*0.4&&Math.abs(bot[0]-st[it][0])<=h*0.35;
+    if(is7||is1)out.push([(b.x0+b.x1)/2,is7?'7':'1']);});
+  return out.sort((a,c)=>a[0]-c[0]).map(a=>a[1]).join('');}
+function fix17(list,sts){if(!list||!list.length||!sts||!sts.length)return list;const top=String(list[0]);const tq=(top.match(/[17]/g)||[]).join('');if(!tq)return list;
+  let ty;try{ty=shape17(sts);}catch(_){return list;}if(!ty||ty.length!==tq.length||ty===tq)return list;
+  const only17=c=>{c=String(c);if(c.length!==top.length)return false;for(let i=0;i<c.length;i++)if(c[i]!==top[i]&&!('17'.includes(c[i])&&'17'.includes(top[i])))return false;return true;};
+  const alt=list.find(c=>only17(c)&&(String(c).match(/[17]/g)||[]).join('')===ty);
+  let k=0;const fixed=alt?String(alt):top.replace(/[17]/g,()=>ty[k++]);return [fixed,...list.filter(c=>String(c)!==fixed)];}
+function inkBoth(json,W,H){return new Promise(res=>{const out={en:null,ko:null};let fin=false;const done=()=>{if(!fin&&out.en!==null&&out.ko!==null){fin=true;try{const sts=JSON.parse(json);out.en=fix17(out.en,sts);out.ko=fix17(out.ko,sts);}catch(_){}res(out);}};
   setTimeout(()=>{if(out.en===null)out.en=[];if(out.ko===null)out.ko=[];done();},6000);
   const id1='be'+uid(),id2='bk'+uid();padPending[id1]=c=>{out.en=c||[];done();};
   if(NATIVE&&Android.inkRecognize&&inkState==='ready')Android.inkRecognize(id1,json);else if(window.__mockInk)setTimeout(()=>window.onInkResult(id1,window.__mockInk(json)),30);else{delete padPending[id1];out.en=[];}
@@ -1813,17 +1834,17 @@ function makeNamePad(m,q){koPrepare();const box=document.createElement('div');bo
   const up=e=>{if(!cur)return;cur=null;if(e.pointerType==='pen')penOn=false;clearTimeout(timer);timer=setTimeout(recog,1500);};
   cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
   g.save();g.strokeStyle='#d0d5dd';g.setLineDash([6,6]);g.lineWidth=1;g.beginPath();g.moveTo(10,H*0.78);g.lineTo(W-10,H*0.78);g.stroke();g.restore();g.lineWidth=3;
-  const pick=async name=>{name=String(name||'').replace(/\s+/g,'').trim();if(!name)return;m.content=name;m.contentManual=true;addCustomDmg(name,m.shape);await saveMarkObj(m);namePadOpen=false;openMarkMenu(m,q);toast(`손상명 "${name}" – 다음부터 목록에서 선택`,2500);};
+  const pick=async name=>{padPick=null;name=String(name||'').replace(/\s+/g,'').trim();if(!name)return;m.content=name;m.contentManual=true;addCustomDmg(name,m.shape);await saveMarkObj(m);namePadOpen=false;openMarkMenu(m,q);toast(`손상명 "${name}" – 다음부터 목록에서 선택`,2500);};
   const showC=list=>{const raw=[...new Set((list||[]).map(c=>String(c).replace(/\s+/g,'')).filter(c=>/[가-힣]/.test(c)))];const sug=dictSuggest(raw);
     const all=[...sug.map(c=>[c,1]),...raw.filter(c=>!sug.includes(c)).slice(0,Math.max(2,4-sug.length)).map(c=>[c,0])];cands.innerHTML='';
     if(!all.length){res.innerHTML='<span style="color:#d92d20">인식 못 함 – 다시 쓰거나 [키보드]</span>';return;}
-    res.innerHTML='<span class="muted">맞는 것을 누르세요'+(sug.length?' (📘 = 손상명 목록에서 찾은 것)':'')+'</span>';all.forEach(([c,d],i)=>cands.appendChild(qbtn((d?'📘 ':'')+esc(c),'chip'+(i===0?' on':''),()=>pick(c))));};
+    padPick={m,name:all[0][0]};res.innerHTML='<span class="muted">맞는 것을 누르세요'+(sug.length?' (📘 = 손상명 목록에서 찾은 것)':'')+'</span>';all.forEach(([c,d],i)=>cands.appendChild(qbtn((d?'📘 ':'')+esc(c),'chip'+(i===0?' on':''),()=>pick(c))));};
   const recog=()=>{if(!strokes.length)return;const id='np'+uid();const t0=strokes[0][0][2];
     const json=JSON.stringify(strokes.map(st=>st.map(a=>[+a[0].toFixed(1),+a[1].toFixed(1),a[2]-t0])));
     const run=()=>{res.innerHTML='<span class="muted">인식 중…</span>';padPending[id]=showC;
       if(NATIVE&&Android.inkRecognizeLangArea&&koState==='ready')Android.inkRecognizeLangArea('ko',id,json,W,H);else if(NATIVE&&Android.inkRecognizeLang&&koState==='ready')Android.inkRecognizeLang('ko',id,json);else if(window.__mockInkKo)setTimeout(()=>window.onInkResult(id,window.__mockInkKo()),50);else{delete padPending[id];showC([]);}};
     if(koState==='ready'||!NATIVE||!Android.inkRecognizeLang)run();else{koWait.push(run);koPrepare();}};
-  box.querySelector('[data-a=clr]').onclick=e=>{e.stopPropagation();strokes=[];g.clearRect(0,0,W,H);cands.innerHTML='';g.save();g.strokeStyle='#d0d5dd';g.setLineDash([6,6]);g.lineWidth=1;g.beginPath();g.moveTo(10,H*0.78);g.lineTo(W-10,H*0.78);g.stroke();g.restore();res.innerHTML='<span class="muted">손상명을 펜으로 쓰세요 (한 줄로, 다 쓰면 잠깐 멈추기)</span>';};
+  box.querySelector('[data-a=clr]').onclick=e=>{e.stopPropagation();padPick=null;strokes=[];g.clearRect(0,0,W,H);cands.innerHTML='';g.save();g.strokeStyle='#d0d5dd';g.setLineDash([6,6]);g.lineWidth=1;g.beginPath();g.moveTo(10,H*0.78);g.lineTo(W-10,H*0.78);g.stroke();g.restore();res.innerHTML='<span class="muted">손상명을 펜으로 쓰세요 (한 줄로, 다 쓰면 잠깐 멈추기)</span>';};
   box.querySelector('[data-a=kb]').onclick=async e=>{e.stopPropagation();const v=await inputBox('손상명 직접 입력','');if(v)await pick(v);};
   return box;}
 /* 손상 표시에 연결된 사진 */
@@ -1892,7 +1913,7 @@ function makeExistNum(m,q){const box=document.createElement('div');box.className
 function menuHead(m){if(isGrp(m))return `묶음 ${gMem(m).length}개 · ${m.dmg?'#'+m.dmg+' ':''}${m.content||'균열'} ${sizeStr(m)}`.trim()+(m.photoNos&&m.photoNos.length?` · 사진 ${nosLabel(m.photoNos)}`:'');return `${m.group?'묶음선':(m.dmg?'#'+m.dmg+' ':'')+(m.content||SHAPE_NAME[m.shape])} ${sizeStr(m)}`.trim()+(m.photoNos&&m.photoNos.length?` · 사진 ${nosLabel(m.photoNos)}`:'');}
 
 /* ---------- 빠른 메뉴 ---------- */
-function hideQMenu(){$('#qmenu').classList.remove('on','narrow');qmKey=null;chipEditOn=false;if(tblSel){tblSel=null;drawMarks();}}
+function hideQMenu(){if(padPick)applyPadPick().then(()=>drawMarks());$('#qmenu').classList.remove('on','narrow');qmKey=null;chipEditOn=false;if(tblSel){tblSel=null;drawMarks();}}
 let qmKey=null,chipEditOn=false;
 /* 손상 표시(정규화 좌표)의 화면 상자 */
 function normBox(pts){const p=curD.pages[curPage];let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const t of pts){const a=pg2s([t[0]*p.w,t[1]*p.h]);x0=Math.min(x0,a.x);y0=Math.min(y0,a.y);x1=Math.max(x1,a.x);y1=Math.max(y1,a.y);}
@@ -1925,6 +1946,7 @@ async function openMenuAt(q){const m=hitMark(q);if(m)return openMarkMenu(m,q);co
   b.appendChild(r);placeQMenu(q);}
 async function openMarkMenu(m,q,full){if(!full&&m.src==='pdf'&&m.lbox&&m.type!=='변경'){openPdfLabelMenu({num:m.dmg,name:m.content||'',size:m.note||'',box:m.lbox,dno:m.dno||''},q);return;}
   {const g=grpOf(m);if(g)m=g;}const grp=isGrp(m);
+  if(padPick)await applyPadPick();
   if(selMark!==m){namePadOpen=false;chipEditOn=false;}selMark=m;drawMarks();const b=$('#qm-b');b.innerHTML='';
   $('#qm-h').textContent=menuHead(m);
   const shootRow=qrow();
@@ -1934,7 +1956,7 @@ async function openMarkMenu(m,q,full){if(!full&&m.src==='pdf'&&m.lbox&&m.type!==
   if(!m.group||grp){r=qrow();const list=m.shape==='line'?LINE_DMG():m.shape==='area'?AREA_DMG():preset().dmg;
     r.classList.add('dmgrow');    const lst=list.slice();if(m.content&&!lst.includes(m.content))lst.push(m.content);
     lst.forEach(c=>{const bt=qbtn(esc(c),'chip'+(m.content===c?' on':''),async()=>{m.content=c;m.contentManual=true;await saveMarkObj(m);openMarkMenu(m,q);});if(list.includes(c))bt.dataset.nm=c;r.appendChild(bt);});
-    r.appendChild(qbtn('＋ 직접','chip'+(namePadOpen?' on':''),()=>{namePadOpen=!namePadOpen;openMarkMenu(m,q);}));
+    r.appendChild(qbtn('＋ 직접','chip'+(namePadOpen?' on':''),()=>{if(namePadOpen&&padPick)padPick=null;namePadOpen=!namePadOpen;openMarkMenu(m,q);}));
     r.appendChild(qbtn(chipEditOn?'✓ 편집 끝':'✎ 편집','chip edt'+(chipEditOn?' on':''),()=>{chipEditOn=!chipEditOn;openMarkMenu(m,q);}));b.appendChild(r);chipEdit(r,m,q);
     if(namePadOpen)b.appendChild(makeNamePad(m,q));
     if(m.shape==='line'){const wr=qrow();wr.classList.add('dmgrow','wsrow');const lb=document.createElement('span');lb.className='muted';lb.textContent='폭';lb.style.cssText='align-self:center;margin-right:2px';wr.appendChild(lb);
