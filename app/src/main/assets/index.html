@@ -28,6 +28,7 @@ nav button.on{color:var(--pri);font-weight:700;box-shadow:inset 0 3px 0 var(--pr
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:9px 14px;font-size:16px;color:var(--txt)}
 .chip.on{background:var(--pri);border-color:var(--pri);color:#fff}
+.chip.offl{border-style:dashed}
 .chip.rec{border-style:dashed}
 input,select,textarea{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--txt);min-width:0}
 textarea{width:100%;min-height:80px}
@@ -378,7 +379,7 @@ input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 
 <script>
 'use strict';
-const VERSION = '1.38.3';
+const VERSION = '1.38.4';
 const NATIVE = !!(window.Android && window.Android.begin);
 const $ = s => document.querySelector(s);
 const TYPES = ['금회','기존','변경','보수','삭제','일반'];
@@ -1773,7 +1774,7 @@ function chipEdit(row,m,q,L){L=L||{get:()=>preset().dmg,save:savePresetDmg,what:
     x.addEventListener('pointerdown',e=>{e.stopPropagation();e.preventDefault();});
     x.addEventListener('click',async e=>{e.stopPropagation();e.preventDefault();const nm=b.dataset.nm;const a=L.get();const pos=a.indexOf(nm);if(pos<0)return;
       a.splice(pos,1);L.save(a);toast(`"${nm}" 목록에서 삭제`,1800);
-      if(L.what==='목록'&&m&&m.content===nm){m.content='';m.contentManual=false;await saveMarkObj(m);}   /* v1.38: 지금 고른 이름을 지우면 바로 사라지게 */
+      if(L.what==='목록'&&m&&m.content===nm)toast(`"${nm}" 목록에서 삭제 – 이 손상의 손상명은 그대로`,2200);   /* v1.38: 목록에서만 지움, 손상에 들어간 이름은 유지 */
       openMarkMenu(m,q);});}
     b.addEventListener('contextmenu',e=>e.preventDefault());
     b.addEventListener('click',e=>{if(b._noClick){b._noClick=false;e.stopImmediatePropagation();e.preventDefault();}},true);
@@ -1960,7 +1961,8 @@ async function openMarkMenu(m,q,full){if(!full&&m.src==='pdf'&&m.lbox&&m.type!==
   let r;
   if(!m.group||grp){r=qrow();const list=m.shape==='line'?LINE_DMG():m.shape==='area'?AREA_DMG():preset().dmg;
     r.classList.add('dmgrow');    const lst=list.slice();if(m.content&&!lst.includes(m.content))lst.push(m.content);
-    lst.forEach(c=>{const bt=qbtn(esc(c),'chip'+(m.content===c?' on':''),async()=>{m.content=c;m.contentManual=true;await saveMarkObj(m);openMarkMenu(m,q);});if(list.includes(c))bt.dataset.nm=c;r.appendChild(bt);});
+    lst.forEach(c=>{if(!list.includes(c)&&chipEditOn)return;   /* 목록에 없는 이 손상의 이름: 편집 중엔 숨김(지운 게 바로 사라져 보이게), 평소엔 점선 표시 */
+      const bt=qbtn(esc(c),'chip'+(m.content===c?' on':'')+(list.includes(c)?'':' offl'),async()=>{m.content=c;m.contentManual=true;await saveMarkObj(m);openMarkMenu(m,q);});if(list.includes(c))bt.dataset.nm=c;r.appendChild(bt);});
     r.appendChild(qbtn('＋ 직접','chip'+(namePadOpen?' on':''),()=>{if(namePadOpen&&padPick)padPick=null;namePadOpen=!namePadOpen;openMarkMenu(m,q);}));
     r.appendChild(qbtn(chipEditOn?'✓ 편집 끝':'✎ 편집','chip edt'+(chipEditOn?' on':''),()=>{chipEditOn=!chipEditOn;openMarkMenu(m,q);}));b.appendChild(r);chipEdit(r,m,q);
     if(namePadOpen)b.appendChild(makeNamePad(m,q));
